@@ -144,7 +144,7 @@ app.get(
       status: 'ok',
       service:
         'scottibyte-assist-server',
-      version: '0.6.0',
+      version: '0.7.0',
       protocolVersion: 3,
       websocket: websocketStats(),
       timestamp: new Date().toISOString()
@@ -452,7 +452,7 @@ httpServer.listen(
   host,
   () => {
     console.log(
-      `ScottiBYTE Assist Server v0.6.0 listening on http://${host}:${port}`
+      `ScottiBYTE Assist Server v0.7.0 listening on http://${host}:${port}`
     );
   }
 );
