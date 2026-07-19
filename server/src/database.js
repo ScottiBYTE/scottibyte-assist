@@ -48,6 +48,7 @@ function createSessionsTable() {
       ),
       customer_device_id TEXT,
       customer_token_hash TEXT,
+      receipt_token_hash TEXT,
       supporter_device_id TEXT,
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
@@ -107,6 +108,7 @@ function migrateLegacySessionsTable() {
       ),
       customer_device_id TEXT,
       customer_token_hash TEXT,
+      receipt_token_hash TEXT,
       supporter_device_id TEXT,
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
@@ -120,6 +122,7 @@ function migrateLegacySessionsTable() {
       status,
       customer_device_id,
       customer_token_hash,
+      receipt_token_hash,
       supporter_device_id,
       created_at,
       expires_at,
@@ -134,6 +137,7 @@ function migrateLegacySessionsTable() {
         ELSE 'EXPIRED'
       END,
       customer_device_id,
+      NULL,
       NULL,
       supporter_device_id,
       created_at,
@@ -157,6 +161,36 @@ function migrateLegacySessionsTable() {
       ON sessions(expires_at);
 
     COMMIT;
+  `);
+}
+
+function columnExists(
+  tableName,
+  columnName
+) {
+  return database.prepare(`
+    SELECT name
+    FROM pragma_table_info(?)
+    WHERE name = ?
+  `).get(
+    tableName,
+    columnName
+  );
+}
+
+function ensureReceiptTokenColumn() {
+  if (
+    columnExists(
+      'sessions',
+      'receipt_token_hash'
+    )
+  ) {
+    return;
+  }
+
+  database.exec(`
+    ALTER TABLE sessions
+    ADD COLUMN receipt_token_hash TEXT;
   `);
 }
 
@@ -206,6 +240,7 @@ function createAuditTable() {
 }
 
 migrateLegacySessionsTable();
+ensureReceiptTokenColumn();
 createAuditTable();
 
 function canonicalize(value) {

@@ -65,7 +65,7 @@ function generateCode() {
     .padStart(6, '0');
 }
 
-function generateCustomerToken() {
+function generateToken() {
   return randomBytes(32).toString('hex');
 }
 
@@ -102,9 +102,14 @@ export function createCustomerSession({
   const id = randomUUID();
   const code = createUniqueCode();
   const customerToken =
-    generateCustomerToken();
+    generateToken();
   const customerTokenHash =
     hashToken(customerToken);
+
+  const receiptToken =
+    generateToken();
+  const receiptTokenHash =
+    hashToken(receiptToken);
   const createdAt = new Date();
 
   const expiresAt = new Date(
@@ -121,6 +126,7 @@ export function createCustomerSession({
       status,
       customer_device_id,
       customer_token_hash,
+      receipt_token_hash,
       created_at,
       expires_at
     )
@@ -131,6 +137,7 @@ export function createCustomerSession({
       ?,
       ?,
       ?,
+      ?,
       ?
     )
   `).run(
@@ -138,6 +145,7 @@ export function createCustomerSession({
     code,
     customerDeviceId,
     customerTokenHash,
+    receiptTokenHash,
     createdAt.toISOString(),
     expiresAt.toISOString()
   );
@@ -163,7 +171,8 @@ export function createCustomerSession({
 
   return {
     session: getSession(code),
-    customerToken
+    customerToken,
+    receiptToken
   };
 }
 
@@ -309,6 +318,28 @@ export function validateCustomerToken(
   return safeHashMatch(
     customerToken,
     row.customer_token_hash
+  );
+}
+
+export function validateReceiptToken(
+  code,
+  receiptToken
+) {
+  expireOldSessions();
+
+  const row = database.prepare(`
+    SELECT receipt_token_hash
+    FROM sessions
+    WHERE code = ?
+  `).get(code);
+
+  if (!row) {
+    return false;
+  }
+
+  return safeHashMatch(
+    receiptToken,
+    row.receipt_token_hash
   );
 }
 
