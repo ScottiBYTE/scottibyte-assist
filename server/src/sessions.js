@@ -7,6 +7,7 @@ import {
 } from 'node:crypto';
 
 import {
+  appendAuditEvent,
   database,
   expireOldSessions,
   normalizeSession
@@ -93,7 +94,8 @@ function createUniqueCode() {
 }
 
 export function createCustomerSession({
-  customerDeviceId = null
+  customerDeviceId = null,
+  sourceIp = null
 } = {}) {
   expireOldSessions();
 
@@ -140,6 +142,25 @@ export function createCustomerSession({
     expiresAt.toISOString()
   );
 
+  try {
+    appendAuditEvent({
+      sessionId: id,
+      eventType: 'session.created',
+      actorRole: 'customer',
+      actorId: customerDeviceId,
+      metadata: {
+        sourceIp
+      }
+    });
+  } catch (error) {
+    database.prepare(`
+      DELETE FROM sessions
+      WHERE id = ?
+    `).run(id);
+
+    throw error;
+  }
+
   return {
     session: getSession(code),
     customerToken
@@ -161,7 +182,8 @@ export function getSession(code) {
 export function claimSession(
   code,
   {
-    supporterDeviceId = null
+    supporterDeviceId = null,
+    sourceIp = null
   } = {}
 ) {
   expireOldSessions();
@@ -228,6 +250,30 @@ export function claimSession(
     };
   }
 
+  try {
+    appendAuditEvent({
+      sessionId: session.id,
+      eventType: 'session.claimed',
+      actorRole: 'supporter',
+      actorId: supporterDeviceId,
+      metadata: {
+        sourceIp
+      }
+    });
+  } catch (error) {
+    database.prepare(`
+      UPDATE sessions
+      SET
+        status = 'WAITING',
+        supporter_device_id = NULL,
+        joined_at = NULL
+      WHERE id = ?
+        AND status = 'SUPPORTER_JOINED'
+    `).run(session.id);
+
+    throw error;
+  }
+
   return {
     session: getSession(code)
   };
@@ -266,7 +312,15 @@ export function validateCustomerToken(
   );
 }
 
-export function endSession(code) {
+export function endSession(
+  code,
+  {
+    actorRole = 'server',
+    actorId = null,
+    reason = 'user_ended',
+    sourceIp = null
+  } = {}
+) {
   expireOldSessions();
 
   const session = getSession(code);
@@ -295,8 +349,26 @@ export function endSession(code) {
     };
   }
 
+  if (
+    ![
+      'customer',
+      'supporter',
+      'server'
+    ].includes(actorRole)
+  ) {
+    throw new TypeError(
+      `Invalid session end actor: ${actorRole}`
+    );
+  }
+
   const endedAt =
     new Date().toISOString();
+
+  const tokenRow = database.prepare(`
+    SELECT customer_token_hash
+    FROM sessions
+    WHERE id = ?
+  `).get(session.id);
 
   const result = database.prepare(`
     UPDATE sessions
@@ -320,6 +392,42 @@ export function endSession(code) {
       message:
         'The session state changed before it could be ended.'
     };
+  }
+
+  try {
+    appendAuditEvent({
+      sessionId: session.id,
+      eventType: 'session.ended',
+      actorRole,
+      actorId,
+      metadata: {
+        previousStatus:
+          session.status,
+        reason:
+          String(reason)
+            .trim()
+            .slice(0, 128) ||
+          'user_ended',
+        sourceIp
+      }
+    });
+  } catch (error) {
+    database.prepare(`
+      UPDATE sessions
+      SET
+        status = ?,
+        ended_at = NULL,
+        customer_token_hash = ?
+      WHERE id = ?
+        AND status = 'ENDED'
+    `).run(
+      session.status,
+      tokenRow?.customer_token_hash ??
+        null,
+      session.id
+    );
+
+    throw error;
   }
 
   return {
