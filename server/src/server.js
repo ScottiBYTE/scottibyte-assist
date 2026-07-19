@@ -11,8 +11,14 @@ import {
   createCustomerSession,
   endSession,
   getSession,
-  validateCustomerToken
+  validateCustomerToken,
+  validateReceiptToken
 } from './sessions.js';
+
+import {
+  getAuditEventsBySessionId,
+  verifyAuditChain
+} from './database.js';
 
 import {
   broadcastSessionEvent,
@@ -74,6 +80,37 @@ function customerToken(request) {
   }
 
   return '';
+}
+
+function receiptToken(request) {
+  const headerToken =
+    request.headers['x-receipt-token'];
+
+  if (typeof headerToken === 'string') {
+    return headerToken;
+  }
+
+  return '';
+}
+
+function receiptAuditEvent(event) {
+  const metadata = {
+    ...event.metadata
+  };
+
+  delete metadata.sourceIp;
+  delete metadata.clientId;
+
+  return {
+    sequence: event.sequence,
+    occurredAt: event.occurredAt,
+    eventType: event.eventType,
+    actorRole: event.actorRole,
+    actorId: event.actorId,
+    metadata,
+    previousHash: event.previousHash,
+    eventHash: event.eventHash
+  };
 }
 
 function sourceIp(request) {
@@ -181,6 +218,74 @@ app.get(
 
     response.status(200).json({
       session
+    });
+  }
+);
+
+app.get(
+  '/api/sessions/:code/receipt',
+  (request, response) => {
+    const { code } = request.params;
+
+    if (!validCode(code)) {
+      return response.status(400).json({
+        error: 'invalid_code',
+        message:
+          'Support codes must contain exactly six digits.'
+      });
+    }
+
+    if (
+      !validateReceiptToken(
+        code,
+        receiptToken(request)
+      )
+    ) {
+      return response.status(403).json({
+        error:
+          'receipt_authorization_required',
+        message:
+          'A valid receipt credential is required.'
+      });
+    }
+
+    const session = getSession(code);
+
+    if (!session) {
+      return response.status(404).json({
+        error: 'not_found',
+        message:
+          'The support session was not found.'
+      });
+    }
+
+    const auditEvents =
+      getAuditEventsBySessionId(
+        session.id
+      );
+
+    const verification =
+      verifyAuditChain(
+        session.id
+      );
+
+    response.status(200).json({
+      receipt: {
+        generatedAt:
+          new Date().toISOString(),
+        session,
+        auditEvents:
+          auditEvents.map(
+            receiptAuditEvent
+          ),
+        redactions: [
+          'metadata.sourceIp',
+          'metadata.clientId'
+        ],
+        verificationScope:
+          'complete_server_audit_record',
+        verification
+      }
     });
   }
 );
