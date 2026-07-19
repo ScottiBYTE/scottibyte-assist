@@ -13,6 +13,10 @@ import {
   validateCustomerToken
 } from './sessions.js';
 
+import {
+  appendAuditEvent
+} from './database.js';
+
 const clients = new Set();
 
 const SIGNAL_TYPES = new Set([
@@ -75,6 +79,36 @@ function publicClientState(client) {
     sessionCode:
       client.sessionCode
   };
+}
+
+function normalizedDeviceId(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized =
+    value.trim().slice(0, 128);
+
+  return normalized || null;
+}
+
+function websocketSourceIp(request) {
+  const forwardedFor =
+    request.headers[
+      'x-forwarded-for'
+    ];
+
+  if (
+    typeof forwardedFor === 'string'
+  ) {
+    return forwardedFor
+      .split(',')[0]
+      .trim()
+      .slice(0, 128) || null;
+  }
+
+  return request.socket
+    .remoteAddress ?? null;
 }
 
 function handleSupporterAuthentication(
@@ -207,6 +241,47 @@ function handleSessionSubscription(
 
   client.role = requestedRole;
   client.sessionCode = code;
+  client.deviceId =
+    normalizedDeviceId(
+      message.deviceId
+    );
+
+  try {
+    appendAuditEvent({
+      sessionId: session.id,
+      eventType:
+        `${requestedRole}.subscribed`,
+      actorRole: requestedRole,
+      actorId: client.deviceId,
+      metadata: {
+        clientId: client.id,
+        sourceIp:
+          client.remoteAddress
+      }
+    });
+  } catch (error) {
+    console.error(
+      `Unable to audit WebSocket subscription for client ${client.id}:`,
+      error
+    );
+
+    client.sessionCode = null;
+    client.deviceId = null;
+
+    if (
+      requestedRole === 'customer'
+    ) {
+      client.role = 'anonymous';
+      client.authenticated = false;
+    }
+
+    return sendError(
+      client.socket,
+      'audit_write_failed',
+      'The session subscription could not be securely recorded.',
+      message.requestId
+    );
+  }
 
   sendJson(client.socket, {
     type: 'session.subscribed',
@@ -288,7 +363,7 @@ function forwardSignal(
       ? 'customer'
       : 'supporter';
 
-  let delivered = 0;
+  const recipients = [];
 
   for (const client of clients) {
     if (
@@ -303,17 +378,54 @@ function forwardSignal(
       continue;
     }
 
-    sendJson(client.socket, {
+    recipients.push(client);
+  }
+
+  const delivered =
+    recipients.length;
+
+  if (
+    message.type ===
+    'session.identity'
+  ) {
+    try {
+      appendAuditEvent({
+        sessionId: session.id,
+        eventType:
+          'identity.published',
+        actorRole: sender.role,
+        actorId: sender.deviceId,
+        metadata: {
+          delivered
+        }
+      });
+    } catch (error) {
+      console.error(
+        `Unable to audit identity publication for client ${sender.id}:`,
+        error
+      );
+
+      return sendError(
+        sender.socket,
+        'audit_write_failed',
+        'The identity publication could not be securely recorded.',
+        message.requestId
+      );
+    }
+  }
+
+  const signalTimestamp =
+    new Date().toISOString();
+
+  for (const recipient of recipients) {
+    sendJson(recipient.socket, {
       type: message.type,
       requestId:
         message.requestId ?? null,
       fromRole: sender.role,
-      timestamp:
-        new Date().toISOString(),
+      timestamp: signalTimestamp,
       payload: message.payload
     });
-
-    delivered += 1;
   }
 
   sendJson(sender.socket, {
@@ -427,9 +539,10 @@ export function createWebSocketServer(
         role: 'anonymous',
         authenticated: false,
         sessionCode: null,
+        deviceId: null,
         alive: true,
         remoteAddress:
-          request.socket.remoteAddress
+          websocketSourceIp(request)
       };
 
       nextClientId += 1;
