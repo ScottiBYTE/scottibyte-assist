@@ -258,7 +258,7 @@ function calculateEventHash({
     .digest('hex');
 }
 
-export function appendAuditEvent({
+function appendAuditEventInTransaction({
   sessionId,
   eventType,
   actorRole,
@@ -308,76 +308,34 @@ export function appendAuditEvent({
     );
   }
 
-  database.exec('BEGIN IMMEDIATE;');
-
-  try {
-    const previous =
-      database.prepare(`
-        SELECT
-          sequence,
-          event_hash
-        FROM session_audit_events
-        WHERE session_id = ?
-        ORDER BY sequence DESC
-        LIMIT 1
-      `).get(sessionId);
-
-    const sequence =
-      (previous?.sequence ?? 0) + 1;
-
-    const occurredAt =
-      new Date().toISOString();
-
-    const normalizedMetadata =
-      canonicalize(metadata ?? {});
-
-    const metadataJson =
-      JSON.stringify(normalizedMetadata);
-
-    const previousHash =
-      previous?.event_hash ?? null;
-
-    const eventHash =
-      calculateEventHash({
-        sessionId,
-        sequence,
-        occurredAt,
-        eventType,
-        actorRole,
-        actorId,
-        metadataJson,
-        previousHash
-      });
-
-    const id = randomUUID();
-
+  const previous =
     database.prepare(`
-      INSERT INTO session_audit_events (
-        id,
-        session_id,
+      SELECT
         sequence,
-        occurred_at,
-        event_type,
-        actor_role,
-        actor_id,
-        metadata_json,
-        previous_hash,
         event_hash
-      )
-      VALUES (
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?
-      )
-    `).run(
-      id,
+      FROM session_audit_events
+      WHERE session_id = ?
+      ORDER BY sequence DESC
+      LIMIT 1
+    `).get(sessionId);
+
+  const sequence =
+    (previous?.sequence ?? 0) + 1;
+
+  const occurredAt =
+    new Date().toISOString();
+
+  const normalizedMetadata =
+    canonicalize(metadata ?? {});
+
+  const metadataJson =
+    JSON.stringify(normalizedMetadata);
+
+  const previousHash =
+    previous?.event_hash ?? null;
+
+  const eventHash =
+    calculateEventHash({
       sessionId,
       sequence,
       occurredAt,
@@ -385,24 +343,85 @@ export function appendAuditEvent({
       actorRole,
       actorId,
       metadataJson,
-      previousHash,
-      eventHash
-    );
+      previousHash
+    });
+
+  const id = randomUUID();
+
+  database.prepare(`
+    INSERT INTO session_audit_events (
+      id,
+      session_id,
+      sequence,
+      occurred_at,
+      event_type,
+      actor_role,
+      actor_id,
+      metadata_json,
+      previous_hash,
+      event_hash
+    )
+    VALUES (
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?
+    )
+  `).run(
+    id,
+    sessionId,
+    sequence,
+    occurredAt,
+    eventType,
+    actorRole,
+    actorId,
+    metadataJson,
+    previousHash,
+    eventHash
+  );
+
+  return {
+    id,
+    sessionId,
+    sequence,
+    occurredAt,
+    eventType,
+    actorRole,
+    actorId,
+    metadata: normalizedMetadata,
+    previousHash,
+    eventHash
+  };
+}
+
+export function appendAuditEvent({
+  sessionId,
+  eventType,
+  actorRole,
+  actorId = null,
+  metadata = {}
+}) {
+  database.exec('BEGIN IMMEDIATE;');
+
+  try {
+    const event =
+      appendAuditEventInTransaction({
+        sessionId,
+        eventType,
+        actorRole,
+        actorId,
+        metadata
+      });
 
     database.exec('COMMIT;');
 
-    return {
-      id,
-      sessionId,
-      sequence,
-      occurredAt,
-      eventType,
-      actorRole,
-      actorId,
-      metadata: normalizedMetadata,
-      previousHash,
-      eventHash
-    };
+    return event;
   } catch (error) {
     database.exec('ROLLBACK;');
     throw error;
@@ -507,17 +526,74 @@ export function verifyAuditChain(
 export function expireOldSessions() {
   const now = new Date().toISOString();
 
-  database.prepare(`
-    UPDATE sessions
-    SET
-      status = 'EXPIRED',
-      customer_token_hash = NULL
-    WHERE status IN (
-      'WAITING',
-      'SUPPORTER_JOINED'
-    )
-      AND expires_at <= ?
-  `).run(now);
+  database.exec('BEGIN IMMEDIATE;');
+
+  try {
+    const sessionsToExpire =
+      database.prepare(`
+        SELECT
+          id,
+          status,
+          expires_at
+        FROM sessions
+        WHERE status IN (
+          'WAITING',
+          'SUPPORTER_JOINED'
+        )
+          AND expires_at <= ?
+        ORDER BY expires_at ASC
+      `).all(now);
+
+    const updateSession =
+      database.prepare(`
+        UPDATE sessions
+        SET
+          status = 'EXPIRED',
+          customer_token_hash = NULL,
+          ended_at = ?
+        WHERE id = ?
+          AND status = ?
+      `);
+
+    for (
+      const session of
+      sessionsToExpire
+    ) {
+      const result =
+        updateSession.run(
+          now,
+          session.id,
+          session.status
+        );
+
+      if (result.changes !== 1) {
+        throw new Error(
+          `Unable to expire session: ${session.id}`
+        );
+      }
+
+      appendAuditEventInTransaction({
+        sessionId: session.id,
+        eventType: 'session.expired',
+        actorRole: 'server',
+        actorId: 'assist-server',
+        metadata: {
+          expiredAt: now,
+          expiresAt:
+            session.expires_at,
+          previousStatus:
+            session.status
+        }
+      });
+    }
+
+    database.exec('COMMIT;');
+
+    return sessionsToExpire.length;
+  } catch (error) {
+    database.exec('ROLLBACK;');
+    throw error;
+  }
 }
 
 export function normalizeSession(session) {
