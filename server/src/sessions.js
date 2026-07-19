@@ -7,10 +7,11 @@ import {
 } from 'node:crypto';
 
 import {
-  appendAuditEvent,
+  appendAuditEventInTransaction,
   database,
   expireOldSessions,
-  normalizeSession
+  normalizeSession,
+  runImmediateTransaction
 } from './database.js';
 
 const SESSION_LIFETIME_MINUTES =
@@ -119,39 +120,39 @@ export function createCustomerSession({
         1000
   );
 
-  database.prepare(`
-    INSERT INTO sessions (
+  runImmediateTransaction(() => {
+    database.prepare(`
+      INSERT INTO sessions (
+        id,
+        code,
+        status,
+        customer_device_id,
+        customer_token_hash,
+        receipt_token_hash,
+        created_at,
+        expires_at
+      )
+      VALUES (
+        ?,
+        ?,
+        'WAITING',
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+      )
+    `).run(
       id,
       code,
-      status,
-      customer_device_id,
-      customer_token_hash,
-      receipt_token_hash,
-      created_at,
-      expires_at
-    )
-    VALUES (
-      ?,
-      ?,
-      'WAITING',
-      ?,
-      ?,
-      ?,
-      ?,
-      ?
-    )
-  `).run(
-    id,
-    code,
-    customerDeviceId,
-    customerTokenHash,
-    receiptTokenHash,
-    createdAt.toISOString(),
-    expiresAt.toISOString()
-  );
+      customerDeviceId,
+      customerTokenHash,
+      receiptTokenHash,
+      createdAt.toISOString(),
+      expiresAt.toISOString()
+    );
 
-  try {
-    appendAuditEvent({
+    appendAuditEventInTransaction({
       sessionId: id,
       eventType: 'session.created',
       actorRole: 'customer',
@@ -160,14 +161,7 @@ export function createCustomerSession({
         sourceIp
       }
     });
-  } catch (error) {
-    database.prepare(`
-      DELETE FROM sessions
-      WHERE id = ?
-    `).run(id);
-
-    throw error;
-  }
+  });
 
   return {
     session: getSession(code),
@@ -197,70 +191,77 @@ export function claimSession(
 ) {
   expireOldSessions();
 
-  const session = getSession(code);
+  return runImmediateTransaction(() => {
+    const row = database.prepare(`
+      SELECT *
+      FROM sessions
+      WHERE code = ?
+    `).get(code);
 
-  if (!session) {
-    return {
-      error: 'not_found',
-      message:
-        'The support code is not valid.'
-    };
-  }
+    const session =
+      normalizeSession(row);
 
-  if (session.status === 'EXPIRED') {
-    return {
-      error: 'expired',
-      message:
-        'The support code has expired.'
-    };
-  }
+    if (!session) {
+      return {
+        error: 'not_found',
+        message:
+          'The support code is not valid.'
+      };
+    }
 
-  if (
-    session.status ===
-    'SUPPORTER_JOINED'
-  ) {
-    return {
-      error: 'already_claimed',
-      message:
-        'A supporter is already connected to this session.'
-    };
-  }
+    if (session.status === 'EXPIRED') {
+      return {
+        error: 'expired',
+        message:
+          'The support code has expired.'
+      };
+    }
 
-  if (session.status === 'ENDED') {
-    return {
-      error: 'ended',
-      message:
-        'This support session has ended.'
-    };
-  }
+    if (
+      session.status ===
+      'SUPPORTER_JOINED'
+    ) {
+      return {
+        error: 'already_claimed',
+        message:
+          'A supporter is already connected to this session.'
+      };
+    }
 
-  const joinedAt =
-    new Date().toISOString();
+    if (session.status === 'ENDED') {
+      return {
+        error: 'ended',
+        message:
+          'This support session has ended.'
+      };
+    }
 
-  const result = database.prepare(`
-    UPDATE sessions
-    SET
-      status = 'SUPPORTER_JOINED',
-      supporter_device_id = ?,
-      joined_at = ?
-    WHERE code = ?
-      AND status = 'WAITING'
-  `).run(
-    supporterDeviceId,
-    joinedAt,
-    code
-  );
+    const joinedAt =
+      new Date().toISOString();
 
-  if (result.changes !== 1) {
-    return {
-      error: 'state_conflict',
-      message:
-        'The session state changed before it could be claimed.'
-    };
-  }
+    const result = database.prepare(`
+      UPDATE sessions
+      SET
+        status = 'SUPPORTER_JOINED',
+        supporter_device_id = ?,
+        joined_at = ?
+      WHERE id = ?
+        AND status = 'WAITING'
+    `).run(
+      supporterDeviceId,
+      joinedAt,
+      session.id
+    );
 
-  try {
-    appendAuditEvent({
+    if (result.changes !== 1) {
+      return {
+        error: 'state_conflict',
+        message:
+          'The session state changed before it could be claimed.'
+      };
+    }
+
+    appendAuditEventInTransaction({
       sessionId: session.id,
       eventType: 'session.claimed',
       actorRole: 'supporter',
@@ -269,23 +270,19 @@ export function claimSession(
         sourceIp
       }
     });
-  } catch (error) {
-    database.prepare(`
-      UPDATE sessions
-      SET
-        status = 'WAITING',
-        supporter_device_id = NULL,
-        joined_at = NULL
-      WHERE id = ?
-        AND status = 'SUPPORTER_JOINED'
-    `).run(session.id);
 
-    throw error;
-  }
+    const claimedRow =
+      database.prepare(`
+        SELECT *
+        FROM sessions
+        WHERE id = ?
+      `).get(session.id);
 
-  return {
-    session: getSession(code)
-  };
+    return {
+      session:
+        normalizeSession(claimedRow)
+    };
+  });
 }
 
 export function validateCustomerToken(
@@ -354,32 +351,6 @@ export function endSession(
 ) {
   expireOldSessions();
 
-  const session = getSession(code);
-
-  if (!session) {
-    return {
-      error: 'not_found',
-      message:
-        'The support code is not valid.'
-    };
-  }
-
-  if (session.status === 'ENDED') {
-    return {
-      error: 'already_ended',
-      message:
-        'This support session has already ended.'
-    };
-  }
-
-  if (session.status === 'EXPIRED') {
-    return {
-      error: 'expired',
-      message:
-        'The support session has expired.'
-    };
-  }
-
   if (
     ![
       'customer',
@@ -392,41 +363,74 @@ export function endSession(
     );
   }
 
-  const endedAt =
-    new Date().toISOString();
+  return runImmediateTransaction(() => {
+    const row = database.prepare(`
+      SELECT *
+      FROM sessions
+      WHERE code = ?
+    `).get(code);
 
-  const tokenRow = database.prepare(`
-    SELECT customer_token_hash
-    FROM sessions
-    WHERE id = ?
-  `).get(session.id);
+    const session =
+      normalizeSession(row);
 
-  const result = database.prepare(`
-    UPDATE sessions
-    SET
-      status = 'ENDED',
-      ended_at = ?,
-      customer_token_hash = NULL
-    WHERE code = ?
-      AND status IN (
-        'WAITING',
-        'SUPPORTER_JOINED'
-      )
-  `).run(
-    endedAt,
-    code
-  );
+    if (!session) {
+      return {
+        error: 'not_found',
+        message:
+          'The support code is not valid.'
+      };
+    }
 
-  if (result.changes !== 1) {
-    return {
-      error: 'state_conflict',
-      message:
-        'The session state changed before it could be ended.'
-    };
-  }
+    if (session.status === 'ENDED') {
+      return {
+        error: 'already_ended',
+        message:
+          'This support session has already ended.'
+      };
+    }
 
-  try {
-    appendAuditEvent({
+    if (session.status === 'EXPIRED') {
+      return {
+        error: 'expired',
+        message:
+          'The support session has expired.'
+      };
+    }
+
+    const endedAt =
+      new Date().toISOString();
+
+    const normalizedReason =
+      String(reason)
+        .trim()
+        .slice(0, 128) ||
+      'user_ended';
+
+    const result = database.prepare(`
+      UPDATE sessions
+      SET
+        status = 'ENDED',
+        ended_at = ?,
+        customer_token_hash = NULL
+      WHERE id = ?
+        AND status IN (
+          'WAITING',
+          'SUPPORTER_JOINED'
+        )
+    `).run(
+      endedAt,
+      session.id
+    );
+
+    if (result.changes !== 1) {
+      return {
+        error: 'state_conflict',
+        message:
+          'The session state changed before it could be ended.'
+      };
+    }
+
+    appendAuditEventInTransaction({
       sessionId: session.id,
       eventType: 'session.ended',
       actorRole,
@@ -435,33 +439,21 @@ export function endSession(
         previousStatus:
           session.status,
         reason:
-          String(reason)
-            .trim()
-            .slice(0, 128) ||
-          'user_ended',
+          normalizedReason,
         sourceIp
       }
     });
-  } catch (error) {
-    database.prepare(`
-      UPDATE sessions
-      SET
-        status = ?,
-        ended_at = NULL,
-        customer_token_hash = ?
-      WHERE id = ?
-        AND status = 'ENDED'
-    `).run(
-      session.status,
-      tokenRow?.customer_token_hash ??
-        null,
-      session.id
-    );
 
-    throw error;
-  }
+    const endedRow =
+      database.prepare(`
+        SELECT *
+        FROM sessions
+        WHERE id = ?
+      `).get(session.id);
 
-  return {
-    session: getSession(code)
-  };
+    return {
+      session:
+        normalizeSession(endedRow)
+    };
+  });
 }

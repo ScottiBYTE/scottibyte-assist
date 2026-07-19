@@ -293,7 +293,7 @@ function calculateEventHash({
     .digest('hex');
 }
 
-function appendAuditEventInTransaction({
+export function appendAuditEventInTransaction({
   sessionId,
   eventType,
   actorRole,
@@ -433,6 +433,29 @@ function appendAuditEventInTransaction({
     previousHash,
     eventHash
   };
+}
+
+export function runImmediateTransaction(
+  operation
+) {
+  if (typeof operation !== 'function') {
+    throw new TypeError(
+      'A transaction operation is required.'
+    );
+  }
+
+  database.exec('BEGIN IMMEDIATE;');
+
+  try {
+    const result = operation();
+
+    database.exec('COMMIT;');
+
+    return result;
+  } catch (error) {
+    database.exec('ROLLBACK;');
+    throw error;
+  }
 }
 
 export function appendAuditEvent({
