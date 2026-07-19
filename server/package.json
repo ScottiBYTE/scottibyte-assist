@@ -1,0 +1,18 @@
+{
+  "name": "scottibyte-assist-server",
+  "version": "0.1.0",
+  "description": "Authorization and session coordination server for ScottiBYTE Assist",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.21.1"
+  }
+}

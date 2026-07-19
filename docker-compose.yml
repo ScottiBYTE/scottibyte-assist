@@ -1,0 +1,35 @@
+services:
+  assist-server:
+    build:
+      context: ./server
+
+    container_name:
+      scottibyte-assist-server
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3089
+      DATABASE_PATH: /app/data/assist.sqlite
+      SESSION_LIFETIME_MINUTES: 30
+      SUPPORTER_API_TOKEN: ${ASSIST_SUPPORTER_TOKEN:?ASSIST_SUPPORTER_TOKEN must be configured}
+
+    ports:
+      - "3089:3089"
+
+    volumes:
+      - ./server/data:/app/data
+
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1:3089/api/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
