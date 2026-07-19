@@ -32,6 +32,13 @@ const host =
 
 app.disable('x-powered-by');
 
+/*
+ * Nginx Proxy Manager is the single trusted reverse proxy.
+ * This allows request.ip to use the client address supplied
+ * through X-Forwarded-For rather than recording the proxy.
+ */
+app.set('trust proxy', 1);
+
 app.use(express.json({
   limit: '32kb'
 }));
@@ -67,6 +74,10 @@ function customerToken(request) {
   }
 
   return '';
+}
+
+function sourceIp(request) {
+  return request.ip ?? null;
 }
 
 function sendSessionError(
@@ -119,7 +130,8 @@ app.post(
       const result =
         createCustomerSession({
           customerDeviceId:
-            customerDeviceId || null
+            customerDeviceId || null,
+          sourceIp: sourceIp(request)
         });
 
       broadcastSessionEvent(
@@ -197,7 +209,8 @@ app.post(
 
     const result = claimSession(code, {
       supporterDeviceId:
-        supporterDeviceId || null
+        supporterDeviceId || null,
+      sourceIp: sourceIp(request)
     });
 
     if (result.error) {
@@ -251,7 +264,36 @@ app.post(
       });
     }
 
-    const result = endSession(code);
+    const sessionBeforeEnd =
+      getSession(code);
+
+    const actorRole =
+      supporterAuthorized
+        ? 'supporter'
+        : 'customer';
+
+    const actorId =
+      actorRole === 'supporter'
+        ? sessionBeforeEnd
+            ?.supporterDeviceId ?? null
+        : sessionBeforeEnd
+            ?.customerDeviceId ?? null;
+
+    const reason =
+      typeof request.body?.reason ===
+        'string'
+        ? request.body.reason
+            .trim()
+            .slice(0, 128) ||
+          'user_ended'
+        : 'user_ended';
+
+    const result = endSession(code, {
+      actorRole,
+      actorId,
+      reason,
+      sourceIp: sourceIp(request)
+    });
 
     if (result.error) {
       return sendSessionError(
