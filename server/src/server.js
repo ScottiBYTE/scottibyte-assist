@@ -2,14 +2,16 @@ import http from 'node:http';
 import express from 'express';
 
 import {
-  requireSupporter
+  requireSupporter,
+  validateSupporterToken
 } from './auth.js';
 
 import {
-  createSession,
+  claimSession,
+  createCustomerSession,
   endSession,
   getSession,
-  joinSession
+  validateCustomerToken
 } from './sessions.js';
 
 import {
@@ -38,6 +40,35 @@ function validCode(code) {
   return /^\d{6}$/.test(code);
 }
 
+function bearerToken(request) {
+  const authorization =
+    request.headers.authorization ?? '';
+
+  const match = authorization.match(
+    /^Bearer\s+(.+)$/i
+  );
+
+  return match?.[1] ?? '';
+}
+
+function customerToken(request) {
+  const headerToken =
+    request.headers['x-customer-token'];
+
+  if (typeof headerToken === 'string') {
+    return headerToken;
+  }
+
+  if (
+    typeof request.body?.customerToken ===
+    'string'
+  ) {
+    return request.body.customerToken;
+  }
+
+  return '';
+}
+
 function sendSessionError(
   response,
   result
@@ -47,7 +78,7 @@ function sendSessionError(
     expired: 410,
     ended: 409,
     already_ended: 409,
-    already_joined: 409,
+    already_claimed: 409,
     state_conflict: 409
   };
 
@@ -65,7 +96,8 @@ app.get(
       status: 'ok',
       service:
         'scottibyte-assist-server',
-      version: '0.5.0',
+      version: '0.6.0',
+      protocolVersion: 3,
       websocket: websocketStats(),
       timestamp: new Date().toISOString()
     });
@@ -74,30 +106,28 @@ app.get(
 
 app.post(
   '/api/sessions',
-  requireSupporter,
   (request, response) => {
-    const supporterDeviceId =
-      typeof request.body?.supporterDeviceId
+    const customerDeviceId =
+      typeof request.body?.customerDeviceId
         === 'string'
-        ? request.body.supporterDeviceId
+        ? request.body.customerDeviceId
             .trim()
             .slice(0, 128)
         : null;
 
     try {
-      const session = createSession({
-        supporterDeviceId:
-          supporterDeviceId || null
-      });
+      const result =
+        createCustomerSession({
+          customerDeviceId:
+            customerDeviceId || null
+        });
 
       broadcastSessionEvent(
         'session.created',
-        session
+        result.session
       );
 
-      response.status(201).json({
-        session
-      });
+      response.status(201).json(result);
     } catch (error) {
       console.error(
         'Unable to create session:',
@@ -144,7 +174,8 @@ app.get(
 );
 
 app.post(
-  '/api/sessions/:code/join',
+  '/api/sessions/:code/claim',
+  requireSupporter,
   (request, response) => {
     const { code } = request.params;
 
@@ -156,17 +187,17 @@ app.post(
       });
     }
 
-    const customerDeviceId =
-      typeof request.body?.customerDeviceId
+    const supporterDeviceId =
+      typeof request.body?.supporterDeviceId
         === 'string'
-        ? request.body.customerDeviceId
+        ? request.body.supporterDeviceId
             .trim()
             .slice(0, 128)
         : null;
 
-    const result = joinSession(code, {
-      customerDeviceId:
-        customerDeviceId || null
+    const result = claimSession(code, {
+      supporterDeviceId:
+        supporterDeviceId || null
     });
 
     if (result.error) {
@@ -177,7 +208,7 @@ app.post(
     }
 
     broadcastSessionEvent(
-      'session.customer_joined',
+      'session.supporter_joined',
       result.session
     );
 
@@ -187,7 +218,6 @@ app.post(
 
 app.post(
   '/api/sessions/:code/end',
-  requireSupporter,
   (request, response) => {
     const { code } = request.params;
 
@@ -196,6 +226,28 @@ app.post(
         error: 'invalid_code',
         message:
           'Support codes must contain exactly six digits.'
+      });
+    }
+
+    const supporterAuthorized =
+      validateSupporterToken(
+        bearerToken(request)
+      );
+
+    const customerAuthorized =
+      validateCustomerToken(
+        code,
+        customerToken(request)
+      );
+
+    if (
+      !supporterAuthorized &&
+      !customerAuthorized
+    ) {
+      return response.status(403).json({
+        error: 'end_authorization_required',
+        message:
+          'A valid supporter or customer credential is required.'
       });
     }
 
@@ -253,7 +305,7 @@ httpServer.listen(
   host,
   () => {
     console.log(
-      `ScottiBYTE Assist Server v0.5.0 listening on http://${host}:${port}`
+      `ScottiBYTE Assist Server v0.6.0 listening on http://${host}:${port}`
     );
   }
 );

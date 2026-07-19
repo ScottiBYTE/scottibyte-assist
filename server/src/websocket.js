@@ -173,6 +173,18 @@ function handleSessionSubscription(
         message.requestId
       );
     }
+
+    if (
+      session.status !==
+      'SUPPORTER_JOINED'
+    ) {
+      return sendError(
+        client.socket,
+        'session_not_claimed',
+        'Claim the support session before subscribing.',
+        message.requestId
+      );
+    }
   } else {
     if (
       typeof message.customerToken !==
@@ -233,7 +245,7 @@ function forwardSignal(
   if (
     !session ||
     session.status !==
-      'CUSTOMER_JOINED'
+      'SUPPORTER_JOINED'
   ) {
     return sendError(
       sender.socket,
@@ -454,7 +466,7 @@ export function createWebSocketServer(
       sendJson(socket, {
         type: 'connection.ready',
         clientId: client.id,
-        protocolVersion: 2,
+        protocolVersion: 3,
         timestamp:
           new Date().toISOString()
       });

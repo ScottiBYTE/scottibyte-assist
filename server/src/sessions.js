@@ -92,13 +92,17 @@ function createUniqueCode() {
   );
 }
 
-export function createSession({
-  supporterDeviceId = null
+export function createCustomerSession({
+  customerDeviceId = null
 } = {}) {
   expireOldSessions();
 
   const id = randomUUID();
   const code = createUniqueCode();
+  const customerToken =
+    generateCustomerToken();
+  const customerTokenHash =
+    hashToken(customerToken);
   const createdAt = new Date();
 
   const expiresAt = new Date(
@@ -113,14 +117,16 @@ export function createSession({
       id,
       code,
       status,
-      supporter_device_id,
+      customer_device_id,
+      customer_token_hash,
       created_at,
       expires_at
     )
     VALUES (
       ?,
       ?,
-      'CREATED',
+      'WAITING',
+      ?,
       ?,
       ?,
       ?
@@ -128,12 +134,16 @@ export function createSession({
   `).run(
     id,
     code,
-    supporterDeviceId,
+    customerDeviceId,
+    customerTokenHash,
     createdAt.toISOString(),
     expiresAt.toISOString()
   );
 
-  return getSession(code);
+  return {
+    session: getSession(code),
+    customerToken
+  };
 }
 
 export function getSession(code) {
@@ -148,10 +158,10 @@ export function getSession(code) {
   return normalizeSession(session);
 }
 
-export function joinSession(
+export function claimSession(
   code,
   {
-    customerDeviceId = null
+    supporterDeviceId = null
   } = {}
 ) {
   expireOldSessions();
@@ -176,12 +186,12 @@ export function joinSession(
 
   if (
     session.status ===
-    'CUSTOMER_JOINED'
+    'SUPPORTER_JOINED'
   ) {
     return {
-      error: 'already_joined',
+      error: 'already_claimed',
       message:
-        'This support session already has a customer.'
+        'A supporter is already connected to this session.'
     };
   }
 
@@ -193,27 +203,19 @@ export function joinSession(
     };
   }
 
-  const customerToken =
-    generateCustomerToken();
-
-  const customerTokenHash =
-    hashToken(customerToken);
-
   const joinedAt =
     new Date().toISOString();
 
   const result = database.prepare(`
     UPDATE sessions
     SET
-      status = 'CUSTOMER_JOINED',
-      customer_device_id = ?,
-      customer_token_hash = ?,
+      status = 'SUPPORTER_JOINED',
+      supporter_device_id = ?,
       joined_at = ?
     WHERE code = ?
-      AND status = 'CREATED'
+      AND status = 'WAITING'
   `).run(
-    customerDeviceId,
-    customerTokenHash,
+    supporterDeviceId,
     joinedAt,
     code
   );
@@ -222,18 +224,12 @@ export function joinSession(
     return {
       error: 'state_conflict',
       message:
-        'The session state changed before it could be joined.'
+        'The session state changed before it could be claimed.'
     };
   }
 
   return {
-    session: getSession(code),
-
-    /*
-     * Returned once to the customer.
-     * Only the hash is retained by the server.
-     */
-    customerToken
+    session: getSession(code)
   };
 }
 
@@ -256,7 +252,10 @@ export function validateCustomerToken(
   }
 
   if (
-    row.status !== 'CUSTOMER_JOINED'
+    ![
+      'WAITING',
+      'SUPPORTER_JOINED'
+    ].includes(row.status)
   ) {
     return false;
   }
@@ -307,8 +306,8 @@ export function endSession(code) {
       customer_token_hash = NULL
     WHERE code = ?
       AND status IN (
-        'CREATED',
-        'CUSTOMER_JOINED'
+        'WAITING',
+        'SUPPORTER_JOINED'
       )
   `).run(
     endedAt,
