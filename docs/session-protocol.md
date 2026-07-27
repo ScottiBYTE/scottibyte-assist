@@ -1,4 +1,4 @@
-# ScottiBYTE Assist Session Protocol v3
+# ScottiBYTE Assist Session Protocol v4
 
 ## Roles
 
@@ -16,7 +16,7 @@
 4. The supporter enters the customer’s code and authenticates.
 5. The supporter claims the session with `POST /api/sessions/:code/claim`.
 6. The supporter subscribes to the WebSocket session.
-7. Both peers exchange Jami identities and establish the native call.
+7. Both peers exchange native Assist identity and capability information, then establish the peer connection.
 8. Either authorized peer may end the session.
 9. The customer may retrieve a post-session audit receipt using the receipt token.
 
@@ -168,7 +168,7 @@ Endpoint:
 /ws
 ```
 
-Protocol version: `3`
+Protocol version: `4`
 
 ### Connection ready
 
@@ -235,6 +235,8 @@ Supported signaling message types are:
 - `session.offer`
 - `session.answer`
 - `session.candidate`
+- `session.video-destination`
+- `session.state`
 
 Example:
 

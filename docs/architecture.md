@@ -15,7 +15,7 @@ The Assist server is responsible for:
 - recording a hash-chained audit history
 - issuing authenticated customer receipts
 
-Jami is responsible for native peer communication and call media.
+The native ScottiBYTE Assist clients are responsible for peer communication, desktop media, audio, clipboard, and remote input.
 
 ## Data flow
 
@@ -37,10 +37,10 @@ ScottiBYTE Assist server
             v
        Supporter client
 
-Customer client <------ native Jami connection ------> Supporter client
+Customer client <------ native Assist peer connection ------> Supporter client
 ```
 
-The Assist server does not relay or store Jami call media.
+The Assist server coordinates native peer signaling and does not store desktop media, audio, clipboard contents, or remote-input payloads.
 
 ## Trust boundaries
 
@@ -144,7 +144,7 @@ The identity payload is not stored.
 
 The Assist audit database does not store:
 
-- Jami identity payload contents
+- native Assist identity and capability payload contents
 - offer payloads
 - answer payloads
 - ICE candidate payloads
@@ -199,6 +199,6 @@ Audit records reference their session through a foreign key.
 
 ## Protocol compatibility
 
-Server release v0.7.0 continues to use session protocol version `3`.
+Server release v0.8.0 uses session protocol version `4` for native Assist client coordination.
 
-The security and audit changes do not require a protocol-version increase because the existing session and WebSocket message flow remains compatible. The create-session REST response now also includes the dedicated receipt token.
+Protocol version 4 adds native Assist signaling for negotiated video destinations and session state while preserving the existing audited REST session lifecycle.
