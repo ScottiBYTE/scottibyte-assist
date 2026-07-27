@@ -581,7 +581,7 @@ export function createWebSocketServer(
       sendJson(socket, {
         type: 'connection.ready',
         clientId: client.id,
-        protocolVersion: 3,
+        protocolVersion: 4,
         timestamp:
           new Date().toISOString()
       });
