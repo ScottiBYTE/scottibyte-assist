@@ -49,6 +49,7 @@ qt_add_executable(
   scottibyte-assist
   assets.qrc
   src/main.cpp
+  src/desktop_backend.h
   src/lan_session.cpp
   src/lan_session.h
   src/libei_input.cpp
@@ -59,6 +60,8 @@ qt_add_executable(
   src/portal_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/x11_desktop_backend.cpp
+  src/x11_desktop_backend.h
 )
 
 target_link_libraries(

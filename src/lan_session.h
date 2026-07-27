@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QString>
 
+class DesktopBackend;
 class QTcpServer;
 class QTcpSocket;
 class QTimer;
@@ -19,6 +20,9 @@ public:
         QObject *parent = nullptr);
 
     ~LanSession() override;
+
+    void setDesktopBackend(
+        DesktopBackend *backend);
 
     void startCustomer(
         const QString &code);
@@ -82,15 +86,8 @@ private:
         MessageType type,
         const QByteArray &payload);
 
-    void captureFrame();
-
-    void applyPointerMove(
-        int x,
-        int y);
-
-    void applyLeftClick(
-        int x,
-        int y);
+    void sendDesktopFrame(
+        const QImage &image);
 
     Role role_ = Role::Inactive;
 
@@ -101,7 +98,8 @@ private:
     QTcpSocket *socket_ = nullptr;
 
     QTimer *advertiseTimer_ = nullptr;
-    QTimer *captureTimer_ = nullptr;
+
+    DesktopBackend *desktopBackend_ = nullptr;
 
     QByteArray receiveBuffer_;
 

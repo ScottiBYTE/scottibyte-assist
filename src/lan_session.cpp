@@ -1,20 +1,16 @@
 #include "lan_session.h"
+#include "desktop_backend.h"
 
-#include <QApplication>
 #include <QBuffer>
 #include <QDataStream>
-#include <QGuiApplication>
 #include <QHostAddress>
 #include <QNetworkDatagram>
 #include <QNetworkInterface>
-#include <QScreen>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
 #include <QUdpSocket>
 
-#include <X11/Xlib.h>
-#include <X11/extensions/XTest.h>
 
 namespace
 {
@@ -85,27 +81,16 @@ LanSession::LanSession(
       tcpServer_(
           new QTcpServer(this)),
       advertiseTimer_(
-          new QTimer(this)),
-      captureTimer_(
           new QTimer(this))
 {
     advertiseTimer_->setInterval(
         750);
-
-    captureTimer_->setInterval(
-        100);
 
     connect(
         advertiseTimer_,
         &QTimer::timeout,
         this,
         &LanSession::advertiseSession);
-
-    connect(
-        captureTimer_,
-        &QTimer::timeout,
-        this,
-        &LanSession::captureFrame);
 
     connect(
         discoverySocket_,
@@ -123,6 +108,46 @@ LanSession::LanSession(
 LanSession::~LanSession()
 {
     disconnectSession();
+}
+
+void LanSession::setDesktopBackend(
+    DesktopBackend *backend)
+{
+    if (desktopBackend_ == backend) {
+        return;
+    }
+
+    if (desktopBackend_ != nullptr) {
+        disconnect(
+            desktopBackend_,
+            nullptr,
+            this,
+            nullptr);
+    }
+
+    desktopBackend_ = backend;
+
+    if (desktopBackend_ == nullptr) {
+        return;
+    }
+
+    connect(
+        desktopBackend_,
+        &DesktopBackend::frameReady,
+        this,
+        &LanSession::sendDesktopFrame);
+
+    connect(
+        desktopBackend_,
+        &DesktopBackend::statusChanged,
+        this,
+        &LanSession::statusChanged);
+
+    connect(
+        desktopBackend_,
+        &DesktopBackend::errorOccurred,
+        this,
+        &LanSession::errorOccurred);
 }
 
 void LanSession::startCustomer(
@@ -330,7 +355,9 @@ void LanSession::acceptProvider()
     advertiseTimer_->stop();
     tcpServer_->close();
 
-    captureTimer_->start();
+    if (desktopBackend_ != nullptr) {
+        desktopBackend_->start();
+    }
 
     emit statusChanged(
         QStringLiteral(
@@ -369,7 +396,9 @@ void LanSession::attachSocket(
         this,
         [this]()
         {
-            captureTimer_->stop();
+            if (desktopBackend_ != nullptr) {
+                desktopBackend_->stop();
+            }
 
             emit statusChanged(
                 QStringLiteral(
@@ -401,7 +430,10 @@ void LanSession::attachSocket(
 void LanSession::disconnectSession()
 {
     advertiseTimer_->stop();
-    captureTimer_->stop();
+
+    if (desktopBackend_ != nullptr) {
+        desktopBackend_->stop();
+    }
 
     discoverySocket_->close();
     tcpServer_->close();
@@ -427,29 +459,18 @@ void LanSession::disconnectSession()
     emit connectedChanged(false);
 }
 
-void LanSession::captureFrame()
+void LanSession::sendDesktopFrame(
+    const QImage &sourceImage)
 {
     if (role_ != Role::Customer ||
         socket_ == nullptr ||
         socket_->state() !=
-            QAbstractSocket::ConnectedState) {
+            QAbstractSocket::ConnectedState ||
+        sourceImage.isNull()) {
         return;
     }
 
-    QScreen *screen =
-        QGuiApplication::primaryScreen();
-
-    if (screen == nullptr) {
-        return;
-    }
-
-    QImage image =
-        screen->grabWindow(0)
-            .toImage();
-
-    if (image.isNull()) {
-        return;
-    }
+    QImage image = sourceImage;
 
     if (image.width() > 1600) {
         image = image.scaledToWidth(
@@ -614,83 +635,21 @@ void LanSession::processIncomingData()
             continue;
         }
 
+        if (desktopBackend_ == nullptr) {
+            continue;
+        }
+
         if (expectedMessageType_ ==
             MessageType::PointerMove) {
-            applyPointerMove(x, y);
+            desktopBackend_->movePointerTo(
+                x,
+                y);
         } else if (
             expectedMessageType_ ==
             MessageType::LeftClick) {
-            applyLeftClick(x, y);
+            desktopBackend_->clickLeftAt(
+                x,
+                y);
         }
     }
-}
-
-void LanSession::applyPointerMove(
-    int x,
-    int y)
-{
-    if (role_ != Role::Customer) {
-        return;
-    }
-
-    Display *display =
-        XOpenDisplay(nullptr);
-
-    if (display == nullptr) {
-        emit errorOccurred(
-            QStringLiteral(
-                "Could not access the X11 display."));
-        return;
-    }
-
-    XTestFakeMotionEvent(
-        display,
-        -1,
-        x,
-        y,
-        CurrentTime);
-
-    XFlush(display);
-    XCloseDisplay(display);
-}
-
-void LanSession::applyLeftClick(
-    int x,
-    int y)
-{
-    if (role_ != Role::Customer) {
-        return;
-    }
-
-    Display *display =
-        XOpenDisplay(nullptr);
-
-    if (display == nullptr) {
-        emit errorOccurred(
-            QStringLiteral(
-                "Could not access the X11 display."));
-        return;
-    }
-
-    XTestFakeMotionEvent(
-        display,
-        -1,
-        x,
-        y,
-        CurrentTime);
-
-    XTestFakeButtonEvent(
-        display,
-        1,
-        True,
-        CurrentTime);
-
-    XTestFakeButtonEvent(
-        display,
-        1,
-        False,
-        CurrentTime);
-
-    XFlush(display);
-    XCloseDisplay(display);
 }

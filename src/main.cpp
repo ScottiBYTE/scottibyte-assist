@@ -1,5 +1,6 @@
 #include "lan_session.h"
 #include "remote_view.h"
+#include "x11_desktop_backend.h"
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -829,6 +830,12 @@ QLabel#remotePlaceholder {
 
     auto *lanSession =
         new LanSession(window);
+
+    auto *x11DesktopBackend =
+        new X11DesktopBackend(window);
+
+    lanSession->setDesktopBackend(
+        x11DesktopBackend);
 
     lanSession->startCustomer(
         supportCode->text());
