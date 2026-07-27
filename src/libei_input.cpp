@@ -7,6 +7,7 @@
 #include <libei.h>
 #include <linux/input-event-codes.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <unistd.h>
@@ -25,6 +26,12 @@ bool LibeiInput::pointerReady() const
 {
     return pointerDevice_ != nullptr &&
            pointerResumed_;
+}
+
+bool LibeiInput::absolutePointerReady() const
+{
+    return absolutePointerDevice_ != nullptr &&
+           absolutePointerResumed_;
 }
 
 bool LibeiInput::buttonReady() const
@@ -143,6 +150,7 @@ void LibeiInput::stop()
     }
 
     clearPointerDevice();
+    clearAbsolutePointerDevice();
     clearButtonDevice();
     clearScrollDevice();
     clearKeyboardDevice();
@@ -192,6 +200,7 @@ void LibeiInput::processEvents()
                 ei_seat_bind_capabilities(
                     seat,
                     EI_DEVICE_CAP_POINTER,
+                    EI_DEVICE_CAP_POINTER_ABSOLUTE,
                     EI_DEVICE_CAP_BUTTON,
                     EI_DEVICE_CAP_SCROLL,
                     EI_DEVICE_CAP_KEYBOARD,
@@ -222,6 +231,17 @@ void LibeiInput::processEvents()
                     QStringLiteral("pointer"));
 
                 setPointerDevice(device);
+            }
+
+            if (ei_device_has_capability(
+                    device,
+                    EI_DEVICE_CAP_POINTER_ABSOLUTE)) {
+                capabilities.append(
+                    QStringLiteral(
+                        "absolute pointer"));
+
+                setAbsolutePointerDevice(
+                    device);
             }
 
             if (ei_device_has_capability(
@@ -332,6 +352,113 @@ void LibeiInput::movePointer()
     emit statusChanged(
         QStringLiteral(
             "Pointer movement sent: +80, +30"));
+}
+
+void LibeiInput::movePointerAbsolute(
+    int x,
+    int y,
+    int frameWidth,
+    int frameHeight)
+{
+    if (!absolutePointerReady() ||
+        ei_ == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "No active authorized absolute pointer device."));
+        return;
+    }
+
+    if (frameWidth <= 0 ||
+        frameHeight <= 0) {
+        emit errorOccurred(
+            QStringLiteral(
+                "The remote desktop dimensions are invalid."));
+        return;
+    }
+
+    ei_region *region =
+        ei_device_get_region(
+            absolutePointerDevice_,
+            0);
+
+    if (region == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "The authorized absolute pointer has no region."));
+        return;
+    }
+
+    const uint32_t regionX =
+        ei_region_get_x(region);
+
+    const uint32_t regionY =
+        ei_region_get_y(region);
+
+    const uint32_t regionWidth =
+        ei_region_get_width(region);
+
+    const uint32_t regionHeight =
+        ei_region_get_height(region);
+
+    if (regionWidth == 0 ||
+        regionHeight == 0) {
+        emit errorOccurred(
+            QStringLiteral(
+                "The authorized pointer region is invalid."));
+        return;
+    }
+
+    const int boundedX =
+        std::clamp(
+            x,
+            0,
+            frameWidth - 1);
+
+    const int boundedY =
+        std::clamp(
+            y,
+            0,
+            frameHeight - 1);
+
+    const double normalizedX =
+        frameWidth > 1
+            ? static_cast<double>(boundedX) /
+                  static_cast<double>(frameWidth - 1)
+            : 0.0;
+
+    const double normalizedY =
+        frameHeight > 1
+            ? static_cast<double>(boundedY) /
+                  static_cast<double>(frameHeight - 1)
+            : 0.0;
+
+    const double targetX =
+        static_cast<double>(regionX) +
+        normalizedX *
+            static_cast<double>(regionWidth - 1);
+
+    const double targetY =
+        static_cast<double>(regionY) +
+        normalizedY *
+            static_cast<double>(regionHeight - 1);
+
+    ei_device_start_emulating(
+        absolutePointerDevice_,
+        nextSequence());
+
+    ei_device_pointer_motion_absolute(
+        absolutePointerDevice_,
+        targetX,
+        targetY);
+
+    ei_device_frame(
+        absolutePointerDevice_,
+        ei_now(ei_));
+
+    ei_device_stop_emulating(
+        absolutePointerDevice_);
+
+    ei_dispatch(ei_);
 }
 
 void LibeiInput::clickLeftButton()
@@ -476,6 +603,24 @@ void LibeiInput::setPointerDevice(
     emit pointerReadyChanged(false);
 }
 
+void LibeiInput::setAbsolutePointerDevice(
+    struct ei_device *device)
+{
+    if (device == absolutePointerDevice_) {
+        return;
+    }
+
+    clearAbsolutePointerDevice();
+
+    absolutePointerDevice_ =
+        ei_device_ref(device);
+
+    absolutePointerResumed_ = false;
+
+    emit absolutePointerReadyChanged(
+        false);
+}
+
 void LibeiInput::setButtonDevice(
     struct ei_device *device)
 {
@@ -535,6 +680,20 @@ void LibeiInput::clearPointerDevice()
     }
 }
 
+void LibeiInput::clearAbsolutePointerDevice()
+{
+    absolutePointerResumed_ = false;
+
+    emit absolutePointerReadyChanged(
+        false);
+
+    if (absolutePointerDevice_ != nullptr) {
+        absolutePointerDevice_ =
+            ei_device_unref(
+                absolutePointerDevice_);
+    }
+}
+
 void LibeiInput::clearButtonDevice()
 {
     buttonResumed_ = false;
@@ -582,6 +741,13 @@ void LibeiInput::updateDeviceResumeState(
             pointerReady());
     }
 
+    if (device == absolutePointerDevice_) {
+        absolutePointerResumed_ = resumed;
+
+        emit absolutePointerReadyChanged(
+            absolutePointerReady());
+    }
+
     if (device == buttonDevice_) {
         buttonResumed_ = resumed;
         emit buttonReadyChanged(
@@ -620,6 +786,10 @@ void LibeiInput::removeDevice(
 
     if (device == pointerDevice_) {
         clearPointerDevice();
+    }
+
+    if (device == absolutePointerDevice_) {
+        clearAbsolutePointerDevice();
     }
 
     if (device == buttonDevice_) {
