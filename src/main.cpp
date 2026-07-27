@@ -1,3 +1,6 @@
+#include "lan_session.h"
+#include "remote_view.h"
+
 #include <QApplication>
 #include <QButtonGroup>
 #include <QDialog>
@@ -686,17 +689,17 @@ QLabel#remotePlaceholder {
     auto *remoteLayout =
         new QVBoxLayout(remoteArea);
 
-    auto *remotePlaceholder =
-        makeLabel(
-            QStringLiteral(
-                "The remote desktop will appear here."),
-            QStringLiteral("remotePlaceholder"));
+    remoteLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        0);
 
-    remotePlaceholder->setAlignment(
-        Qt::AlignCenter);
+    auto *remoteView =
+        new RemoteView;
 
     remoteLayout->addWidget(
-        remotePlaceholder);
+        remoteView);
 
     auto *disconnectButton =
         makeButton(
@@ -716,6 +719,12 @@ QLabel#remotePlaceholder {
 
     pages->addWidget(providePage);
 
+    auto *lanSession =
+        new LanSession(window);
+
+    lanSession->startCustomer(
+        supportCode->text());
+
     QObject::connect(
         modeGroup,
         &QButtonGroup::idClicked,
@@ -726,10 +735,19 @@ QLabel#remotePlaceholder {
         newCodeButton,
         &QPushButton::clicked,
         window,
-        [supportCode, receiveStatus]()
+        [
+            lanSession,
+            supportCode,
+            receiveStatus
+        ]()
         {
-            supportCode->setText(
-                createSupportCode());
+            const QString code =
+                createSupportCode();
+
+            supportCode->setText(code);
+
+            lanSession->startCustomer(
+                code);
 
             receiveStatus->setText(
                 QStringLiteral(
@@ -740,8 +758,13 @@ QLabel#remotePlaceholder {
         endSupportButton,
         &QPushButton::clicked,
         window,
-        [receiveStatus]()
+        [
+            lanSession,
+            receiveStatus
+        ]()
         {
+            lanSession->disconnectSession();
+
             receiveStatus->setText(
                 QStringLiteral(
                     "Support session ended."));
@@ -783,6 +806,7 @@ QLabel#remotePlaceholder {
         &QPushButton::clicked,
         window,
         [
+            lanSession,
             codeEntry,
             connectButton,
             disconnectButton,
@@ -801,9 +825,12 @@ QLabel#remotePlaceholder {
                 return;
             }
 
+            lanSession->connectProvider(
+                code);
+
             provideStatus->setText(
                 QStringLiteral(
-                    "Ready for LAN connection implementation."));
+                    "Looking for the support computer on the LAN..."));
 
             connectButton->setEnabled(false);
             codeEntry->setEnabled(false);
@@ -815,12 +842,17 @@ QLabel#remotePlaceholder {
         &QPushButton::clicked,
         window,
         [
+            lanSession,
+            remoteView,
             codeEntry,
             connectButton,
             disconnectButton,
             provideStatus
         ]()
         {
+            lanSession->disconnectSession();
+            remoteView->clearFrame();
+
             provideStatus->setText(
                 QStringLiteral(
                     "Disconnected."));
@@ -829,6 +861,92 @@ QLabel#remotePlaceholder {
             connectButton->setEnabled(true);
             disconnectButton->setEnabled(false);
         });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::statusChanged,
+        window,
+        [
+            receiveButton,
+            receiveStatus,
+            provideStatus
+        ](
+            const QString &message)
+        {
+            if (receiveButton->isChecked()) {
+                receiveStatus->setText(
+                    message);
+            } else {
+                provideStatus->setText(
+                    message);
+            }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::errorOccurred,
+        window,
+        [
+            receiveButton,
+            receiveStatus,
+            provideStatus
+        ](
+            const QString &message)
+        {
+            const QString fullMessage =
+                QStringLiteral("Error: ") +
+                message;
+
+            if (receiveButton->isChecked()) {
+                receiveStatus->setText(
+                    fullMessage);
+            } else {
+                provideStatus->setText(
+                    fullMessage);
+            }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::connectedChanged,
+        window,
+        [
+            receiveButton,
+            connectButton,
+            disconnectButton,
+            codeEntry
+        ](
+            bool connected)
+        {
+            if (!receiveButton->isChecked()) {
+                connectButton->setEnabled(
+                    !connected);
+
+                disconnectButton->setEnabled(
+                    connected);
+
+                codeEntry->setEnabled(
+                    !connected);
+            }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::frameReceived,
+        remoteView,
+        &RemoteView::setFrame);
+
+    QObject::connect(
+        remoteView,
+        &RemoteView::pointerMoveRequested,
+        lanSession,
+        &LanSession::sendPointerMove);
+
+    QObject::connect(
+        remoteView,
+        &RemoteView::leftClickRequested,
+        lanSession,
+        &LanSession::sendLeftClick);
 
     window->show();
 

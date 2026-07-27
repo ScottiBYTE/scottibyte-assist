@@ -32,6 +32,8 @@ qt_add_executable(
   src/main.cpp
   src/lan_session.cpp
   src/lan_session.h
+  src/remote_view.cpp
+  src/remote_view.h
 )
 
 target_link_libraries(
