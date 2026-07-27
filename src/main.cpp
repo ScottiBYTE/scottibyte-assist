@@ -14,6 +14,7 @@
 #include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -270,6 +271,23 @@ QPushButton#primaryButton {
 
 QPushButton#primaryButton:hover {
     background: #257fc3;
+}
+
+QPushButton#viewButton {
+    min-width: 42px;
+    max-width: 42px;
+    min-height: 34px;
+    max-height: 34px;
+    border: 1px solid #35d8ff;
+    border-radius: 9px;
+    color: #ffffff;
+    background: #0b3d67;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+QPushButton#viewButton:hover {
+    background: #176da0;
 }
 
 QPushButton#dangerButton {
@@ -690,16 +708,89 @@ QLabel#remotePlaceholder {
         new QVBoxLayout(remoteArea);
 
     remoteLayout->setContentsMargins(
+        8,
+        8,
+        8,
+        8);
+
+    remoteLayout->setSpacing(6);
+
+    auto *remoteHeaderLayout =
+        new QHBoxLayout;
+
+    auto *remoteHeaderLabel =
+        makeLabel(
+            QStringLiteral(
+                "Remote desktop"),
+            QStringLiteral(
+                "sectionHeading"));
+
+    auto *fullScreenButton =
+        makeButton(
+            QStringLiteral("⛶"),
+            QStringLiteral(
+                "viewButton"));
+
+    fullScreenButton->setToolTip(
+        QStringLiteral(
+            "View remote desktop full screen"));
+
+    remoteHeaderLayout->addWidget(
+        remoteHeaderLabel);
+
+    remoteHeaderLayout->addStretch();
+
+    remoteHeaderLayout->addWidget(
+        fullScreenButton);
+
+    auto *remoteView =
+        new RemoteView;
+
+    remoteLayout->addLayout(
+        remoteHeaderLayout);
+
+    remoteLayout->addWidget(
+        remoteView,
+        1);
+
+    auto *fullScreenWindow =
+        new QWidget;
+
+    fullScreenWindow->setWindowTitle(
+        QStringLiteral(
+            "ScottiBYTE Assist — Remote Desktop"));
+
+    fullScreenWindow->setStyleSheet(
+        QStringLiteral(
+            "background: black;"));
+
+    auto *fullScreenLayout =
+        new QVBoxLayout(
+            fullScreenWindow);
+
+    fullScreenLayout->setContentsMargins(
         0,
         0,
         0,
         0);
 
-    auto *remoteView =
+    auto *fullScreenRemoteView =
         new RemoteView;
 
-    remoteLayout->addWidget(
-        remoteView);
+    fullScreenLayout->addWidget(
+        fullScreenRemoteView);
+
+    auto *exitFullScreenShortcut =
+        new QShortcut(
+            QKeySequence(
+                Qt::Key_Escape),
+            fullScreenWindow);
+
+    QObject::connect(
+        exitFullScreenShortcut,
+        &QShortcut::activated,
+        fullScreenWindow,
+        &QWidget::close);
 
     auto *disconnectButton =
         makeButton(
@@ -844,6 +935,8 @@ QLabel#remotePlaceholder {
         [
             lanSession,
             remoteView,
+            fullScreenRemoteView,
+            fullScreenWindow,
             codeEntry,
             connectButton,
             disconnectButton,
@@ -852,6 +945,8 @@ QLabel#remotePlaceholder {
         {
             lanSession->disconnectSession();
             remoteView->clearFrame();
+            fullScreenRemoteView->clearFrame();
+            fullScreenWindow->close();
 
             provideStatus->setText(
                 QStringLiteral(
@@ -937,6 +1032,12 @@ QLabel#remotePlaceholder {
         &RemoteView::setFrame);
 
     QObject::connect(
+        lanSession,
+        &LanSession::frameReceived,
+        fullScreenRemoteView,
+        &RemoteView::setFrame);
+
+    QObject::connect(
         remoteView,
         &RemoteView::pointerMoveRequested,
         lanSession,
@@ -947,6 +1048,46 @@ QLabel#remotePlaceholder {
         &RemoteView::leftClickRequested,
         lanSession,
         &LanSession::sendLeftClick);
+
+    QObject::connect(
+        fullScreenRemoteView,
+        &RemoteView::pointerMoveRequested,
+        lanSession,
+        &LanSession::sendPointerMove);
+
+    QObject::connect(
+        fullScreenRemoteView,
+        &RemoteView::leftClickRequested,
+        lanSession,
+        &LanSession::sendLeftClick);
+
+    const auto showRemoteFullScreen =
+        [
+            fullScreenWindow
+        ]()
+        {
+            fullScreenWindow->showFullScreen();
+            fullScreenWindow->raise();
+            fullScreenWindow->activateWindow();
+        };
+
+    QObject::connect(
+        fullScreenButton,
+        &QPushButton::clicked,
+        window,
+        showRemoteFullScreen);
+
+    QObject::connect(
+        remoteView,
+        &RemoteView::fullScreenRequested,
+        window,
+        showRemoteFullScreen);
+
+    QObject::connect(
+        fullScreenRemoteView,
+        &RemoteView::fullScreenRequested,
+        fullScreenWindow,
+        &QWidget::close);
 
     window->show();
 

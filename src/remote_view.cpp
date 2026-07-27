@@ -173,3 +173,12 @@ void RemoteView::mousePressEvent(
             position.y());
     }
 }
+
+void RemoteView::mouseDoubleClickEvent(
+    QMouseEvent *event)
+{
+    if (event->button() ==
+        Qt::LeftButton) {
+        emit fullScreenRequested();
+    }
+}

@@ -26,6 +26,8 @@ signals:
         int x,
         int y);
 
+    void fullScreenRequested();
+
 protected:
     void paintEvent(
         QPaintEvent *event) override;
@@ -34,6 +36,9 @@ protected:
         QMouseEvent *event) override;
 
     void mousePressEvent(
+        QMouseEvent *event) override;
+
+    void mouseDoubleClickEvent(
         QMouseEvent *event) override;
 
 private:
