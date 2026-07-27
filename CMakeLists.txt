@@ -10,17 +10,28 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+find_package(X11 REQUIRED)
+
+find_library(
+  XTST_LIBRARY
+  Xtst
+  REQUIRED
+)
+
 find_package(
   Qt6
   REQUIRED COMPONENTS
     Core
     Gui
+    Network
     Widgets
 )
 
 qt_add_executable(
   scottibyte-assist
   src/main.cpp
+  src/lan_session.cpp
+  src/lan_session.h
 )
 
 target_link_libraries(
@@ -28,7 +39,10 @@ target_link_libraries(
   PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Widgets
+    X11::X11
+    ${XTST_LIBRARY}
 )
 
 install(
