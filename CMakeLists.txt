@@ -12,6 +12,22 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 find_package(X11 REQUIRED)
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(
+  PIPEWIRE
+  REQUIRED
+  IMPORTED_TARGET
+  libpipewire-0.3
+  libspa-0.2
+)
+
+pkg_check_modules(
+  LIBEI
+  REQUIRED
+  IMPORTED_TARGET
+  libei-1.0
+)
 
 find_library(
   XTST_LIBRARY
@@ -23,6 +39,7 @@ find_package(
   Qt6
   REQUIRED COMPONENTS
     Core
+    DBus
     Gui
     Network
     Widgets
@@ -34,6 +51,12 @@ qt_add_executable(
   src/main.cpp
   src/lan_session.cpp
   src/lan_session.h
+  src/libei_input.cpp
+  src/libei_input.h
+  src/pipewire_preview.cpp
+  src/pipewire_preview.h
+  src/portal_session.cpp
+  src/portal_session.h
   src/remote_view.cpp
   src/remote_view.h
 )
@@ -42,9 +65,12 @@ target_link_libraries(
   scottibyte-assist
   PRIVATE
     Qt6::Core
+    Qt6::DBus
     Qt6::Gui
     Qt6::Network
     Qt6::Widgets
+    PkgConfig::PIPEWIRE
+    PkgConfig::LIBEI
     X11::X11
     ${XTST_LIBRARY}
 )
