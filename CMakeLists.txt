@@ -60,6 +60,8 @@ qt_add_executable(
   src/portal_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/wayland_desktop_backend.cpp
+  src/wayland_desktop_backend.h
   src/x11_desktop_backend.cpp
   src/x11_desktop_backend.h
 )

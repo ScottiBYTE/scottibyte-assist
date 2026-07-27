@@ -1,5 +1,7 @@
+#include "desktop_backend.h"
 #include "lan_session.h"
 #include "remote_view.h"
+#include "wayland_desktop_backend.h"
 #include "x11_desktop_backend.h"
 
 #include <QApplication>
@@ -831,11 +833,37 @@ QLabel#remotePlaceholder {
     auto *lanSession =
         new LanSession(window);
 
-    auto *x11DesktopBackend =
-        new X11DesktopBackend(window);
+    DesktopBackend *desktopBackend =
+        nullptr;
+
+    const QString sessionType =
+        qEnvironmentVariable(
+            "XDG_SESSION_TYPE");
+
+    const QString platformName =
+        QGuiApplication::platformName();
+
+    const bool waylandSession =
+        sessionType.compare(
+            QStringLiteral("wayland"),
+            Qt::CaseInsensitive) == 0 ||
+        (
+            sessionType.isEmpty() &&
+            platformName.contains(
+                QStringLiteral("wayland"),
+                Qt::CaseInsensitive)
+        );
+
+    if (waylandSession) {
+        desktopBackend =
+            new WaylandDesktopBackend(window);
+    } else {
+        desktopBackend =
+            new X11DesktopBackend(window);
+    }
 
     lanSession->setDesktopBackend(
-        x11DesktopBackend);
+        desktopBackend);
 
     lanSession->startCustomer(
         supportCode->text());

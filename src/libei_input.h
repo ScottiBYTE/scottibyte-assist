@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 #include <cstdint>
@@ -29,6 +30,10 @@ public slots:
     void stop();
 
     void movePointer();
+
+    void movePointerRelative(
+        int deltaX,
+        int deltaY);
 
     void movePointerAbsolute(
         int x,
@@ -77,6 +82,12 @@ private:
     void removeDevice(
         struct ei_device *device);
 
+    void startDeviceEmulation(
+        struct ei_device *device);
+
+    void stopDeviceEmulation(
+        struct ei_device *device);
+
     uint32_t nextSequence();
 
     struct ei *ei_ = nullptr;
@@ -97,6 +108,8 @@ private:
     bool buttonResumed_ = false;
     bool scrollResumed_ = false;
     bool keyboardResumed_ = false;
+
+    QSet<struct ei_device *> emulatingDevices_;
 
     uint32_t sequence_ = 0;
 };

@@ -143,6 +143,15 @@ void LibeiInput::start(
 
 void LibeiInput::stop()
 {
+    const QSet<struct ei_device *> activeDevices =
+        emulatingDevices_;
+
+    for (struct ei_device *device :
+         activeDevices) {
+        stopDeviceEmulation(
+            device);
+    }
+
     if (notifier_ != nullptr) {
         notifier_->setEnabled(false);
         delete notifier_;
@@ -331,10 +340,6 @@ void LibeiInput::movePointer()
         return;
     }
 
-    ei_device_start_emulating(
-        pointerDevice_,
-        nextSequence());
-
     ei_device_pointer_motion(
         pointerDevice_,
         80.0,
@@ -344,14 +349,40 @@ void LibeiInput::movePointer()
         pointerDevice_,
         ei_now(ei_));
 
-    ei_device_stop_emulating(
-        pointerDevice_);
-
     ei_dispatch(ei_);
 
     emit statusChanged(
         QStringLiteral(
             "Pointer movement sent: +80, +30"));
+}
+
+void LibeiInput::movePointerRelative(
+    int deltaX,
+    int deltaY)
+{
+    if (!pointerReady() ||
+        ei_ == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "No active authorized relative pointer device."));
+        return;
+    }
+
+    if (deltaX == 0 &&
+        deltaY == 0) {
+        return;
+    }
+
+    ei_device_pointer_motion(
+        pointerDevice_,
+        static_cast<double>(deltaX),
+        static_cast<double>(deltaY));
+
+    ei_device_frame(
+        pointerDevice_,
+        ei_now(ei_));
+
+    ei_dispatch(ei_);
 }
 
 void LibeiInput::movePointerAbsolute(
@@ -442,10 +473,6 @@ void LibeiInput::movePointerAbsolute(
         normalizedY *
             static_cast<double>(regionHeight - 1);
 
-    ei_device_start_emulating(
-        absolutePointerDevice_,
-        nextSequence());
-
     ei_device_pointer_motion_absolute(
         absolutePointerDevice_,
         targetX,
@@ -454,9 +481,6 @@ void LibeiInput::movePointerAbsolute(
     ei_device_frame(
         absolutePointerDevice_,
         ei_now(ei_));
-
-    ei_device_stop_emulating(
-        absolutePointerDevice_);
 
     ei_dispatch(ei_);
 }
@@ -470,10 +494,6 @@ void LibeiInput::clickLeftButton()
                 "No active authorized button device."));
         return;
     }
-
-    ei_device_start_emulating(
-        buttonDevice_,
-        nextSequence());
 
     ei_device_button_button(
         buttonDevice_,
@@ -493,9 +513,6 @@ void LibeiInput::clickLeftButton()
         buttonDevice_,
         ei_now(ei_));
 
-    ei_device_stop_emulating(
-        buttonDevice_);
-
     ei_dispatch(ei_);
 
     emit statusChanged(
@@ -512,10 +529,6 @@ void LibeiInput::scrollDown()
                 "No active authorized scroll device."));
         return;
     }
-
-    ei_device_start_emulating(
-        scrollDevice_,
-        nextSequence());
 
     ei_device_scroll_discrete(
         scrollDevice_,
@@ -535,9 +548,6 @@ void LibeiInput::scrollDown()
         scrollDevice_,
         ei_now(ei_));
 
-    ei_device_stop_emulating(
-        scrollDevice_);
-
     ei_dispatch(ei_);
 
     emit statusChanged(
@@ -554,10 +564,6 @@ void LibeiInput::typeLowercaseA()
                 "No active authorized keyboard device."));
         return;
     }
-
-    ei_device_start_emulating(
-        keyboardDevice_,
-        nextSequence());
 
     ei_device_keyboard_key(
         keyboardDevice_,
@@ -576,9 +582,6 @@ void LibeiInput::typeLowercaseA()
     ei_device_frame(
         keyboardDevice_,
         ei_now(ei_));
-
-    ei_device_stop_emulating(
-        keyboardDevice_);
 
     ei_dispatch(ei_);
 
@@ -735,6 +738,14 @@ void LibeiInput::updateDeviceResumeState(
         return;
     }
 
+    if (resumed) {
+        startDeviceEmulation(
+            device);
+    } else {
+        stopDeviceEmulation(
+            device);
+    }
+
     if (device == pointerDevice_) {
         pointerResumed_ = resumed;
         emit pointerReadyChanged(
@@ -784,6 +795,9 @@ void LibeiInput::removeDevice(
         return;
     }
 
+    stopDeviceEmulation(
+        device);
+
     if (device == pointerDevice_) {
         clearPointerDevice();
     }
@@ -803,6 +817,40 @@ void LibeiInput::removeDevice(
     if (device == keyboardDevice_) {
         clearKeyboardDevice();
     }
+}
+
+void LibeiInput::startDeviceEmulation(
+    struct ei_device *device)
+{
+    if (device == nullptr ||
+        emulatingDevices_.contains(device)) {
+        return;
+    }
+
+    ei_device_start_emulating(
+        device,
+        nextSequence());
+
+    emulatingDevices_.insert(device);
+
+    emit statusChanged(
+        QStringLiteral(
+            "Authorized input device is emulating"));
+}
+
+void LibeiInput::stopDeviceEmulation(
+    struct ei_device *device)
+{
+    if (device == nullptr ||
+        !emulatingDevices_.contains(device)) {
+        return;
+    }
+
+    ei_device_stop_emulating(
+        device);
+
+    emulatingDevices_.remove(
+        device);
 }
 
 uint32_t LibeiInput::nextSequence()
