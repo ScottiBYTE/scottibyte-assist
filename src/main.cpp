@@ -7,6 +7,8 @@
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -92,6 +94,13 @@ int main(
         QStringLiteral(
             "ScottiBYTE Assist"));
 
+    const QIcon applicationIcon(
+        QStringLiteral(
+            ":/assets/scottibyte-assist.png"));
+
+    application.setWindowIcon(
+        applicationIcon);
+
     application.setStyleSheet(
         QStringLiteral(
 R"CSS(
@@ -116,22 +125,12 @@ QFrame#header {
 }
 
 QLabel#logoBadge {
-    min-width: 58px;
-    max-width: 58px;
-    min-height: 58px;
-    max-height: 58px;
-    border: 2px solid #22d6ff;
-    border-radius: 29px;
-    background: qradialgradient(
-        cx: 0.5, cy: 0.5,
-        radius: 0.8,
-        stop: 0 #4d165e,
-        stop: 0.55 #101b59,
-        stop: 1 #020a1b
-    );
-    color: #ffffff;
-    font-size: 22px;
-    font-weight: 900;
+    min-width: 64px;
+    max-width: 64px;
+    min-height: 64px;
+    max-height: 64px;
+    border: none;
+    background: transparent;
 }
 
 QLabel#brandTitle {
@@ -359,6 +358,9 @@ QLabel#remotePlaceholder {
         QStringLiteral(
             "ScottiBYTE Assist"));
 
+    window->setWindowIcon(
+        applicationIcon);
+
     window->resize(
         900,
         720);
@@ -395,11 +397,26 @@ QLabel#remotePlaceholder {
 
     auto *logo =
         makeLabel(
-            QStringLiteral("SB"),
+            QString(),
             QStringLiteral("logoBadge"));
 
     logo->setAlignment(
         Qt::AlignCenter);
+
+    logo->setFixedSize(
+        64,
+        64);
+
+    const QPixmap logoPixmap(
+        QStringLiteral(
+            ":/assets/scottibyte-assist.png"));
+
+    logo->setPixmap(
+        logoPixmap.scaled(
+            64,
+            64,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation));
 
     auto *brandLayout =
         new QVBoxLayout;

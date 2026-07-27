@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/">
+    <file>assets/scottibyte-assist.png</file>
+  </qresource>
+</RCC>
