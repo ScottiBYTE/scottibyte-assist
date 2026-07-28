@@ -400,6 +400,52 @@ void PortalSession::selectSources()
         Stage::SelectingSources);
 }
 
+bool PortalSession::requestClipboard()
+{
+    emit statusChanged(
+        QStringLiteral(
+            "Requesting clipboard access…"));
+
+    QDBusInterface clipboard(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QStringLiteral(
+            "org.freedesktop.portal.Clipboard"),
+        bus_);
+
+    if (!clipboard.isValid()) {
+        fail(
+            QStringLiteral(
+                "The Clipboard portal interface "
+                "is unavailable."));
+        return false;
+    }
+
+    const QDBusMessage reply =
+        clipboard.call(
+            QStringLiteral(
+                "RequestClipboard"),
+            QVariant::fromValue(
+                QDBusObjectPath(
+                    sessionHandle_)),
+            QVariantMap());
+
+    if (reply.type() ==
+        QDBusMessage::ErrorMessage) {
+        fail(
+            QStringLiteral(
+                "RequestClipboard failed: %1")
+                .arg(
+                    reply.errorMessage()));
+        return false;
+    }
+
+    qInfo()
+        << "portal: clipboard requested";
+
+    return true;
+}
+
 void PortalSession::startSession()
 {
     emit statusChanged(
@@ -478,14 +524,36 @@ void PortalSession::onRequestResponse(
         break;
 
     case Stage::SelectingSources:
+        if (!requestClipboard()) {
+            return;
+        }
+
         startSession();
         break;
 
-    case Stage::Starting:
+    case Stage::Starting: {
         selectedDevices_ =
             results.value(
                 QStringLiteral("devices"))
                 .toUInt();
+
+        const bool clipboardEnabled =
+            results.value(
+                QStringLiteral(
+                    "clipboard_enabled"))
+                .toBool();
+
+        qInfo()
+            << "portal: clipboard enabled"
+            << clipboardEnabled;
+
+        if (!clipboardEnabled) {
+            fail(
+                QStringLiteral(
+                    "The portal started the session "
+                    "without clipboard access."));
+            return;
+        }
 
         streams_ = streamsFrom(results);
 
@@ -542,6 +610,7 @@ void PortalSession::onRequestResponse(
         emit busyChanged(false);
         emit activeChanged(true);
         break;
+    }
 
     case Stage::Idle:
     case Stage::Active:

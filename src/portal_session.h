@@ -93,6 +93,7 @@ private:
     void createSession();
     void selectDevices();
     void selectSources();
+    bool requestClipboard();
     void startSession();
 
     bool openPipeWireRemote();
