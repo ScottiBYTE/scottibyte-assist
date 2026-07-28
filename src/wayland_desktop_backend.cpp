@@ -80,6 +80,40 @@ uint32_t linuxKeyCodeForQtKey(
         return KEY_LEFTALT;
     case Qt::Key_Meta:
         return KEY_LEFTMETA;
+    case Qt::Key_F1:
+        return KEY_F1;
+    case Qt::Key_F2:
+        return KEY_F2;
+    case Qt::Key_F3:
+        return KEY_F3;
+    case Qt::Key_F4:
+        return KEY_F4;
+    case Qt::Key_F5:
+        return KEY_F5;
+    case Qt::Key_F6:
+        return KEY_F6;
+    case Qt::Key_F7:
+        return KEY_F7;
+    case Qt::Key_F8:
+        return KEY_F8;
+    case Qt::Key_F9:
+        return KEY_F9;
+    case Qt::Key_F10:
+        return KEY_F10;
+    case Qt::Key_F11:
+        return KEY_F11;
+    case Qt::Key_F12:
+        return KEY_F12;
+    case Qt::Key_CapsLock:
+        return KEY_CAPSLOCK;
+    case Qt::Key_ScrollLock:
+        return KEY_SCROLLLOCK;
+    case Qt::Key_Pause:
+        return KEY_PAUSE;
+    case Qt::Key_Print:
+        return KEY_SYSRQ;
+    case Qt::Key_Menu:
+        return KEY_MENU;
     case Qt::Key_Minus:
         return KEY_MINUS;
     case Qt::Key_Equal:

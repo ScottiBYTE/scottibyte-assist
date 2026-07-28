@@ -295,6 +295,40 @@ KeySym x11KeySymForQtKey(
         return XK_Alt_L;
     case Qt::Key_Meta:
         return XK_Super_L;
+    case Qt::Key_F1:
+        return XK_F1;
+    case Qt::Key_F2:
+        return XK_F2;
+    case Qt::Key_F3:
+        return XK_F3;
+    case Qt::Key_F4:
+        return XK_F4;
+    case Qt::Key_F5:
+        return XK_F5;
+    case Qt::Key_F6:
+        return XK_F6;
+    case Qt::Key_F7:
+        return XK_F7;
+    case Qt::Key_F8:
+        return XK_F8;
+    case Qt::Key_F9:
+        return XK_F9;
+    case Qt::Key_F10:
+        return XK_F10;
+    case Qt::Key_F11:
+        return XK_F11;
+    case Qt::Key_F12:
+        return XK_F12;
+    case Qt::Key_CapsLock:
+        return XK_Caps_Lock;
+    case Qt::Key_ScrollLock:
+        return XK_Scroll_Lock;
+    case Qt::Key_Pause:
+        return XK_Pause;
+    case Qt::Key_Print:
+        return XK_Print;
+    case Qt::Key_Menu:
+        return XK_Menu;
     case Qt::Key_Minus:
         return XK_minus;
     case Qt::Key_Equal:
