@@ -19,6 +19,14 @@ void RemoteView::setFrame(
     const QImage &image)
 {
     frame_ = image;
+
+    if (frame_.isNull()) {
+        unsetCursor();
+    } else {
+        setCursor(
+            Qt::BlankCursor);
+    }
+
     update();
 }
 
