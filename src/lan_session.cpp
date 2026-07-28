@@ -590,6 +590,26 @@ void LanSession::sendKeyRelease(
         keyPayload(qtKey));
 }
 
+void LanSession::sendClipboardText(
+    const QString &text)
+{
+    const QByteArray payload =
+        text.toUtf8();
+
+    if (payload.size() >
+        1024 * 1024) {
+        emit errorOccurred(
+            QStringLiteral(
+                "Clipboard text exceeds "
+                "the 1 MiB limit."));
+        return;
+    }
+
+    sendMessage(
+        MessageType::ClipboardText,
+        payload);
+}
+
 void LanSession::sendMessage(
     MessageType type,
     const QByteArray &payload)
@@ -700,6 +720,14 @@ void LanSession::processIncomingData()
             if (!image.isNull()) {
                 emit frameReceived(image);
             }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::ClipboardText) {
+            emit clipboardTextReceived(
+                QString::fromUtf8(payload));
 
             continue;
         }

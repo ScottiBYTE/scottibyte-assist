@@ -6,6 +6,7 @@
 
 #include <QApplication>
 #include <QButtonGroup>
+#include <QClipboard>
 #include <QDialog>
 #include <QFont>
 #include <QFrame>
@@ -854,9 +855,15 @@ QLabel#remotePlaceholder {
                 Qt::CaseInsensitive)
         );
 
+    WaylandDesktopBackend *waylandBackend =
+        nullptr;
+
     if (waylandSession) {
-        desktopBackend =
+        waylandBackend =
             new WaylandDesktopBackend(window);
+
+        desktopBackend =
+            waylandBackend;
     } else {
         desktopBackend =
             new X11DesktopBackend(window);
@@ -864,6 +871,76 @@ QLabel#remotePlaceholder {
 
     lanSession->setDesktopBackend(
         desktopBackend);
+
+    QString lastClipboardText;
+
+    if (waylandBackend != nullptr) {
+        QObject::connect(
+            waylandBackend,
+            &WaylandDesktopBackend::
+                localClipboardTextChanged,
+            lanSession,
+            &LanSession::sendClipboardText);
+
+        QObject::connect(
+            lanSession,
+            &LanSession::clipboardTextReceived,
+            waylandBackend,
+            &WaylandDesktopBackend::
+                applyRemoteClipboardText);
+    } else {
+        QClipboard *clipboard =
+            QApplication::clipboard();
+
+        lastClipboardText =
+            clipboard->text(
+                QClipboard::Clipboard);
+
+        QObject::connect(
+            clipboard,
+            &QClipboard::dataChanged,
+            window,
+            [
+                clipboard,
+                lanSession,
+                &lastClipboardText
+            ]()
+            {
+                const QString text =
+                    clipboard->text(
+                        QClipboard::Clipboard);
+
+                if (text ==
+                    lastClipboardText) {
+                    return;
+                }
+
+                lastClipboardText = text;
+                lanSession->sendClipboardText(text);
+            });
+
+        QObject::connect(
+            lanSession,
+            &LanSession::clipboardTextReceived,
+            window,
+            [
+                clipboard,
+                &lastClipboardText
+            ](
+                const QString &text)
+            {
+                if (text ==
+                    lastClipboardText) {
+                    return;
+                }
+
+                lastClipboardText = text;
+
+                clipboard->setText(
+                    text,
+                    QClipboard::Clipboard);
+            });
+    }
 
     lanSession->startCustomer(
         supportCode->text());

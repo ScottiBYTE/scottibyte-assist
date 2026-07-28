@@ -166,6 +166,13 @@ WaylandDesktopBackend::WaylandDesktopBackend(
         &LibeiInput::start);
 
     connect(
+        portalSession_,
+        &PortalSession::clipboardTextChanged,
+        this,
+        &WaylandDesktopBackend::
+            localClipboardTextChanged);
+
+    connect(
         pipeWirePreview_,
         &PipeWirePreview::frameReady,
         this,
@@ -389,4 +396,10 @@ void WaylandDesktopBackend::releaseKey(
         libeiInput_->releaseKey(
             linuxKeyCode);
     }
+}
+
+void WaylandDesktopBackend::applyRemoteClipboardText(
+    const QString &text)
+{
+    portalSession_->setClipboardText(text);
 }

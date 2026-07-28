@@ -58,6 +58,9 @@ public:
     void sendKeyRelease(
         int qtKey);
 
+    void sendClipboardText(
+        const QString &text);
+
 signals:
     void statusChanged(
         const QString &status);
@@ -67,6 +70,9 @@ signals:
 
     void frameReceived(
         const QImage &image);
+
+    void clipboardTextReceived(
+        const QString &text);
 
     void errorOccurred(
         const QString &message);
@@ -88,7 +94,8 @@ private:
         LeftButtonPress = 5,
         LeftButtonRelease = 6,
         KeyPress = 7,
-        KeyRelease = 8
+        KeyRelease = 8,
+        ClipboardText = 9
     };
 
     void startAdvertising();

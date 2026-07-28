@@ -8,7 +8,9 @@
 #include <QDBusObjectPath>
 #include <QDBusReply>
 #include <QDBusUnixFileDescriptor>
+#include <QFile>
 #include <QProcessEnvironment>
+#include <QStringList>
 #include <QUuid>
 #include <QVariant>
 
@@ -27,6 +29,9 @@ constexpr auto remoteDesktopInterface =
 
 constexpr auto screenCastInterface =
     "org.freedesktop.portal.ScreenCast";
+
+constexpr auto clipboardInterface =
+    "org.freedesktop.portal.Clipboard";
 
 constexpr auto requestInterface =
     "org.freedesktop.portal.Request";
@@ -567,6 +572,10 @@ void PortalSession::onRequestResponse(
 
         qInfo() << "portal: Start completed";
 
+        if (!connectClipboardSignals()) {
+            return;
+        }
+
         if (!openPipeWireRemote()) {
             return;
         }
@@ -796,6 +805,376 @@ bool PortalSession::connectToEis()
     return true;
 }
 
+bool PortalSession::connectClipboardSignals()
+{
+    if (clipboardSignalsConnected_) {
+        return true;
+    }
+
+    const bool ownerConnected =
+        bus_.connect(
+            QString::fromLatin1(portalService),
+            QString::fromLatin1(portalPath),
+            QString::fromLatin1(clipboardInterface),
+            QStringLiteral("SelectionOwnerChanged"),
+            this,
+            SLOT(onSelectionOwnerChanged(
+                QDBusObjectPath,QVariantMap)));
+
+    const bool transferConnected =
+        bus_.connect(
+            QString::fromLatin1(portalService),
+            QString::fromLatin1(portalPath),
+            QString::fromLatin1(clipboardInterface),
+            QStringLiteral("SelectionTransfer"),
+            this,
+            SLOT(onSelectionTransfer(
+                QDBusObjectPath,QString,uint)));
+
+    if (!ownerConnected ||
+        !transferConnected) {
+        disconnectClipboardSignals();
+
+        fail(
+            QStringLiteral(
+                "Could not subscribe to portal "
+                "clipboard events."));
+
+        return false;
+    }
+
+    clipboardSignalsConnected_ = true;
+
+    qInfo()
+        << "portal: clipboard signals connected";
+
+    return true;
+}
+
+void PortalSession::disconnectClipboardSignals()
+{
+    bus_.disconnect(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QString::fromLatin1(clipboardInterface),
+        QStringLiteral("SelectionOwnerChanged"),
+        this,
+        SLOT(onSelectionOwnerChanged(
+            QDBusObjectPath,QVariantMap)));
+
+    bus_.disconnect(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QString::fromLatin1(clipboardInterface),
+        QStringLiteral("SelectionTransfer"),
+        this,
+        SLOT(onSelectionTransfer(
+            QDBusObjectPath,QString,uint)));
+
+    clipboardSignalsConnected_ = false;
+}
+
+QString PortalSession::readClipboardText(
+    const QString &mimeType,
+    bool *ok)
+{
+    *ok = false;
+
+    QDBusInterface clipboard(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QString::fromLatin1(clipboardInterface),
+        bus_);
+
+    const QDBusReply<QDBusUnixFileDescriptor> reply =
+        clipboard.call(
+            QStringLiteral("SelectionRead"),
+            QVariant::fromValue(
+                QDBusObjectPath(sessionHandle_)),
+            mimeType);
+
+    if (!reply.isValid()) {
+        emit statusChanged(
+            QStringLiteral(
+                "Clipboard read failed: ")
+            + reply.error().message());
+
+        return {};
+    }
+
+    const int receivedFd =
+        reply.value().fileDescriptor();
+
+    if (receivedFd < 0) {
+        return {};
+    }
+
+    const int retainedFd =
+        ::dup(receivedFd);
+
+    if (retainedFd < 0) {
+        return {};
+    }
+
+    QFile file;
+
+    if (!file.open(
+            retainedFd,
+            QIODevice::ReadOnly,
+            QFileDevice::AutoCloseHandle)) {
+        ::close(retainedFd);
+        return {};
+    }
+
+    constexpr qint64 maximumSize =
+        1024 * 1024;
+
+    const QByteArray data =
+        file.read(maximumSize + 1);
+
+    file.close();
+
+    if (data.size() > maximumSize) {
+        emit statusChanged(
+            QStringLiteral(
+                "Clipboard text exceeded the "
+                "1 MiB limit."));
+
+        return {};
+    }
+
+    *ok = true;
+
+    return QString::fromUtf8(data);
+}
+
+void PortalSession::onSelectionOwnerChanged(
+    const QDBusObjectPath &sessionHandle,
+    const QVariantMap &options)
+{
+    if (stage_ != Stage::Active ||
+        sessionHandle.path() !=
+            sessionHandle_) {
+        return;
+    }
+
+    const bool sessionIsOwner =
+        options.value(
+            QStringLiteral(
+                "session_is_owner"))
+            .toBool();
+
+    if (sessionIsOwner) {
+        return;
+    }
+
+    const QStringList mimeTypes =
+        options.value(
+            QStringLiteral("mime_types"))
+            .toStringList();
+
+    QString selectedMimeType;
+
+    const QStringList preferredTypes = {
+        QStringLiteral(
+            "text/plain;charset=utf-8"),
+        QStringLiteral("text/plain"),
+        QStringLiteral("UTF8_STRING")
+    };
+
+    for (const QString &preferred :
+         preferredTypes) {
+        if (mimeTypes.contains(
+                preferred,
+                Qt::CaseInsensitive)) {
+            selectedMimeType = preferred;
+            break;
+        }
+    }
+
+    if (selectedMimeType.isEmpty()) {
+        return;
+    }
+
+    bool ok = false;
+
+    const QString text =
+        readClipboardText(
+            selectedMimeType,
+            &ok);
+
+    if (!ok ||
+        text == clipboardText_) {
+        return;
+    }
+
+    clipboardText_ = text;
+
+    qInfo()
+        << "portal: local clipboard changed"
+        << "length=" << text.size();
+
+    emit clipboardTextChanged(text);
+}
+
+void PortalSession::setClipboardText(
+    const QString &text)
+{
+    if (stage_ != Stage::Active ||
+        text == clipboardText_) {
+        return;
+    }
+
+    if (text.toUtf8().size() >
+        1024 * 1024) {
+        emit statusChanged(
+            QStringLiteral(
+                "Remote clipboard text exceeded "
+                "the 1 MiB limit."));
+        return;
+    }
+
+    clipboardText_ = text;
+
+    QVariantMap options;
+
+    options.insert(
+        QStringLiteral("mime_types"),
+        QStringList{
+            QStringLiteral(
+                "text/plain;charset=utf-8"),
+            QStringLiteral("text/plain")
+        });
+
+    QDBusInterface clipboard(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QString::fromLatin1(clipboardInterface),
+        bus_);
+
+    const QDBusMessage reply =
+        clipboard.call(
+            QStringLiteral("SetSelection"),
+            QVariant::fromValue(
+                QDBusObjectPath(sessionHandle_)),
+            options);
+
+    if (reply.type() ==
+        QDBusMessage::ErrorMessage) {
+        emit statusChanged(
+            QStringLiteral(
+                "Clipboard selection failed: ")
+            + reply.errorMessage());
+        return;
+    }
+
+    qInfo()
+        << "portal: remote clipboard offered"
+        << "length=" << text.size();
+}
+
+void PortalSession::onSelectionTransfer(
+    const QDBusObjectPath &sessionHandle,
+    const QString &mimeType,
+    uint serial)
+{
+    if (stage_ != Stage::Active ||
+        sessionHandle.path() !=
+            sessionHandle_) {
+        return;
+    }
+
+    const bool supportedMimeType =
+        mimeType.compare(
+            QStringLiteral(
+                "text/plain;charset=utf-8"),
+            Qt::CaseInsensitive) == 0 ||
+        mimeType.compare(
+            QStringLiteral("text/plain"),
+            Qt::CaseInsensitive) == 0;
+
+    QDBusInterface clipboard(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QString::fromLatin1(clipboardInterface),
+        bus_);
+
+    bool success = false;
+
+    if (supportedMimeType) {
+        const QDBusReply<QDBusUnixFileDescriptor> reply =
+            clipboard.call(
+                QStringLiteral("SelectionWrite"),
+                QVariant::fromValue(
+                    QDBusObjectPath(
+                        sessionHandle_)),
+                serial);
+
+        if (reply.isValid()) {
+            const int receivedFd =
+                reply.value().fileDescriptor();
+
+            const int retainedFd =
+                receivedFd >= 0
+                    ? ::dup(receivedFd)
+                    : -1;
+
+            if (retainedFd >= 0) {
+                QFile file;
+
+                if (file.open(
+                        retainedFd,
+                        QIODevice::WriteOnly,
+                        QFileDevice::AutoCloseHandle)) {
+                    const QByteArray data =
+                        clipboardText_.toUtf8();
+
+                    qint64 totalWritten = 0;
+
+                    while (
+                        totalWritten <
+                        data.size()) {
+                        const qint64 written =
+                            file.write(
+                                data.constData()
+                                    + totalWritten,
+                                data.size()
+                                    - totalWritten);
+
+                        if (written <= 0) {
+                            break;
+                        }
+
+                        totalWritten += written;
+                    }
+
+                    file.close();
+
+                    success =
+                        totalWritten ==
+                        data.size();
+                } else {
+                    ::close(retainedFd);
+                }
+            }
+        }
+    }
+
+    clipboard.call(
+        QDBus::NoBlock,
+        QStringLiteral(
+            "SelectionWriteDone"),
+        QVariant::fromValue(
+            QDBusObjectPath(sessionHandle_)),
+        serial,
+        success);
+
+    qInfo()
+        << "portal: clipboard transfer"
+        << mimeType
+        << "success=" << success;
+}
+
 void PortalSession::stop()
 {
     if (stage_ == Stage::Idle) {
@@ -860,6 +1239,9 @@ void PortalSession::onSessionClosed()
 
 void PortalSession::resetState()
 {
+    disconnectClipboardSignals();
+    clipboardText_.clear();
+
     if (pipeWireFd_ >= 0) {
         ::close(pipeWireFd_);
         pipeWireFd_ = -1;

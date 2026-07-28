@@ -47,6 +47,13 @@ public slots:
     void releaseKey(
         int qtKey) override;
 
+    void applyRemoteClipboardText(
+        const QString &text);
+
+signals:
+    void localClipboardTextChanged(
+        const QString &text);
+
 private slots:
     void handleFrame(
         const QImage &frame);

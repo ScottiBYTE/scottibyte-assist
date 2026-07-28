@@ -19,6 +19,7 @@ Q_DECLARE_METATYPE(PortalStream)
 Q_DECLARE_METATYPE(PortalStreamList)
 
 class QDBusArgument;
+class QDBusObjectPath;
 
 QDBusArgument &operator<<(
     QDBusArgument &argument,
@@ -43,6 +44,9 @@ public slots:
     void start();
     void stop();
 
+    void setClipboardText(
+        const QString &text);
+
 signals:
     void statusChanged(const QString &status);
     void detailsChanged(const QString &details);
@@ -56,12 +60,24 @@ signals:
     void eisConnectionReady(
         int fileDescriptor);
 
+    void clipboardTextChanged(
+        const QString &text);
+
 private slots:
     void onRequestResponse(
         uint response,
         const QVariantMap &results);
 
     void onSessionClosed();
+
+    void onSelectionOwnerChanged(
+        const QDBusObjectPath &sessionHandle,
+        const QVariantMap &options);
+
+    void onSelectionTransfer(
+        const QDBusObjectPath &sessionHandle,
+        const QString &mimeType,
+        uint serial);
 
 private:
     enum class Stage
@@ -98,6 +114,13 @@ private:
 
     bool openPipeWireRemote();
     bool connectToEis();
+
+    bool connectClipboardSignals();
+    void disconnectClipboardSignals();
+    QString readClipboardText(
+        const QString &mimeType,
+        bool *ok);
+
     void closeSessionObject();
     void resetState();
 
@@ -123,4 +146,7 @@ private:
     int eisFd_ = -1;
     uint selectedDevices_ = 0;
     PortalStreamList streams_;
+
+    bool clipboardSignalsConnected_ = false;
+    QString clipboardText_;
 };
