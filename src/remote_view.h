@@ -46,8 +46,6 @@ signals:
     void keyReleaseRequested(
         int qtKey);
 
-    void fullScreenRequested();
-
 protected:
     void paintEvent(
         QPaintEvent *event) override;
@@ -59,9 +57,6 @@ protected:
         QMouseEvent *event) override;
 
     void mouseReleaseEvent(
-        QMouseEvent *event) override;
-
-    void mouseDoubleClickEvent(
         QMouseEvent *event) override;
 
     void keyPressEvent(

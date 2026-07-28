@@ -483,15 +483,22 @@ void LanSession::disconnectSession()
     expectedPayloadSize_ = 0;
 
     if (socket_ != nullptr) {
-        socket_->disconnectFromHost();
+        QTcpSocket *socket =
+            socket_;
 
-        if (socket_->state() !=
+        socket_ = nullptr;
+
+        socket->disconnect(
+            this);
+
+        socket->disconnectFromHost();
+
+        if (socket->state() !=
             QAbstractSocket::UnconnectedState) {
-            socket_->abort();
+            socket->abort();
         }
 
-        socket_->deleteLater();
-        socket_ = nullptr;
+        socket->deleteLater();
     }
 
     role_ = Role::Inactive;

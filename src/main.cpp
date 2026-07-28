@@ -8,6 +8,7 @@
 #include <QButtonGroup>
 #include <QClipboard>
 #include <QDialog>
+#include <QEvent>
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -16,12 +17,15 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
+#include <QScreen>
 #include <QShortcut>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -83,6 +87,217 @@ QFrame *makeCard(
 
     return card;
 }
+
+class FullScreenExitBubble final
+    : public QPushButton
+{
+public:
+    explicit FullScreenExitBubble(
+        QWidget *fullScreenWindow)
+        : QPushButton(
+              QStringLiteral(
+                  "Exit Full Screen"),
+              fullScreenWindow),
+          fullScreenWindow_(
+              fullScreenWindow)
+    {
+        setCursor(
+            Qt::OpenHandCursor);
+
+        setFixedSize(
+            150,
+            42);
+
+        setStyleSheet(
+            QStringLiteral(
+                "QPushButton {"
+                "  background: rgba(24, 24, 27, 220);"
+                "  color: white;"
+                "  border: 1px solid rgba(255,255,255,90);"
+                "  border-radius: 21px;"
+                "  padding: 0 16px;"
+                "  font-weight: 600;"
+                "}"
+                "QPushButton:hover {"
+                "  background: rgba(45, 45, 50, 240);"
+                "  border-color: rgba(255,255,255,150);"
+                "}"));
+    }
+
+    void prepareForFullScreen()
+    {
+        if (!userPositioned_) {
+            positionAtUpperRight();
+        } else {
+            keepInsideWindow();
+        }
+
+        show();
+        raise();
+    }
+
+protected:
+    void mousePressEvent(
+        QMouseEvent *event) override
+    {
+        if (event->button() ==
+            Qt::LeftButton) {
+            dragging_ = true;
+            movedDuringDrag_ = false;
+
+            dragOffset_ =
+                event->position()
+                    .toPoint();
+
+            setCursor(
+                Qt::ClosedHandCursor);
+
+            event->accept();
+            return;
+        }
+
+        QPushButton::mousePressEvent(
+            event);
+    }
+
+    void mouseMoveEvent(
+        QMouseEvent *event) override
+    {
+        if (!dragging_ ||
+            fullScreenWindow_ ==
+                nullptr) {
+            return;
+        }
+
+        QPoint requested =
+            mapToParent(
+                event->position()
+                    .toPoint())
+            - dragOffset_;
+
+        const int maximumX =
+            qMax(
+                0,
+                fullScreenWindow_->width()
+                    - width());
+
+        const int maximumY =
+            qMax(
+                0,
+                fullScreenWindow_->height()
+                    - height());
+
+        requested.setX(
+            qBound(
+                0,
+                requested.x(),
+                maximumX));
+
+        requested.setY(
+            qBound(
+                0,
+                requested.y(),
+                maximumY));
+
+        if (requested != pos()) {
+            move(requested);
+            movedDuringDrag_ = true;
+        }
+
+        event->accept();
+    }
+
+    void mouseReleaseEvent(
+        QMouseEvent *event) override
+    {
+        if (event->button() ==
+                Qt::LeftButton &&
+            dragging_) {
+            dragging_ = false;
+
+            setCursor(
+                Qt::OpenHandCursor);
+
+            if (movedDuringDrag_) {
+                userPositioned_ = true;
+            } else if (
+                fullScreenWindow_ !=
+                    nullptr) {
+                fullScreenWindow_->close();
+            }
+
+            event->accept();
+            return;
+        }
+
+        QPushButton::mouseReleaseEvent(
+            event);
+    }
+
+private:
+    void positionAtUpperRight()
+    {
+        if (fullScreenWindow_ ==
+            nullptr) {
+            return;
+        }
+
+        constexpr int margin = 20;
+
+        int screenWidth =
+            fullScreenWindow_->width();
+
+        if (fullScreenWindow_->screen() !=
+            nullptr) {
+            screenWidth =
+                fullScreenWindow_
+                    ->screen()
+                    ->geometry()
+                    .width();
+        }
+
+        move(
+            qMax(
+                0,
+                screenWidth
+                    - width()
+                    - margin),
+            margin);
+    }
+
+    void keepInsideWindow()
+    {
+        if (fullScreenWindow_ ==
+            nullptr) {
+            return;
+        }
+
+        move(
+            qBound(
+                0,
+                x(),
+                qMax(
+                    0,
+                    fullScreenWindow_->width()
+                        - width())),
+            qBound(
+                0,
+                y(),
+                qMax(
+                    0,
+                    fullScreenWindow_->height()
+                        - height())));
+    }
+
+    QWidget *fullScreenWindow_ =
+        nullptr;
+
+    QPoint dragOffset_;
+
+    bool dragging_ = false;
+    bool movedDuringDrag_ = false;
+    bool userPositioned_ = false;
+};
 
 }
 
@@ -309,10 +524,13 @@ QPushButton#dangerButton {
     font-weight: 800;
 }
 
-QPushButton:disabled {
-    color: #70849a;
-    border-color: #31516d;
-    background: #17304a;
+QPushButton:disabled,
+QPushButton#dangerButton:disabled,
+QPushButton#secondaryButton:disabled,
+QPushButton#settingsButton:disabled {
+    color: #7d8998;
+    border-color: #465363;
+    background: #293442;
 }
 
 QFrame#progressCard,
@@ -605,6 +823,8 @@ QLabel#remotePlaceholder {
             QStringLiteral("■  End Support"),
             QStringLiteral("dangerButton"));
 
+    endSupportButton->setEnabled(false);
+
     auto *detailsButton =
         makeButton(
             QStringLiteral("ⓘ  Details"),
@@ -801,6 +1021,12 @@ QLabel#remotePlaceholder {
     fullScreenLayout->addWidget(
         fullScreenRemoteView);
 
+    auto *exitFullScreenBubble =
+        new FullScreenExitBubble(
+            fullScreenWindow);
+
+    exitFullScreenBubble->raise();
+
     auto *exitFullScreenShortcut =
         new QShortcut(
             QKeySequence(
@@ -942,8 +1168,44 @@ QLabel#remotePlaceholder {
             });
     }
 
-    lanSession->startCustomer(
-        supportCode->text());
+    bool customerCodeConsumed = false;
+    bool restartingCustomerSession = false;
+    bool providerWasConnected = false;
+
+    const auto startCustomerSession =
+        [
+            lanSession,
+            supportCode,
+            receiveStatus,
+            newCodeButton,
+            endSupportButton,
+            &customerCodeConsumed,
+            &restartingCustomerSession
+        ](
+            bool generateNewCode)
+        {
+            restartingCustomerSession = true;
+            customerCodeConsumed = false;
+
+            if (generateNewCode) {
+                supportCode->setText(
+                    createSupportCode());
+            }
+
+            newCodeButton->setEnabled(true);
+            endSupportButton->setEnabled(false);
+
+            receiveStatus->setText(
+                QStringLiteral(
+                    "Waiting for the person helping you..."));
+
+            lanSession->startCustomer(
+                supportCode->text());
+
+            restartingCustomerSession = false;
+        };
+
+    startCustomerSession(false);
 
     QObject::connect(
         modeGroup,
@@ -956,22 +1218,10 @@ QLabel#remotePlaceholder {
         &QPushButton::clicked,
         window,
         [
-            lanSession,
-            supportCode,
-            receiveStatus
+            startCustomerSession
         ]()
         {
-            const QString code =
-                createSupportCode();
-
-            supportCode->setText(code);
-
-            lanSession->startCustomer(
-                code);
-
-            receiveStatus->setText(
-                QStringLiteral(
-                    "Waiting for the person helping you..."));
+            startCustomerSession(true);
         });
 
     QObject::connect(
@@ -979,15 +1229,10 @@ QLabel#remotePlaceholder {
         &QPushButton::clicked,
         window,
         [
-            lanSession,
-            receiveStatus
+            lanSession
         ]()
         {
             lanSession->disconnectSession();
-
-            receiveStatus->setText(
-                QStringLiteral(
-                    "Support session ended."));
         });
 
     QObject::connect(
@@ -1020,6 +1265,12 @@ QLabel#remotePlaceholder {
                     "Settings will be added after the "
                     "LAN remote-control proof."));
         });
+
+    QObject::connect(
+        codeEntry,
+        &QLineEdit::returnPressed,
+        connectButton,
+        &QPushButton::click);
 
     QObject::connect(
         connectButton,
@@ -1142,7 +1393,14 @@ QLabel#remotePlaceholder {
             connectButton,
             disconnectButton,
             codeEntry,
-            provideStatus
+            provideStatus,
+            newCodeButton,
+            endSupportButton,
+            startCustomerSession,
+            &customerCodeConsumed,
+            &restartingCustomerSession,
+            &providerWasConnected,
+            window
         ](
             bool connected)
         {
@@ -1152,21 +1410,58 @@ QLabel#remotePlaceholder {
                 fullScreenWindow->close();
             }
 
-            if (!receiveButton->isChecked()) {
-                connectButton->setEnabled(
-                    !connected);
+            if (receiveButton->isChecked()) {
+                if (connected) {
+                    customerCodeConsumed = true;
 
-                disconnectButton->setEnabled(
-                    connected);
+                    newCodeButton->setEnabled(false);
+                    endSupportButton->setEnabled(true);
+                } else {
+                    newCodeButton->setEnabled(true);
+                    endSupportButton->setEnabled(false);
 
-                codeEntry->setEnabled(
-                    !connected);
+                    if (
+                        customerCodeConsumed &&
+                        !restartingCustomerSession
+                    ) {
+                        customerCodeConsumed = false;
+                        restartingCustomerSession = true;
 
-                if (!connected) {
-                    provideStatus->setText(
-                        QStringLiteral(
-                            "The support session ended."));
+                        QTimer::singleShot(
+                            0,
+                            window,
+                            [
+                                startCustomerSession,
+                                &restartingCustomerSession
+                            ]()
+                            {
+                                restartingCustomerSession = false;
+                                startCustomerSession(true);
+                            });
+                    }
                 }
+
+                return;
+            }
+
+            connectButton->setEnabled(
+                !connected);
+
+            disconnectButton->setEnabled(
+                connected);
+
+            codeEntry->setEnabled(
+                !connected);
+
+            if (connected) {
+                providerWasConnected = true;
+            } else if (providerWasConnected) {
+                providerWasConnected = false;
+                codeEntry->clear();
+
+                provideStatus->setText(
+                    QStringLiteral(
+                        "The support session ended."));
             }
         });
 
@@ -1268,12 +1563,16 @@ QLabel#remotePlaceholder {
 
     const auto showRemoteFullScreen =
         [
-            fullScreenWindow
+            fullScreenWindow,
+            exitFullScreenBubble
         ]()
         {
             fullScreenWindow->showFullScreen();
             fullScreenWindow->raise();
             fullScreenWindow->activateWindow();
+
+            exitFullScreenBubble->
+                prepareForFullScreen();
         };
 
     QObject::connect(
@@ -1281,18 +1580,6 @@ QLabel#remotePlaceholder {
         &QPushButton::clicked,
         window,
         showRemoteFullScreen);
-
-    QObject::connect(
-        remoteView,
-        &RemoteView::fullScreenRequested,
-        window,
-        showRemoteFullScreen);
-
-    QObject::connect(
-        fullScreenRemoteView,
-        &RemoteView::fullScreenRequested,
-        fullScreenWindow,
-        &QWidget::close);
 
     window->show();
 
