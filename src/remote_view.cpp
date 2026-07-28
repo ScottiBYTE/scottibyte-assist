@@ -238,11 +238,6 @@ void RemoteView::mouseDoubleClickEvent(
 void RemoteView::keyPressEvent(
     QKeyEvent *event)
 {
-    if (event->isAutoRepeat()) {
-        event->accept();
-        return;
-    }
-
     emit keyPressRequested(
         event->key());
 
@@ -252,11 +247,6 @@ void RemoteView::keyPressEvent(
 void RemoteView::keyReleaseEvent(
     QKeyEvent *event)
 {
-    if (event->isAutoRepeat()) {
-        event->accept();
-        return;
-    }
-
     emit keyReleaseRequested(
         event->key());
 
