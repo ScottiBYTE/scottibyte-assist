@@ -31,6 +31,14 @@ public slots:
         int x,
         int y) = 0;
 
+    virtual void pressLeftAt(
+        int x,
+        int y) = 0;
+
+    virtual void releaseLeftAt(
+        int x,
+        int y) = 0;
+
     virtual void clickRightAt(
         int x,
         int y) = 0;

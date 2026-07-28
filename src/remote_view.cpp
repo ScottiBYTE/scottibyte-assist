@@ -183,11 +183,31 @@ void RemoteView::mousePressEvent(
 
     if (event->button() ==
         Qt::LeftButton) {
-        emit leftClickRequested(
+        emit leftButtonPressRequested(
             position.x(),
             position.y());
     } else {
         emit rightClickRequested(
+            position.x(),
+            position.y());
+    }
+}
+
+void RemoteView::mouseReleaseEvent(
+    QMouseEvent *event)
+{
+    if (event->button() !=
+        Qt::LeftButton) {
+        return;
+    }
+
+    const QPoint position =
+        imagePosition(
+            event->position()
+                .toPoint());
+
+    if (position.x() >= 0) {
+        emit leftButtonReleaseRequested(
             position.x(),
             position.y());
     }

@@ -40,6 +40,14 @@ public:
         int x,
         int y);
 
+    void sendLeftButtonPress(
+        int x,
+        int y);
+
+    void sendLeftButtonRelease(
+        int x,
+        int y);
+
     void sendRightClick(
         int x,
         int y);
@@ -70,7 +78,9 @@ private:
         Frame = 1,
         PointerMove = 2,
         LeftClick = 3,
-        RightClick = 4
+        RightClick = 4,
+        LeftButtonPress = 5,
+        LeftButtonRelease = 6
     };
 
     void startAdvertising();

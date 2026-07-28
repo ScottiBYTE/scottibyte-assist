@@ -1059,12 +1059,22 @@ QLabel#remotePlaceholder {
         window,
         [
             receiveButton,
+            remoteView,
+            fullScreenRemoteView,
+            fullScreenWindow,
             connectButton,
             disconnectButton,
-            codeEntry
+            codeEntry,
+            provideStatus
         ](
             bool connected)
         {
+            if (!connected) {
+                remoteView->clearFrame();
+                fullScreenRemoteView->clearFrame();
+                fullScreenWindow->close();
+            }
+
             if (!receiveButton->isChecked()) {
                 connectButton->setEnabled(
                     !connected);
@@ -1074,6 +1084,12 @@ QLabel#remotePlaceholder {
 
                 codeEntry->setEnabled(
                     !connected);
+
+                if (!connected) {
+                    provideStatus->setText(
+                        QStringLiteral(
+                            "The support session ended."));
+                }
             }
         });
 
@@ -1112,6 +1128,30 @@ QLabel#remotePlaceholder {
         &RemoteView::leftClickRequested,
         lanSession,
         &LanSession::sendLeftClick);
+
+    QObject::connect(
+        remoteView,
+        &RemoteView::leftButtonPressRequested,
+        lanSession,
+        &LanSession::sendLeftButtonPress);
+
+    QObject::connect(
+        remoteView,
+        &RemoteView::leftButtonReleaseRequested,
+        lanSession,
+        &LanSession::sendLeftButtonRelease);
+
+    QObject::connect(
+        fullScreenRemoteView,
+        &RemoteView::leftButtonPressRequested,
+        lanSession,
+        &LanSession::sendLeftButtonPress);
+
+    QObject::connect(
+        fullScreenRemoteView,
+        &RemoteView::leftButtonReleaseRequested,
+        lanSession,
+        &LanSession::sendLeftButtonRelease);
 
     QObject::connect(
         remoteView,

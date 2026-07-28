@@ -27,6 +27,14 @@ public slots:
         int x,
         int y) override;
 
+    void pressLeftAt(
+        int x,
+        int y) override;
+
+    void releaseLeftAt(
+        int x,
+        int y) override;
+
     void clickRightAt(
         int x,
         int y) override;

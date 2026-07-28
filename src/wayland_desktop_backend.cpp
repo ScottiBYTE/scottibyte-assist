@@ -191,3 +191,39 @@ void WaylandDesktopBackend::clickRightAt(
         libeiInput_->clickRightButton();
     }
 }
+
+void WaylandDesktopBackend::pressLeftAt(
+    int x,
+    int y)
+{
+    if (frameWidth_ <= 0 ||
+        frameHeight_ <= 0) {
+        return;
+    }
+
+    movePointerTo(
+        x,
+        y);
+
+    if (libeiInput_->buttonReady()) {
+        libeiInput_->pressLeftButton();
+    }
+}
+
+void WaylandDesktopBackend::releaseLeftAt(
+    int x,
+    int y)
+{
+    if (frameWidth_ <= 0 ||
+        frameHeight_ <= 0) {
+        return;
+    }
+
+    movePointerTo(
+        x,
+        y);
+
+    if (libeiInput_->buttonReady()) {
+        libeiInput_->releaseLeftButton();
+    }
+}

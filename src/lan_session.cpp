@@ -506,6 +506,24 @@ void LanSession::sendLeftClick(
         pointPayload(x, y));
 }
 
+void LanSession::sendLeftButtonPress(
+    int x,
+    int y)
+{
+    sendMessage(
+        MessageType::LeftButtonPress,
+        pointPayload(x, y));
+}
+
+void LanSession::sendLeftButtonRelease(
+    int x,
+    int y)
+{
+    sendMessage(
+        MessageType::LeftButtonRelease,
+        pointPayload(x, y));
+}
+
 void LanSession::sendRightClick(
     int x,
     int y)
@@ -658,6 +676,18 @@ void LanSession::processIncomingData()
             expectedMessageType_ ==
             MessageType::RightClick) {
             desktopBackend_->clickRightAt(
+                x,
+                y);
+        } else if (
+            expectedMessageType_ ==
+            MessageType::LeftButtonPress) {
+            desktopBackend_->pressLeftAt(
+                x,
+                y);
+        } else if (
+            expectedMessageType_ ==
+            MessageType::LeftButtonRelease) {
+            desktopBackend_->releaseLeftAt(
                 x,
                 y);
         }

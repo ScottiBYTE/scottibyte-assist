@@ -520,6 +520,47 @@ void LibeiInput::clickLeftButton()
             "Left-click press and release sent"));
 }
 
+void LibeiInput::pressLeftButton()
+{
+    if (!buttonReady() ||
+        ei_ == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "No active authorized button device."));
+        return;
+    }
+
+    ei_device_button_button(
+        buttonDevice_,
+        BTN_LEFT,
+        true);
+
+    ei_device_frame(
+        buttonDevice_,
+        ei_now(ei_));
+
+    ei_dispatch(ei_);
+}
+
+void LibeiInput::releaseLeftButton()
+{
+    if (!buttonReady() ||
+        ei_ == nullptr) {
+        return;
+    }
+
+    ei_device_button_button(
+        buttonDevice_,
+        BTN_LEFT,
+        false);
+
+    ei_device_frame(
+        buttonDevice_,
+        ei_now(ei_));
+
+    ei_dispatch(ei_);
+}
+
 void LibeiInput::clickRightButton()
 {
     if (!buttonReady() ||

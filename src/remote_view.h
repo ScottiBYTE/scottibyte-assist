@@ -26,6 +26,14 @@ signals:
         int x,
         int y);
 
+    void leftButtonPressRequested(
+        int x,
+        int y);
+
+    void leftButtonReleaseRequested(
+        int x,
+        int y);
+
     void rightClickRequested(
         int x,
         int y);
@@ -40,6 +48,9 @@ protected:
         QMouseEvent *event) override;
 
     void mousePressEvent(
+        QMouseEvent *event) override;
+
+    void mouseReleaseEvent(
         QMouseEvent *event) override;
 
     void mouseDoubleClickEvent(
