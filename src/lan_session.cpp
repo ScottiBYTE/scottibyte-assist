@@ -506,6 +506,15 @@ void LanSession::sendLeftClick(
         pointPayload(x, y));
 }
 
+void LanSession::sendRightClick(
+    int x,
+    int y)
+{
+    sendMessage(
+        MessageType::RightClick,
+        pointPayload(x, y));
+}
+
 void LanSession::sendMessage(
     MessageType type,
     const QByteArray &payload)
@@ -643,6 +652,12 @@ void LanSession::processIncomingData()
             expectedMessageType_ ==
             MessageType::LeftClick) {
             desktopBackend_->clickLeftAt(
+                x,
+                y);
+        } else if (
+            expectedMessageType_ ==
+            MessageType::RightClick) {
+            desktopBackend_->clickRightAt(
                 x,
                 y);
         }

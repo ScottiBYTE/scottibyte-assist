@@ -26,6 +26,10 @@ signals:
         int x,
         int y);
 
+    void rightClickRequested(
+        int x,
+        int y);
+
     void fullScreenRequested();
 
 protected:

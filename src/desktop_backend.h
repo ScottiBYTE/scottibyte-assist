@@ -31,6 +31,10 @@ public slots:
         int x,
         int y) = 0;
 
+    virtual void clickRightAt(
+        int x,
+        int y) = 0;
+
 signals:
     void frameReady(
         const QImage &frame);

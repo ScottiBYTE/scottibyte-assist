@@ -166,7 +166,9 @@ void RemoteView::mousePressEvent(
     QMouseEvent *event)
 {
     if (event->button() !=
-        Qt::LeftButton) {
+            Qt::LeftButton &&
+        event->button() !=
+            Qt::RightButton) {
         return;
     }
 
@@ -175,8 +177,17 @@ void RemoteView::mousePressEvent(
             event->position()
                 .toPoint());
 
-    if (position.x() >= 0) {
+    if (position.x() < 0) {
+        return;
+    }
+
+    if (event->button() ==
+        Qt::LeftButton) {
         emit leftClickRequested(
+            position.x(),
+            position.y());
+    } else {
+        emit rightClickRequested(
             position.x(),
             position.y());
     }

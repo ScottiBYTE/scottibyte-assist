@@ -40,6 +40,10 @@ public:
         int x,
         int y);
 
+    void sendRightClick(
+        int x,
+        int y);
+
 signals:
     void statusChanged(
         const QString &status);
@@ -65,7 +69,8 @@ private:
     {
         Frame = 1,
         PointerMove = 2,
-        LeftClick = 3
+        LeftClick = 3,
+        RightClick = 4
     };
 
     void startAdvertising();

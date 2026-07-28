@@ -42,6 +42,7 @@ public slots:
         int frameHeight);
 
     void clickLeftButton();
+    void clickRightButton();
     void scrollDown();
     void typeLowercaseA();
 

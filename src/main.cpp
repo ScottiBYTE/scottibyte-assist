@@ -1113,6 +1113,18 @@ QLabel#remotePlaceholder {
         lanSession,
         &LanSession::sendLeftClick);
 
+    QObject::connect(
+        remoteView,
+        &RemoteView::rightClickRequested,
+        lanSession,
+        &LanSession::sendRightClick);
+
+    QObject::connect(
+        fullScreenRemoteView,
+        &RemoteView::rightClickRequested,
+        lanSession,
+        &LanSession::sendRightClick);
+
     const auto showRemoteFullScreen =
         [
             fullScreenWindow

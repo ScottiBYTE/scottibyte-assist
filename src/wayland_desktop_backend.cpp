@@ -173,3 +173,21 @@ void WaylandDesktopBackend::clickLeftAt(
         libeiInput_->clickLeftButton();
     }
 }
+
+void WaylandDesktopBackend::clickRightAt(
+    int x,
+    int y)
+{
+    if (frameWidth_ <= 0 ||
+        frameHeight_ <= 0) {
+        return;
+    }
+
+    movePointerTo(
+        x,
+        y);
+
+    if (libeiInput_->buttonReady()) {
+        libeiInput_->clickRightButton();
+    }
+}

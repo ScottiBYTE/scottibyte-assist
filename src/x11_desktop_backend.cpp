@@ -135,3 +135,40 @@ void X11DesktopBackend::clickLeftAt(
     XFlush(display);
     XCloseDisplay(display);
 }
+
+void X11DesktopBackend::clickRightAt(
+    int x,
+    int y)
+{
+    Display *display =
+        XOpenDisplay(nullptr);
+
+    if (display == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "Could not access the X11 display."));
+        return;
+    }
+
+    XTestFakeMotionEvent(
+        display,
+        -1,
+        x,
+        y,
+        CurrentTime);
+
+    XTestFakeButtonEvent(
+        display,
+        3,
+        True,
+        CurrentTime);
+
+    XTestFakeButtonEvent(
+        display,
+        3,
+        False,
+        CurrentTime);
+
+    XFlush(display);
+    XCloseDisplay(display);
+}

@@ -29,6 +29,10 @@ public slots:
         int x,
         int y) override;
 
+    void clickRightAt(
+        int x,
+        int y) override;
+
 private slots:
     void handleFrame(
         const QImage &frame);
