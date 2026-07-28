@@ -470,13 +470,8 @@ void LanSession::sendDesktopFrame(
         return;
     }
 
-    QImage image = sourceImage;
-
-    if (image.width() > 1600) {
-        image = image.scaledToWidth(
-            1600,
-            Qt::SmoothTransformation);
-    }
+    const QImage &image =
+        sourceImage;
 
     QByteArray encoded;
 
