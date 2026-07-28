@@ -4,8 +4,10 @@
 #include <QPixmap>
 #include <QScreen>
 #include <QTimer>
+#include <Qt>
 
 #include <X11/Xlib.h>
+#include <X11/keysym.h>
 #include <X11/extensions/XTest.h>
 
 X11DesktopBackend::X11DesktopBackend(
@@ -232,5 +234,158 @@ void X11DesktopBackend::releaseLeftAt(
         CurrentTime);
 
     XFlush(display);
+    XCloseDisplay(display);
+}
+
+namespace
+{
+
+KeySym x11KeySymForQtKey(
+    int qtKey)
+{
+    if (qtKey >= Qt::Key_A &&
+        qtKey <= Qt::Key_Z) {
+        return XK_a +
+            (qtKey - Qt::Key_A);
+    }
+
+    if (qtKey >= Qt::Key_0 &&
+        qtKey <= Qt::Key_9) {
+        return XK_0 +
+            (qtKey - Qt::Key_0);
+    }
+
+    switch (qtKey) {
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        return XK_Return;
+    case Qt::Key_Backspace:
+        return XK_BackSpace;
+    case Qt::Key_Tab:
+        return XK_Tab;
+    case Qt::Key_Space:
+        return XK_space;
+    case Qt::Key_Escape:
+        return XK_Escape;
+    case Qt::Key_Left:
+        return XK_Left;
+    case Qt::Key_Right:
+        return XK_Right;
+    case Qt::Key_Up:
+        return XK_Up;
+    case Qt::Key_Down:
+        return XK_Down;
+    case Qt::Key_Home:
+        return XK_Home;
+    case Qt::Key_End:
+        return XK_End;
+    case Qt::Key_PageUp:
+        return XK_Page_Up;
+    case Qt::Key_PageDown:
+        return XK_Page_Down;
+    case Qt::Key_Insert:
+        return XK_Insert;
+    case Qt::Key_Delete:
+        return XK_Delete;
+    case Qt::Key_Shift:
+        return XK_Shift_L;
+    case Qt::Key_Control:
+        return XK_Control_L;
+    case Qt::Key_Alt:
+        return XK_Alt_L;
+    case Qt::Key_Meta:
+        return XK_Super_L;
+    case Qt::Key_Minus:
+        return XK_minus;
+    case Qt::Key_Equal:
+        return XK_equal;
+    case Qt::Key_BracketLeft:
+        return XK_bracketleft;
+    case Qt::Key_BracketRight:
+        return XK_bracketright;
+    case Qt::Key_Backslash:
+        return XK_backslash;
+    case Qt::Key_Semicolon:
+        return XK_semicolon;
+    case Qt::Key_Apostrophe:
+        return XK_apostrophe;
+    case Qt::Key_Comma:
+        return XK_comma;
+    case Qt::Key_Period:
+        return XK_period;
+    case Qt::Key_Slash:
+        return XK_slash;
+    case Qt::Key_QuoteLeft:
+        return XK_grave;
+    default:
+        return NoSymbol;
+    }
+}
+
+}
+
+void X11DesktopBackend::pressKey(
+    int qtKey)
+{
+    Display *display =
+        XOpenDisplay(nullptr);
+
+    if (display == nullptr) {
+        return;
+    }
+
+    const KeySym keySym =
+        x11KeySymForQtKey(qtKey);
+
+    if (keySym != NoSymbol) {
+        const KeyCode keyCode =
+            XKeysymToKeycode(
+                display,
+                keySym);
+
+        if (keyCode != 0) {
+            XTestFakeKeyEvent(
+                display,
+                keyCode,
+                True,
+                CurrentTime);
+
+            XFlush(display);
+        }
+    }
+
+    XCloseDisplay(display);
+}
+
+void X11DesktopBackend::releaseKey(
+    int qtKey)
+{
+    Display *display =
+        XOpenDisplay(nullptr);
+
+    if (display == nullptr) {
+        return;
+    }
+
+    const KeySym keySym =
+        x11KeySymForQtKey(qtKey);
+
+    if (keySym != NoSymbol) {
+        const KeyCode keyCode =
+            XKeysymToKeycode(
+                display,
+                keySym);
+
+        if (keyCode != 0) {
+            XTestFakeKeyEvent(
+                display,
+                keyCode,
+                False,
+                CurrentTime);
+
+            XFlush(display);
+        }
+    }
+
     XCloseDisplay(display);
 }

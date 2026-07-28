@@ -43,6 +43,12 @@ public slots:
         int x,
         int y) = 0;
 
+    virtual void pressKey(
+        int qtKey) = 0;
+
+    virtual void releaseKey(
+        int qtKey) = 0;
+
 signals:
     void frameReady(
         const QImage &frame);

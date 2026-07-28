@@ -52,6 +52,12 @@ public:
         int x,
         int y);
 
+    void sendKeyPress(
+        int qtKey);
+
+    void sendKeyRelease(
+        int qtKey);
+
 signals:
     void statusChanged(
         const QString &status);
@@ -80,7 +86,9 @@ private:
         LeftClick = 3,
         RightClick = 4,
         LeftButtonPress = 5,
-        LeftButtonRelease = 6
+        LeftButtonRelease = 6,
+        KeyPress = 7,
+        KeyRelease = 8
     };
 
     void startAdvertising();

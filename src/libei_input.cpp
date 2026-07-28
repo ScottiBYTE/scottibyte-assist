@@ -631,7 +631,8 @@ void LibeiInput::scrollDown()
             "One downward scroll step sent"));
 }
 
-void LibeiInput::typeLowercaseA()
+void LibeiInput::pressKey(
+    uint32_t linuxKeyCode)
 {
     if (!keyboardReady() ||
         ei_ == nullptr) {
@@ -643,16 +644,27 @@ void LibeiInput::typeLowercaseA()
 
     ei_device_keyboard_key(
         keyboardDevice_,
-        KEY_A,
+        linuxKeyCode,
         true);
 
     ei_device_frame(
         keyboardDevice_,
         ei_now(ei_));
 
+    ei_dispatch(ei_);
+}
+
+void LibeiInput::releaseKey(
+    uint32_t linuxKeyCode)
+{
+    if (!keyboardReady() ||
+        ei_ == nullptr) {
+        return;
+    }
+
     ei_device_keyboard_key(
         keyboardDevice_,
-        KEY_A,
+        linuxKeyCode,
         false);
 
     ei_device_frame(
@@ -660,10 +672,6 @@ void LibeiInput::typeLowercaseA()
         ei_now(ei_));
 
     ei_dispatch(ei_);
-
-    emit statusChanged(
-        QStringLiteral(
-            "Lowercase A key press and release sent"));
 }
 
 void LibeiInput::setPointerDevice(

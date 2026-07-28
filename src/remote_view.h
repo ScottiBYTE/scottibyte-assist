@@ -3,6 +3,8 @@
 #include <QImage>
 #include <QWidget>
 
+class QKeyEvent;
+
 class RemoteView final : public QWidget
 {
     Q_OBJECT
@@ -38,6 +40,12 @@ signals:
         int x,
         int y);
 
+    void keyPressRequested(
+        int qtKey);
+
+    void keyReleaseRequested(
+        int qtKey);
+
     void fullScreenRequested();
 
 protected:
@@ -55,6 +63,12 @@ protected:
 
     void mouseDoubleClickEvent(
         QMouseEvent *event) override;
+
+    void keyPressEvent(
+        QKeyEvent *event) override;
+
+    void keyReleaseEvent(
+        QKeyEvent *event) override;
 
 private:
     QRect imageRect() const;

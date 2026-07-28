@@ -46,7 +46,12 @@ public slots:
     void releaseLeftButton();
     void clickRightButton();
     void scrollDown();
-    void typeLowercaseA();
+
+    void pressKey(
+        uint32_t linuxKeyCode);
+
+    void releaseKey(
+        uint32_t linuxKeyCode);
 
 signals:
     void statusChanged(const QString &status);

@@ -39,6 +39,12 @@ public slots:
         int x,
         int y) override;
 
+    void pressKey(
+        int qtKey) override;
+
+    void releaseKey(
+        int qtKey) override;
+
 private slots:
     void captureFrame();
 

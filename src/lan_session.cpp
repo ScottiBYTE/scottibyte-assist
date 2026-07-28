@@ -42,6 +42,47 @@ QByteArray pointPayload(
     return payload;
 }
 
+QByteArray keyPayload(
+    int qtKey)
+{
+    QByteArray payload;
+
+    QDataStream stream(
+        &payload,
+        QIODevice::WriteOnly);
+
+    stream.setByteOrder(
+        QDataStream::BigEndian);
+
+    stream
+        << static_cast<qint32>(
+               qtKey);
+
+    return payload;
+}
+
+bool decodeKey(
+    const QByteArray &payload,
+    int &qtKey)
+{
+    if (payload.size() !=
+        static_cast<int>(
+            sizeof(qint32))) {
+        return false;
+    }
+
+    QDataStream stream(payload);
+
+    stream.setByteOrder(
+        QDataStream::BigEndian);
+
+    qint32 decodedKey = 0;
+    stream >> decodedKey;
+
+    qtKey = decodedKey;
+    return true;
+}
+
 bool decodePoint(
     const QByteArray &payload,
     int &x,
@@ -533,6 +574,22 @@ void LanSession::sendRightClick(
         pointPayload(x, y));
 }
 
+void LanSession::sendKeyPress(
+    int qtKey)
+{
+    sendMessage(
+        MessageType::KeyPress,
+        keyPayload(qtKey));
+}
+
+void LanSession::sendKeyRelease(
+    int qtKey)
+{
+    sendMessage(
+        MessageType::KeyRelease,
+        keyPayload(qtKey));
+}
+
 void LanSession::sendMessage(
     MessageType type,
     const QByteArray &payload)
@@ -647,6 +704,34 @@ void LanSession::processIncomingData()
             continue;
         }
 
+        if (desktopBackend_ == nullptr) {
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+                MessageType::KeyPress ||
+            expectedMessageType_ ==
+                MessageType::KeyRelease) {
+            int qtKey = 0;
+
+            if (!decodeKey(
+                    payload,
+                    qtKey)) {
+                continue;
+            }
+
+            if (expectedMessageType_ ==
+                MessageType::KeyPress) {
+                desktopBackend_->pressKey(
+                    qtKey);
+            } else {
+                desktopBackend_->releaseKey(
+                    qtKey);
+            }
+
+            continue;
+        }
+
         int x = 0;
         int y = 0;
 
@@ -654,10 +739,6 @@ void LanSession::processIncomingData()
                 payload,
                 x,
                 y)) {
-            continue;
-        }
-
-        if (desktopBackend_ == nullptr) {
             continue;
         }
 

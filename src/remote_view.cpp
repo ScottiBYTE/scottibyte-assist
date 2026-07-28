@@ -1,5 +1,6 @@
 #include "remote_view.h"
 
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 
@@ -8,6 +9,13 @@ RemoteView::RemoteView(
     : QWidget(parent)
 {
     setMouseTracking(true);
+
+    setFocusPolicy(
+        Qt::StrongFocus);
+
+    setAttribute(
+        Qt::WA_InputMethodEnabled,
+        false);
 
     setMinimumHeight(260);
 
@@ -177,6 +185,11 @@ void RemoteView::mousePressEvent(
             event->position()
                 .toPoint());
 
+    if (position.x() >= 0) {
+        setFocus(
+            Qt::MouseFocusReason);
+    }
+
     if (position.x() < 0) {
         return;
     }
@@ -221,3 +234,32 @@ void RemoteView::mouseDoubleClickEvent(
         emit fullScreenRequested();
     }
 }
+
+void RemoteView::keyPressEvent(
+    QKeyEvent *event)
+{
+    if (event->isAutoRepeat()) {
+        event->accept();
+        return;
+    }
+
+    emit keyPressRequested(
+        event->key());
+
+    event->accept();
+}
+
+void RemoteView::keyReleaseEvent(
+    QKeyEvent *event)
+{
+    if (event->isAutoRepeat()) {
+        event->accept();
+        return;
+    }
+
+    emit keyReleaseRequested(
+        event->key());
+
+    event->accept();
+}
+

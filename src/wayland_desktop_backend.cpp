@@ -4,6 +4,111 @@
 #include "pipewire_preview.h"
 #include "portal_session.h"
 
+#include <Qt>
+
+#include <linux/input-event-codes.h>
+
+namespace
+{
+
+uint32_t linuxKeyCodeForQtKey(
+    int qtKey)
+{
+    if (qtKey >= Qt::Key_A &&
+        qtKey <= Qt::Key_Z) {
+        static constexpr uint32_t codes[] = {
+            KEY_A, KEY_B, KEY_C, KEY_D, KEY_E,
+            KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
+            KEY_K, KEY_L, KEY_M, KEY_N, KEY_O,
+            KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T,
+            KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y,
+            KEY_Z
+        };
+
+        return codes[
+            qtKey - Qt::Key_A];
+    }
+
+    if (qtKey >= Qt::Key_0 &&
+        qtKey <= Qt::Key_9) {
+        static constexpr uint32_t codes[] = {
+            KEY_0, KEY_1, KEY_2, KEY_3, KEY_4,
+            KEY_5, KEY_6, KEY_7, KEY_8, KEY_9
+        };
+
+        return codes[
+            qtKey - Qt::Key_0];
+    }
+
+    switch (qtKey) {
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        return KEY_ENTER;
+    case Qt::Key_Backspace:
+        return KEY_BACKSPACE;
+    case Qt::Key_Tab:
+        return KEY_TAB;
+    case Qt::Key_Space:
+        return KEY_SPACE;
+    case Qt::Key_Escape:
+        return KEY_ESC;
+    case Qt::Key_Left:
+        return KEY_LEFT;
+    case Qt::Key_Right:
+        return KEY_RIGHT;
+    case Qt::Key_Up:
+        return KEY_UP;
+    case Qt::Key_Down:
+        return KEY_DOWN;
+    case Qt::Key_Home:
+        return KEY_HOME;
+    case Qt::Key_End:
+        return KEY_END;
+    case Qt::Key_PageUp:
+        return KEY_PAGEUP;
+    case Qt::Key_PageDown:
+        return KEY_PAGEDOWN;
+    case Qt::Key_Insert:
+        return KEY_INSERT;
+    case Qt::Key_Delete:
+        return KEY_DELETE;
+    case Qt::Key_Shift:
+        return KEY_LEFTSHIFT;
+    case Qt::Key_Control:
+        return KEY_LEFTCTRL;
+    case Qt::Key_Alt:
+        return KEY_LEFTALT;
+    case Qt::Key_Meta:
+        return KEY_LEFTMETA;
+    case Qt::Key_Minus:
+        return KEY_MINUS;
+    case Qt::Key_Equal:
+        return KEY_EQUAL;
+    case Qt::Key_BracketLeft:
+        return KEY_LEFTBRACE;
+    case Qt::Key_BracketRight:
+        return KEY_RIGHTBRACE;
+    case Qt::Key_Backslash:
+        return KEY_BACKSLASH;
+    case Qt::Key_Semicolon:
+        return KEY_SEMICOLON;
+    case Qt::Key_Apostrophe:
+        return KEY_APOSTROPHE;
+    case Qt::Key_Comma:
+        return KEY_COMMA;
+    case Qt::Key_Period:
+        return KEY_DOT;
+    case Qt::Key_Slash:
+        return KEY_SLASH;
+    case Qt::Key_QuoteLeft:
+        return KEY_GRAVE;
+    default:
+        return 0;
+    }
+}
+
+}
+
 WaylandDesktopBackend::WaylandDesktopBackend(
     QObject *parent)
     : DesktopBackend(parent),
@@ -225,5 +330,29 @@ void WaylandDesktopBackend::releaseLeftAt(
 
     if (libeiInput_->buttonReady()) {
         libeiInput_->releaseLeftButton();
+    }
+}
+
+void WaylandDesktopBackend::pressKey(
+    int qtKey)
+{
+    const uint32_t linuxKeyCode =
+        linuxKeyCodeForQtKey(qtKey);
+
+    if (linuxKeyCode != 0) {
+        libeiInput_->pressKey(
+            linuxKeyCode);
+    }
+}
+
+void WaylandDesktopBackend::releaseKey(
+    int qtKey)
+{
+    const uint32_t linuxKeyCode =
+        linuxKeyCodeForQtKey(qtKey);
+
+    if (linuxKeyCode != 0) {
+        libeiInput_->releaseKey(
+            linuxKeyCode);
     }
 }
