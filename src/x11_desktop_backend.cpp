@@ -1,11 +1,17 @@
 #include "x11_desktop_backend.h"
 
 #include <QGuiApplication>
+#include <QPainter>
 #include <QPixmap>
 #include <QScreen>
 #include <QTimer>
 #include <Qt>
 
+#include <algorithm>
+#include <set>
+#include <unistd.h>
+
+#include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <X11/extensions/XTest.h>
@@ -33,6 +39,420 @@ bool X11DesktopBackend::isSupported() const
                 Qt::CaseInsensitive);
 }
 
+QList<X11DesktopBackend::ShareSource>
+X11DesktopBackend::availableShareSources() const
+{
+    QList<ShareSource> sources;
+
+    sources.append(
+        {
+            QStringLiteral("desktop"),
+            QStringLiteral("Entire Desktop")
+        });
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    for (int index = 0;
+         index < screens.size();
+         ++index) {
+        QScreen *screen =
+            screens.at(index);
+
+        if (screen == nullptr) {
+            continue;
+        }
+
+        const QRect geometry =
+            screen->geometry();
+
+        QString name =
+            screen->name().trimmed();
+
+        if (name.isEmpty()) {
+            name =
+                QStringLiteral("Monitor %1")
+                    .arg(index + 1);
+        }
+
+        const QString label =
+            QStringLiteral(
+                "Monitor %1 — %2 (%3×%4)")
+                .arg(index + 1)
+                .arg(name)
+                .arg(geometry.width())
+                .arg(geometry.height());
+
+        sources.append(
+            {
+                QStringLiteral("screen:%1")
+                    .arg(index),
+                label
+            });
+    }
+
+    Display *display =
+        XOpenDisplay(nullptr);
+
+    if (display == nullptr) {
+        return sources;
+    }
+
+    const Window root =
+        DefaultRootWindow(display);
+
+    const Atom clientListAtom =
+        XInternAtom(
+            display,
+            "_NET_CLIENT_LIST",
+            True);
+
+    const Atom utf8NameAtom =
+        XInternAtom(
+            display,
+            "_NET_WM_NAME",
+            True);
+
+    const Atom utf8StringAtom =
+        XInternAtom(
+            display,
+            "UTF8_STRING",
+            True);
+
+    const Atom windowPidAtom =
+        XInternAtom(
+            display,
+            "_NET_WM_PID",
+            True);
+
+    const Atom windowTypeAtom =
+        XInternAtom(
+            display,
+            "_NET_WM_WINDOW_TYPE",
+            True);
+
+    const Atom normalTypeAtom =
+        XInternAtom(
+            display,
+            "_NET_WM_WINDOW_TYPE_NORMAL",
+            True);
+
+    const Atom dialogTypeAtom =
+        XInternAtom(
+            display,
+            "_NET_WM_WINDOW_TYPE_DIALOG",
+            True);
+
+    if (clientListAtom == None) {
+        XCloseDisplay(display);
+        return sources;
+    }
+
+    Atom actualType = None;
+    int actualFormat = 0;
+    unsigned long itemCount = 0;
+    unsigned long bytesAfter = 0;
+    unsigned char *propertyData = nullptr;
+
+    const int result =
+        XGetWindowProperty(
+            display,
+            root,
+            clientListAtom,
+            0,
+            4096,
+            False,
+            XA_WINDOW,
+            &actualType,
+            &actualFormat,
+            &itemCount,
+            &bytesAfter,
+            &propertyData);
+
+    QList<ShareSource> windowSources;
+
+    std::set<QString>
+        encounteredWindowLabels;
+
+    const unsigned long currentProcessId =
+        static_cast<unsigned long>(
+            getpid());
+
+    if (
+        result == Success &&
+        propertyData != nullptr &&
+        actualType == XA_WINDOW &&
+        actualFormat == 32) {
+        const Window *windows =
+            reinterpret_cast<Window *>(
+                propertyData);
+
+        for (unsigned long index = 0;
+             index < itemCount;
+             ++index) {
+            const Window candidate =
+                windows[index];
+
+            XWindowAttributes attributes{};
+
+            if (
+                !XGetWindowAttributes(
+                    display,
+                    candidate,
+                    &attributes) ||
+                attributes.map_state !=
+                    IsViewable ||
+                attributes.override_redirect ||
+                attributes.width < 240 ||
+                attributes.height < 160) {
+                continue;
+            }
+
+            bool ownedByAssist = false;
+
+            if (windowPidAtom != None) {
+                Atom pidType = None;
+                int pidFormat = 0;
+                unsigned long pidItems = 0;
+                unsigned long pidBytesAfter = 0;
+                unsigned char *pidData = nullptr;
+
+                if (
+                    XGetWindowProperty(
+                        display,
+                        candidate,
+                        windowPidAtom,
+                        0,
+                        1,
+                        False,
+                        XA_CARDINAL,
+                        &pidType,
+                        &pidFormat,
+                        &pidItems,
+                        &pidBytesAfter,
+                        &pidData) ==
+                        Success &&
+                    pidData != nullptr &&
+                    pidFormat == 32 &&
+                    pidItems == 1) {
+                    const auto ownerPid =
+                        *reinterpret_cast<
+                            unsigned long *>(
+                                pidData);
+
+                    ownedByAssist =
+                        ownerPid ==
+                        currentProcessId;
+
+                    XFree(pidData);
+                }
+            }
+
+            if (ownedByAssist) {
+                continue;
+            }
+
+            bool usefulWindowType = true;
+
+            if (
+                windowTypeAtom != None &&
+                normalTypeAtom != None) {
+                Atom typeType = None;
+                int typeFormat = 0;
+                unsigned long typeItems = 0;
+                unsigned long typeBytesAfter = 0;
+                unsigned char *typeData = nullptr;
+
+                if (
+                    XGetWindowProperty(
+                        display,
+                        candidate,
+                        windowTypeAtom,
+                        0,
+                        16,
+                        False,
+                        XA_ATOM,
+                        &typeType,
+                        &typeFormat,
+                        &typeItems,
+                        &typeBytesAfter,
+                        &typeData) ==
+                        Success &&
+                    typeData != nullptr &&
+                    typeFormat == 32 &&
+                    typeItems > 0) {
+                    usefulWindowType = false;
+
+                    const Atom *types =
+                        reinterpret_cast<
+                            Atom *>(typeData);
+
+                    for (
+                        unsigned long typeIndex = 0;
+                        typeIndex < typeItems;
+                        ++typeIndex) {
+                        if (
+                            types[typeIndex] ==
+                                normalTypeAtom ||
+                            (
+                                dialogTypeAtom != None &&
+                                types[typeIndex] ==
+                                    dialogTypeAtom
+                            )) {
+                            usefulWindowType = true;
+                            break;
+                        }
+                    }
+
+                    XFree(typeData);
+                }
+            }
+
+            if (!usefulWindowType) {
+                continue;
+            }
+
+            QString title;
+
+            if (
+                utf8NameAtom != None &&
+                utf8StringAtom != None) {
+                Atom nameType = None;
+                int nameFormat = 0;
+                unsigned long nameItems = 0;
+                unsigned long nameBytesAfter = 0;
+                unsigned char *nameData = nullptr;
+
+                if (
+                    XGetWindowProperty(
+                        display,
+                        candidate,
+                        utf8NameAtom,
+                        0,
+                        1024,
+                        False,
+                        utf8StringAtom,
+                        &nameType,
+                        &nameFormat,
+                        &nameItems,
+                        &nameBytesAfter,
+                        &nameData) ==
+                        Success &&
+                    nameData != nullptr) {
+                    title =
+                        QString::fromUtf8(
+                            reinterpret_cast<char *>(
+                                nameData),
+                            static_cast<int>(
+                                nameItems));
+
+                    XFree(nameData);
+                }
+            }
+
+            if (title.trimmed().isEmpty()) {
+                char *legacyName = nullptr;
+
+                if (
+                    XFetchName(
+                        display,
+                        candidate,
+                        &legacyName) &&
+                    legacyName != nullptr) {
+                    title =
+                        QString::fromLocal8Bit(
+                            legacyName);
+
+                    XFree(legacyName);
+                }
+            }
+
+            title = title.trimmed();
+
+            if (title.isEmpty()) {
+                continue;
+            }
+
+            const QString normalizedTitle =
+                title.toLower();
+
+            if (
+                normalizedTitle ==
+                    QStringLiteral("trash") ||
+                normalizedTitle ==
+                    QStringLiteral("desktop") ||
+                normalizedTitle.startsWith(
+                    QStringLiteral(
+                        "scottibyte assist"))) {
+                continue;
+            }
+
+            const QString label =
+                QStringLiteral(
+                    "Window — %1 (%2×%3)")
+                    .arg(title)
+                    .arg(attributes.width)
+                    .arg(attributes.height);
+
+            if (
+                encounteredWindowLabels.contains(
+                    label)) {
+                continue;
+            }
+
+            encounteredWindowLabels.insert(
+                label);
+
+            windowSources.append(
+                {
+                    QStringLiteral("window:%1")
+                        .arg(
+                            static_cast<qulonglong>(
+                                candidate)),
+                    label
+                });
+        }
+    }
+
+    if (propertyData != nullptr) {
+        XFree(propertyData);
+    }
+
+    XCloseDisplay(display);
+
+    std::sort(
+        windowSources.begin(),
+        windowSources.end(),
+        [](
+            const ShareSource &left,
+            const ShareSource &right)
+        {
+            return left.label.localeAwareCompare(
+                       right.label) < 0;
+        });
+
+    sources.append(windowSources);
+
+    return sources;
+}
+
+void X11DesktopBackend::setShareSource(
+    const QString &sourceId)
+{
+    if (sourceId.isEmpty()) {
+        shareSourceId_ =
+            QStringLiteral("desktop");
+        return;
+    }
+
+    shareSourceId_ = sourceId;
+}
+
+QString X11DesktopBackend::shareSource() const
+{
+    return shareSourceId_;
+}
+
 void X11DesktopBackend::start()
 {
     if (!isSupported()) {
@@ -58,18 +478,281 @@ void X11DesktopBackend::stop()
             "X11 desktop sharing stopped."));
 }
 
-void X11DesktopBackend::captureFrame()
+QImage
+X11DesktopBackend::captureEntireDesktop() const
 {
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (screens.isEmpty()) {
+        return {};
+    }
+
+    QRect desktopGeometry;
+
+    for (QScreen *screen : screens) {
+        if (screen != nullptr) {
+            desktopGeometry =
+                desktopGeometry.united(
+                    screen->geometry());
+        }
+    }
+
+    if (desktopGeometry.isEmpty()) {
+        return {};
+    }
+
+    QImage image(
+        desktopGeometry.size(),
+        QImage::Format_RGB32);
+
+    image.fill(Qt::black);
+
+    QPainter painter(&image);
+
+    for (QScreen *screen : screens) {
+        if (screen == nullptr) {
+            continue;
+        }
+
+        const QPixmap screenImage =
+            screen->grabWindow(0);
+
+        if (screenImage.isNull()) {
+            continue;
+        }
+
+        const QRect geometry =
+            screen->geometry();
+
+        const QRect targetRect(
+            geometry.topLeft() -
+                desktopGeometry.topLeft(),
+            geometry.size());
+
+        painter.drawPixmap(
+            targetRect,
+            screenImage);
+    }
+
+    return image;
+}
+
+QImage X11DesktopBackend::captureScreen(
+    int screenIndex) const
+{
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (
+        screenIndex < 0 ||
+        screenIndex >= screens.size() ||
+        screens.at(screenIndex) == nullptr) {
+        return {};
+    }
+
+    return screens.at(screenIndex)
+        ->grabWindow(0)
+        .toImage();
+}
+
+QImage X11DesktopBackend::captureWindow(
+    unsigned long windowId) const
+{
+    if (windowId == 0) {
+        return {};
+    }
+
+    Display *display =
+        XOpenDisplay(nullptr);
+
+    if (display == nullptr) {
+        return {};
+    }
+
+    const Window window =
+        static_cast<Window>(windowId);
+
+    XWindowAttributes attributes{};
+
+    const bool windowExists =
+        XGetWindowAttributes(
+            display,
+            window,
+            &attributes) != 0;
+
+    bool windowHidden = false;
+
+    if (windowExists) {
+        const Atom stateAtom =
+            XInternAtom(
+                display,
+                "_NET_WM_STATE",
+                True);
+
+        const Atom hiddenAtom =
+            XInternAtom(
+                display,
+                "_NET_WM_STATE_HIDDEN",
+                True);
+
+        if (
+            stateAtom != None &&
+            hiddenAtom != None) {
+            Atom actualType = None;
+            int actualFormat = 0;
+            unsigned long itemCount = 0;
+            unsigned long bytesAfter = 0;
+            unsigned char *propertyData = nullptr;
+
+            if (
+                XGetWindowProperty(
+                    display,
+                    window,
+                    stateAtom,
+                    0,
+                    32,
+                    False,
+                    XA_ATOM,
+                    &actualType,
+                    &actualFormat,
+                    &itemCount,
+                    &bytesAfter,
+                    &propertyData) ==
+                    Success &&
+                propertyData != nullptr &&
+                actualFormat == 32) {
+                const Atom *states =
+                    reinterpret_cast<Atom *>(
+                        propertyData);
+
+                for (
+                    unsigned long index = 0;
+                    index < itemCount;
+                    ++index) {
+                    if (
+                        states[index] ==
+                        hiddenAtom) {
+                        windowHidden = true;
+                        break;
+                    }
+                }
+
+                XFree(propertyData);
+            }
+        }
+    }
+
+    XCloseDisplay(display);
+
+    if (!windowExists) {
+        return {};
+    }
+
+    if (
+        attributes.map_state != IsViewable ||
+        windowHidden) {
+        QImage placeholder(
+            1280,
+            720,
+            QImage::Format_RGB32);
+
+        placeholder.fill(
+            QColor(
+                4,
+                19,
+                39));
+
+        QPainter painter(
+            &placeholder);
+
+        painter.setRenderHint(
+            QPainter::Antialiasing,
+            true);
+
+        painter.setPen(
+            QColor(
+                125,
+                234,
+                255));
+
+        QFont messageFont =
+            painter.font();
+
+        messageFont.setPointSize(22);
+        messageFont.setBold(true);
+
+        painter.setFont(
+            messageFont);
+
+        painter.drawText(
+            placeholder.rect(),
+            Qt::AlignCenter,
+            QStringLiteral(
+                "The shared window is minimized.\n"
+                "It will reappear when the provider restores it."));
+
+        return placeholder;
+    }
+
     QScreen *screen =
         QGuiApplication::primaryScreen();
 
     if (screen == nullptr) {
-        return;
+        return {};
     }
 
-    QImage image =
-        screen->grabWindow(0)
-            .toImage();
+    return screen->grabWindow(
+        static_cast<WId>(windowId))
+        .toImage();
+}
+
+void X11DesktopBackend::captureFrame()
+{
+    QImage image;
+
+    if (
+        shareSourceId_ ==
+        QStringLiteral("desktop")) {
+        image =
+            captureEntireDesktop();
+    } else if (
+        shareSourceId_.startsWith(
+            QStringLiteral("screen:"))) {
+        bool valid = false;
+
+        const int screenIndex =
+            shareSourceId_
+                .mid(
+                    QStringLiteral(
+                        "screen:").size())
+                .toInt(&valid);
+
+        if (valid) {
+            image =
+                captureScreen(
+                    screenIndex);
+        }
+    } else if (
+        shareSourceId_.startsWith(
+            QStringLiteral("window:"))) {
+        bool valid = false;
+
+        const qulonglong windowId =
+            shareSourceId_
+                .mid(
+                    QStringLiteral(
+                        "window:").size())
+                .toULongLong(
+                    &valid);
+
+        if (valid) {
+            image =
+                captureWindow(
+                    static_cast<unsigned long>(
+                        windowId));
+        }
+    }
 
     if (!image.isNull()) {
         emit frameReady(image);

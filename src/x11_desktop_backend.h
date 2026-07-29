@@ -2,6 +2,9 @@
 
 #include "desktop_backend.h"
 
+#include <QList>
+#include <QString>
+
 class QTimer;
 
 class X11DesktopBackend final
@@ -10,10 +13,24 @@ class X11DesktopBackend final
     Q_OBJECT
 
 public:
+    struct ShareSource
+    {
+        QString id;
+        QString label;
+    };
+
     explicit X11DesktopBackend(
         QObject *parent = nullptr);
 
     bool isSupported() const override;
+
+    QList<ShareSource>
+        availableShareSources() const;
+
+    void setShareSource(
+        const QString &sourceId);
+
+    QString shareSource() const;
 
 public slots:
     void start() override;
@@ -49,5 +66,15 @@ private slots:
     void captureFrame();
 
 private:
+    QImage captureEntireDesktop() const;
+    QImage captureScreen(
+        int screenIndex) const;
+
+    QImage captureWindow(
+        unsigned long windowId) const;
+
     QTimer *captureTimer_ = nullptr;
+
+    QString shareSourceId_ =
+        QStringLiteral("desktop");
 };

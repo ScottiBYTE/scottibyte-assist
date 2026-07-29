@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QButtonGroup>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDialog>
 #include <QEvent>
 #include <QFont>
@@ -1023,6 +1024,44 @@ QLabel#remotePlaceholder {
     providerWindowControls->addWidget(
         fullScreenButton);
 
+    auto *shareSourceLayout =
+        new QHBoxLayout;
+
+    shareSourceLayout->setSpacing(8);
+
+    auto *shareSourceLabel =
+        makeLabel(
+            QStringLiteral("Share source"),
+            QStringLiteral("smallText"));
+
+    auto *shareSourceCombo =
+        new QComboBox;
+
+    shareSourceCombo->setSizePolicy(
+        QSizePolicy::Expanding,
+        QSizePolicy::Fixed);
+
+    shareSourceCombo->setEnabled(false);
+
+    auto *refreshShareSourcesButton =
+        makeButton(
+            QStringLiteral("Refresh Sources"),
+            QStringLiteral(
+                "secondaryButton"));
+
+    refreshShareSourcesButton->setEnabled(
+        false);
+
+    shareSourceLayout->addWidget(
+        shareSourceLabel);
+
+    shareSourceLayout->addWidget(
+        shareSourceCombo,
+        1);
+
+    shareSourceLayout->addWidget(
+        refreshShareSourcesButton);
+
     auto *shareProviderScreenButton =
         makeButton(
             QStringLiteral("Share My Screen"),
@@ -1163,6 +1202,8 @@ QLabel#remotePlaceholder {
     provideLayout->addWidget(connectButton);
     provideLayout->addWidget(provideStatus);
     provideLayout->addLayout(providerWindowControls);
+    provideLayout->addLayout(
+        shareSourceLayout);
     provideLayout->addWidget(
         shareProviderScreenButton);
     provideLayout->addStretch(1);
@@ -1306,6 +1347,9 @@ QLabel#remotePlaceholder {
     WaylandDesktopBackend *waylandBackend =
         nullptr;
 
+    X11DesktopBackend *x11Backend =
+        nullptr;
+
     if (waylandSession) {
         waylandBackend =
             new WaylandDesktopBackend(window);
@@ -1313,12 +1357,102 @@ QLabel#remotePlaceholder {
         desktopBackend =
             waylandBackend;
     } else {
-        desktopBackend =
+        x11Backend =
             new X11DesktopBackend(window);
+
+        desktopBackend =
+            x11Backend;
     }
 
     lanSession->setDesktopBackend(
         desktopBackend);
+
+    const auto refreshShareSources =
+        [
+            x11Backend,
+            waylandBackend,
+            shareSourceCombo
+        ]()
+        {
+            const QString previousSource =
+                shareSourceCombo
+                    ->currentData()
+                    .toString();
+
+            shareSourceCombo->clear();
+
+            if (x11Backend != nullptr) {
+                const auto sources =
+                    x11Backend->
+                        availableShareSources();
+
+                for (const auto &source :
+                     sources) {
+                    shareSourceCombo->addItem(
+                        source.label,
+                        source.id);
+                }
+
+                int selectedIndex =
+                    shareSourceCombo->findData(
+                        previousSource);
+
+                if (selectedIndex < 0) {
+                    selectedIndex =
+                        shareSourceCombo->findData(
+                            x11Backend->
+                                shareSource());
+                }
+
+                if (selectedIndex < 0 &&
+                    shareSourceCombo->count() > 0) {
+                    selectedIndex = 0;
+                }
+
+                if (selectedIndex >= 0) {
+                    shareSourceCombo->
+                        setCurrentIndex(
+                            selectedIndex);
+                }
+
+                return;
+            }
+
+            if (waylandBackend != nullptr) {
+                shareSourceCombo->addItem(
+                    QStringLiteral(
+                        "Choose through Wayland portal"),
+                    QStringLiteral("portal"));
+            }
+        };
+
+    refreshShareSources();
+
+    QObject::connect(
+        refreshShareSourcesButton,
+        &QPushButton::clicked,
+        window,
+        refreshShareSources);
+
+    QObject::connect(
+        shareSourceCombo,
+        &QComboBox::currentIndexChanged,
+        window,
+        [
+            x11Backend,
+            shareSourceCombo
+        ](
+            int)
+        {
+            if (x11Backend == nullptr) {
+                return;
+            }
+
+            x11Backend->setShareSource(
+                shareSourceCombo
+                    ->currentData()
+                    .toString());
+        });
 
     QString lastClipboardText;
 
@@ -1649,6 +1783,8 @@ QLabel#remotePlaceholder {
             openRemoteWindowButton,
             fullScreenButton,
             shareProviderScreenButton,
+            shareSourceCombo,
+            refreshShareSourcesButton,
             providerScreenView,
             providerScreenWindow,
             connectButton,
@@ -1671,9 +1807,18 @@ QLabel#remotePlaceholder {
             fullScreenButton->setEnabled(
                 connected);
 
-            shareProviderScreenButton->setEnabled(
+            const bool providerConnected =
                 connected &&
-                !receiveButton->isChecked());
+                !receiveButton->isChecked();
+
+            shareProviderScreenButton->setEnabled(
+                providerConnected);
+
+            shareSourceCombo->setEnabled(
+                providerConnected);
+
+            refreshShareSourcesButton->setEnabled(
+                providerConnected);
 
             if (!connected) {
                 remoteWindowView->clearFrame();
@@ -1803,7 +1948,9 @@ QLabel#remotePlaceholder {
             receiveButton,
             providerScreenView,
             providerScreenWindow,
-            shareProviderScreenButton
+            shareProviderScreenButton,
+            shareSourceCombo,
+            refreshShareSourcesButton
         ](
             bool active)
         {
@@ -1839,6 +1986,12 @@ QLabel#remotePlaceholder {
                           "Stop Sharing")
                     : QStringLiteral(
                           "Share My Screen"));
+
+            shareSourceCombo->setEnabled(
+                !active);
+
+            refreshShareSourcesButton->setEnabled(
+                !active);
         });
 
     QObject::connect(
