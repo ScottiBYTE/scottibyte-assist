@@ -29,6 +29,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <functional>
+
 namespace
 {
 
@@ -87,6 +89,51 @@ QFrame *makeCard(
 
     return card;
 }
+
+class UserDismissTrackingFilter final
+    : public QObject
+{
+public:
+    explicit UserDismissTrackingFilter(
+        QObject *parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
+    void setUserDismissedCallback(
+        std::function<void()> callback)
+    {
+        userDismissedCallback_ =
+            std::move(callback);
+    }
+
+protected:
+    bool eventFilter(
+        QObject *watched,
+        QEvent *event) override
+    {
+        if (
+            event->type() == QEvent::Close &&
+            !watched->property(
+                "programmaticClose").toBool()) {
+            watched->setProperty(
+                "userDismissed",
+                true);
+
+            if (userDismissedCallback_) {
+                userDismissedCallback_();
+            }
+        }
+
+        return QObject::eventFilter(
+            watched,
+            event);
+    }
+
+private:
+    std::function<void()>
+        userDismissedCallback_;
+};
 
 class FullScreenExitBubble final
     : public QPushButton
@@ -946,7 +993,7 @@ QLabel#remotePlaceholder {
 
     auto *openRemoteWindowButton =
         makeButton(
-            QStringLiteral("Open Remote Window"),
+            QStringLiteral("Remote Control Customer"),
             QStringLiteral(
                 "secondaryButton"));
 
@@ -959,7 +1006,7 @@ QLabel#remotePlaceholder {
 
     auto *fullScreenButton =
         makeButton(
-            QStringLiteral("Full Screen"),
+            QStringLiteral("Full Screen Remote Control"),
             QStringLiteral(
                 "secondaryButton"));
 
@@ -975,6 +1022,18 @@ QLabel#remotePlaceholder {
 
     providerWindowControls->addWidget(
         fullScreenButton);
+
+    auto *shareProviderScreenButton =
+        makeButton(
+            QStringLiteral("Share My Screen"),
+            QStringLiteral(
+                "secondaryButton"));
+
+    shareProviderScreenButton->setToolTip(
+        QStringLiteral(
+            "Share your screen with the customer"));
+
+    shareProviderScreenButton->setEnabled(false);
 
     auto *remoteWindow =
         new QWidget;
@@ -1019,7 +1078,7 @@ QLabel#remotePlaceholder {
 
     auto *remoteWindowFullScreenButton =
         makeButton(
-            QStringLiteral("Full Screen"),
+            QStringLiteral("Full Screen Remote Control"),
             QStringLiteral(
                 "secondaryButton"));
 
@@ -1104,13 +1163,124 @@ QLabel#remotePlaceholder {
     provideLayout->addWidget(connectButton);
     provideLayout->addWidget(provideStatus);
     provideLayout->addLayout(providerWindowControls);
+    provideLayout->addWidget(
+        shareProviderScreenButton);
     provideLayout->addStretch(1);
     provideLayout->addWidget(disconnectButton);
 
     pages->addWidget(providePage);
 
+    auto *providerScreenWindow =
+        new QWidget;
+
+    providerScreenWindow->setWindowTitle(
+        QStringLiteral(
+            "ScottiBYTE Assist — Provider Screen"));
+
+    providerScreenWindow->resize(
+        1280,
+        800);
+
+    providerScreenWindow->setMinimumSize(
+        800,
+        500);
+
+    providerScreenWindow->setAttribute(
+        Qt::WA_QuitOnClose,
+        false);
+
+    providerScreenWindow->setProperty(
+        "userDismissed",
+        false);
+
+    providerScreenWindow->setProperty(
+        "programmaticClose",
+        false);
+
+    auto *providerScreenDismissFilter =
+        new UserDismissTrackingFilter(
+            providerScreenWindow);
+
+    providerScreenWindow->installEventFilter(
+        providerScreenDismissFilter);
+
+    auto *providerScreenLayout =
+        new QVBoxLayout(
+            providerScreenWindow);
+
+    providerScreenLayout->setContentsMargins(
+        10,
+        10,
+        10,
+        10);
+
+    providerScreenLayout->setSpacing(8);
+
+    auto *providerScreenHeader =
+        new QHBoxLayout;
+
+    auto *providerScreenTitle =
+        makeLabel(
+            QStringLiteral(
+                "Provider screen"),
+            QStringLiteral(
+                "sectionHeading"));
+
+    auto *providerScreenCloseButton =
+        makeButton(
+            QStringLiteral("Close View"),
+            QStringLiteral(
+                "secondaryButton"));
+
+    providerScreenHeader->addWidget(
+        providerScreenTitle);
+
+    providerScreenHeader->addStretch();
+
+    providerScreenHeader->addWidget(
+        providerScreenCloseButton);
+
+    auto *providerScreenView =
+        new RemoteView;
+
+    providerScreenView->setMinimumSize(
+        760,
+        420);
+
+    /*
+     * This window is deliberately view-only.
+     * Do not connect its input signals to LanSession.
+     */
+    providerScreenView->setFocusPolicy(
+        Qt::NoFocus);
+
+    providerScreenView->setAttribute(
+        Qt::WA_TransparentForMouseEvents,
+        true);
+
+    providerScreenLayout->addLayout(
+        providerScreenHeader);
+
+    providerScreenLayout->addWidget(
+        providerScreenView,
+        1);
+
+    QObject::connect(
+        providerScreenCloseButton,
+        &QPushButton::clicked,
+        providerScreenWindow,
+        &QWidget::close);
+
     auto *lanSession =
         new LanSession(window);
+
+    providerScreenDismissFilter->
+        setUserDismissedCallback(
+            [lanSession]()
+            {
+                lanSession->
+                    notifyProviderScreenClosed();
+            });
 
     DesktopBackend *desktopBackend =
         nullptr;
@@ -1288,6 +1458,27 @@ QLabel#remotePlaceholder {
         });
 
     QObject::connect(
+        shareProviderScreenButton,
+        &QPushButton::clicked,
+        window,
+        [
+            lanSession,
+            shareProviderScreenButton
+        ]()
+        {
+            const bool currentlySharing =
+                shareProviderScreenButton->text() ==
+                QStringLiteral(
+                    "Stop Sharing");
+
+            if (currentlySharing) {
+                lanSession->stopProviderShare();
+            } else {
+                lanSession->startProviderShare();
+            }
+        });
+
+    QObject::connect(
         detailsButton,
         &QPushButton::clicked,
         window,
@@ -1366,6 +1557,7 @@ QLabel#remotePlaceholder {
         window,
         [
             lanSession,
+            shareProviderScreenButton,
             remoteWindowView,
             remoteWindow,
             fullScreenRemoteView,
@@ -1376,6 +1568,13 @@ QLabel#remotePlaceholder {
             provideStatus
         ]()
         {
+            if (
+                shareProviderScreenButton->text() ==
+                QStringLiteral(
+                    "Stop Sharing")) {
+                lanSession->stopProviderShare();
+            }
+
             lanSession->disconnectSession();
 
             remoteWindowView->clearFrame();
@@ -1449,6 +1648,9 @@ QLabel#remotePlaceholder {
             fullScreenWindow,
             openRemoteWindowButton,
             fullScreenButton,
+            shareProviderScreenButton,
+            providerScreenView,
+            providerScreenWindow,
             connectButton,
             disconnectButton,
             codeEntry,
@@ -1469,12 +1671,36 @@ QLabel#remotePlaceholder {
             fullScreenButton->setEnabled(
                 connected);
 
+            shareProviderScreenButton->setEnabled(
+                connected &&
+                !receiveButton->isChecked());
+
             if (!connected) {
                 remoteWindowView->clearFrame();
                 fullScreenRemoteView->clearFrame();
 
                 remoteWindow->close();
                 fullScreenWindow->close();
+
+                providerScreenView->clearFrame();
+
+                providerScreenWindow->setProperty(
+                    "programmaticClose",
+                    true);
+
+                providerScreenWindow->close();
+
+                providerScreenWindow->setProperty(
+                    "programmaticClose",
+                    false);
+
+                providerScreenWindow->setProperty(
+                    "userDismissed",
+                    false);
+
+                shareProviderScreenButton->setText(
+                    QStringLiteral(
+                        "Share My Screen"));
             }
 
             if (receiveButton->isChecked()) {
@@ -1537,6 +1763,82 @@ QLabel#remotePlaceholder {
                     QStringLiteral(
                         "The support session ended."));
             }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::providerFrameReceived,
+        providerScreenView,
+        &RemoteView::setFrame);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::providerFrameReceived,
+        providerScreenWindow,
+        [
+            receiveButton,
+            providerScreenWindow
+        ](
+            const QImage &)
+        {
+            if (!receiveButton->isChecked()) {
+                return;
+            }
+
+            if (
+                !providerScreenWindow->isVisible() &&
+                !providerScreenWindow->property(
+                    "userDismissed").toBool()) {
+                providerScreenWindow->showNormal();
+                providerScreenWindow->raise();
+                providerScreenWindow->activateWindow();
+            }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::providerShareChanged,
+        window,
+        [
+            receiveButton,
+            providerScreenView,
+            providerScreenWindow,
+            shareProviderScreenButton
+        ](
+            bool active)
+        {
+            if (receiveButton->isChecked()) {
+                if (active) {
+                    providerScreenWindow->setProperty(
+                        "userDismissed",
+                        false);
+                } else {
+                    providerScreenView->clearFrame();
+
+                    providerScreenWindow->setProperty(
+                        "programmaticClose",
+                        true);
+
+                    providerScreenWindow->close();
+
+                    providerScreenWindow->setProperty(
+                        "programmaticClose",
+                        false);
+
+                    providerScreenWindow->setProperty(
+                        "userDismissed",
+                        false);
+                }
+
+                return;
+            }
+
+            shareProviderScreenButton->setText(
+                active
+                    ? QStringLiteral(
+                          "Stop Sharing")
+                    : QStringLiteral(
+                          "Share My Screen"));
         });
 
     QObject::connect(

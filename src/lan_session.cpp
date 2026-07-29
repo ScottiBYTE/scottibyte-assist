@@ -437,8 +437,17 @@ void LanSession::attachSocket(
         this,
         [this]()
         {
+            const bool providerShareWasActive =
+                providerShareActive_;
+
+            providerShareActive_ = false;
+
             if (desktopBackend_ != nullptr) {
                 desktopBackend_->stop();
+            }
+
+            if (providerShareWasActive) {
+                emit providerShareChanged(false);
             }
 
             emit statusChanged(
@@ -472,8 +481,17 @@ void LanSession::disconnectSession()
 {
     advertiseTimer_->stop();
 
+    const bool providerShareWasActive =
+        providerShareActive_;
+
+    providerShareActive_ = false;
+
     if (desktopBackend_ != nullptr) {
         desktopBackend_->stop();
+    }
+
+    if (providerShareWasActive) {
+        emit providerShareChanged(false);
     }
 
     discoverySocket_->close();
@@ -507,33 +525,107 @@ void LanSession::disconnectSession()
     emit connectedChanged(false);
 }
 
+void LanSession::startProviderShare()
+{
+    if (role_ != Role::Provider ||
+        socket_ == nullptr ||
+        socket_->state() !=
+            QAbstractSocket::ConnectedState ||
+        desktopBackend_ == nullptr ||
+        providerShareActive_) {
+        return;
+    }
+
+    providerShareActive_ = true;
+
+    sendMessage(
+        MessageType::ProviderShareState,
+        QByteArray(1, '\1'));
+
+    desktopBackend_->start();
+
+    emit providerShareChanged(true);
+
+    emit statusChanged(
+        QStringLiteral(
+            "Sharing the provider desktop."));
+}
+
+void LanSession::stopProviderShare()
+{
+    if (!providerShareActive_) {
+        return;
+    }
+
+    providerShareActive_ = false;
+
+    sendMessage(
+        MessageType::ProviderShareState,
+        QByteArray(1, '\0'));
+
+    if (desktopBackend_ != nullptr) {
+        desktopBackend_->stop();
+    }
+
+    emit providerShareChanged(false);
+
+    emit statusChanged(
+        QStringLiteral(
+            "Provider desktop sharing stopped."));
+}
+
 void LanSession::sendDesktopFrame(
     const QImage &sourceImage)
 {
-    if (role_ != Role::Customer ||
-        socket_ == nullptr ||
+    if (socket_ == nullptr ||
         socket_->state() !=
             QAbstractSocket::ConnectedState ||
         sourceImage.isNull()) {
         return;
     }
 
-    const QImage &image =
-        sourceImage;
+    MessageType messageType =
+        MessageType::Frame;
+
+    if (role_ == Role::Customer) {
+        messageType =
+            MessageType::Frame;
+    } else if (
+        role_ == Role::Provider &&
+        providerShareActive_) {
+        messageType =
+            MessageType::ProviderFrame;
+    } else {
+        return;
+    }
 
     QByteArray encoded;
 
     QBuffer buffer(&encoded);
     buffer.open(QIODevice::WriteOnly);
 
-    image.save(
+    sourceImage.save(
         &buffer,
         "JPG",
         70);
 
     sendMessage(
-        MessageType::Frame,
+        messageType,
         encoded);
+}
+
+void LanSession::notifyProviderScreenClosed()
+{
+    if (role_ != Role::Customer ||
+        socket_ == nullptr ||
+        socket_->state() !=
+            QAbstractSocket::ConnectedState) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::ProviderScreenClosed,
+        {});
 }
 
 void LanSession::sendPointerMove(
@@ -716,8 +808,11 @@ void LanSession::processIncomingData()
 
         expectedPayloadSize_ = 0;
 
-        if (expectedMessageType_ ==
-            MessageType::Frame) {
+        if (
+            expectedMessageType_ ==
+                MessageType::Frame ||
+            expectedMessageType_ ==
+                MessageType::ProviderFrame) {
             QImage image;
 
             image.loadFromData(
@@ -725,7 +820,24 @@ void LanSession::processIncomingData()
                 "JPG");
 
             if (!image.isNull()) {
-                emit frameReceived(image);
+                if (
+                    expectedMessageType_ ==
+                    MessageType::ProviderFrame) {
+                    emit providerFrameReceived(
+                        image);
+                } else {
+                    emit frameReceived(
+                        image);
+                }
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::ProviderScreenClosed) {
+            if (role_ == Role::Provider) {
+                stopProviderShare();
             }
 
             continue;
@@ -735,6 +847,16 @@ void LanSession::processIncomingData()
             MessageType::ClipboardText) {
             emit clipboardTextReceived(
                 QString::fromUtf8(payload));
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::ProviderShareState) {
+            if (payload.size() == 1) {
+                emit providerShareChanged(
+                    payload.at(0) != 0);
+            }
 
             continue;
         }

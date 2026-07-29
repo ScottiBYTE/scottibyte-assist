@@ -32,6 +32,11 @@ public:
 
     void disconnectSession();
 
+    void startProviderShare();
+    void stopProviderShare();
+
+    void notifyProviderScreenClosed();
+
     void sendPointerMove(
         int x,
         int y);
@@ -71,6 +76,12 @@ signals:
     void frameReceived(
         const QImage &image);
 
+    void providerFrameReceived(
+        const QImage &image);
+
+    void providerShareChanged(
+        bool active);
+
     void clipboardTextReceived(
         const QString &text);
 
@@ -95,7 +106,10 @@ private:
         LeftButtonRelease = 6,
         KeyPress = 7,
         KeyRelease = 8,
-        ClipboardText = 9
+        ClipboardText = 9,
+        ProviderFrame = 10,
+        ProviderShareState = 11,
+        ProviderScreenClosed = 12
     };
 
     void startAdvertising();
@@ -130,6 +144,8 @@ private:
     QTimer *advertiseTimer_ = nullptr;
 
     DesktopBackend *desktopBackend_ = nullptr;
+
+    bool providerShareActive_ = false;
 
     QByteArray receiveBuffer_;
 
