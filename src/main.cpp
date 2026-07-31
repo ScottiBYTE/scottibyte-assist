@@ -2388,61 +2388,102 @@ QLabel#remotePlaceholder {
     QObject::connect(
         customerStartVoiceButton,
         &QPushButton::clicked,
+        lanSession,
+        &LanSession::requestVoiceStart);
+
+    QObject::connect(
+        customerStopVoiceButton,
+        &QPushButton::clicked,
+        lanSession,
+        &LanSession::requestVoiceStop);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::voiceStartRequested,
         window,
         [
             customerVoiceAudio,
             lanSession,
+            receiveButton,
             customerStartVoiceButton,
             customerStopVoiceButton,
             customerMuteButton,
-            receiveStatus
+            providerStartVoiceButton,
+            providerStopVoiceButton,
+            receiveStatus,
+            provideStatus
         ]()
         {
             QSettings settings(
                 QStringLiteral("ScottiBYTE"),
                 QStringLiteral("ScottiBYTE Assist"));
 
-            if (!customerVoiceAudio->
-                    startCustomerSender(
-                        lanSession->peerAddress(),
-                        3100,
-                        settings.value(
-                            QStringLiteral(
-                                "voice/inputNode"))
-                            .toString())) {
+            if (receiveButton->isChecked()) {
+                if (!customerVoiceAudio->
+                        startCustomerSender(
+                            lanSession->peerAddress(),
+                            3100,
+                            settings.value(
+                                QStringLiteral(
+                                    "voice/inputNode"))
+                                .toString())) {
+                    receiveStatus->setText(
+                        QStringLiteral(
+                            "Microphone transmission "
+                            "could not start."));
+                    return;
+                }
+
+                customerStartVoiceButton->setEnabled(false);
+                customerStopVoiceButton->setEnabled(true);
+                customerMuteButton->setEnabled(true);
+
                 receiveStatus->setText(
                     QStringLiteral(
-                        "Microphone transmission "
-                        "could not start."));
+                        "Microphone transmission is active."));
+
                 return;
             }
 
-            customerStartVoiceButton->setEnabled(false);
-            customerStopVoiceButton->setEnabled(true);
-            customerMuteButton->setEnabled(true);
+            if (!customerVoiceAudio->
+                    startProviderReceiver(
+                        3100,
+                        settings.value(
+                            QStringLiteral(
+                                "voice/outputNode"))
+                            .toString())) {
+                provideStatus->setText(
+                    QStringLiteral(
+                        "Voice playback could not start."));
+                return;
+            }
 
-            receiveStatus->setText(
+            providerStartVoiceButton->setEnabled(false);
+            providerStopVoiceButton->setEnabled(true);
+
+            provideStatus->setText(
                 QStringLiteral(
-                    "Microphone transmission is active."));
+                    "Voice playback is active."));
         });
 
     QObject::connect(
-        customerStopVoiceButton,
-        &QPushButton::clicked,
+        lanSession,
+        &LanSession::voiceStopRequested,
         window,
         [
             customerVoiceAudio,
+            receiveButton,
             customerStartVoiceButton,
             customerStopVoiceButton,
             customerMuteButton,
-            receiveStatus
+            providerStartVoiceButton,
+            providerStopVoiceButton,
+            receiveStatus,
+            provideStatus
         ]()
         {
             customerVoiceAudio->stop();
             customerVoiceAudio->setMuted(false);
-
-            customerStartVoiceButton->setEnabled(true);
-            customerStopVoiceButton->setEnabled(false);
 
             customerMuteButton->blockSignals(true);
             customerMuteButton->setChecked(false);
@@ -2451,9 +2492,22 @@ QLabel#remotePlaceholder {
                     "Mute Microphone"));
             customerMuteButton->blockSignals(false);
 
-            customerMuteButton->setEnabled(false);
+            if (receiveButton->isChecked()) {
+                customerStartVoiceButton->setEnabled(true);
+                customerStopVoiceButton->setEnabled(false);
+                customerMuteButton->setEnabled(false);
 
-            receiveStatus->setText(
+                receiveStatus->setText(
+                    QStringLiteral(
+                        "Voice stopped."));
+
+                return;
+            }
+
+            providerStartVoiceButton->setEnabled(true);
+            providerStopVoiceButton->setEnabled(false);
+
+            provideStatus->setText(
                 QStringLiteral(
                     "Voice stopped."));
         });
@@ -2489,59 +2543,14 @@ QLabel#remotePlaceholder {
     QObject::connect(
         providerStartVoiceButton,
         &QPushButton::clicked,
-        window,
-        [
-            customerVoiceAudio,
-            providerStartVoiceButton,
-            providerStopVoiceButton,
-            provideStatus
-        ]()
-        {
-            QSettings settings(
-                QStringLiteral("ScottiBYTE"),
-                QStringLiteral("ScottiBYTE Assist"));
-
-            if (!customerVoiceAudio->
-                    startProviderReceiver(
-                        3100,
-                        settings.value(
-                            QStringLiteral(
-                                "voice/outputNode"))
-                            .toString())) {
-                provideStatus->setText(
-                    QStringLiteral(
-                        "Voice playback could not start."));
-                return;
-            }
-
-            providerStartVoiceButton->setEnabled(false);
-            providerStopVoiceButton->setEnabled(true);
-
-            provideStatus->setText(
-                QStringLiteral(
-                    "Voice playback is active."));
-        });
+        lanSession,
+        &LanSession::requestVoiceStart);
 
     QObject::connect(
         providerStopVoiceButton,
         &QPushButton::clicked,
-        window,
-        [
-            customerVoiceAudio,
-            providerStartVoiceButton,
-            providerStopVoiceButton,
-            provideStatus
-        ]()
-        {
-            customerVoiceAudio->stop();
-
-            providerStartVoiceButton->setEnabled(true);
-            providerStopVoiceButton->setEnabled(false);
-
-            provideStatus->setText(
-                QStringLiteral(
-                    "Voice stopped."));
-        });
+        lanSession,
+        &LanSession::requestVoiceStop);
 
     QObject::connect(
         customerVoiceAudio,
