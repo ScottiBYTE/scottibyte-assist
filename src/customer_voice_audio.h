@@ -28,7 +28,11 @@ public:
 
     void stop();
 
+    void setMuted(
+        bool muted);
+
     bool isRunning() const;
+    bool isMuted() const;
 
 signals:
     void statusChanged(
@@ -52,4 +56,6 @@ private:
 
     GstElement *senderPipeline_ = nullptr;
     GstElement *receiverPipeline_ = nullptr;
+
+    bool muted_ = false;
 };

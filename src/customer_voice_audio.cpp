@@ -152,6 +152,9 @@ bool CustomerVoiceAudio::startCustomerSender(
             "format=S16LE,"
             "rate=48000,"
             "channels=1 "
+            "! volume "
+            "name=voice-volume "
+            "volume=%2 "
             "! opusenc "
             "bitrate=64000 "
             "audio-type=voice "
@@ -162,11 +165,15 @@ bool CustomerVoiceAudio::startCustomerSender(
             "! rtpopuspay "
             "pt=96 "
             "! udpsink "
-            "host=%2 "
-            "port=%3 "
+            "host=%3 "
+            "port=%4 "
             "sync=false "
             "async=false")
             .arg(source)
+            .arg(
+                muted_
+                    ? QStringLiteral("0.0")
+                    : QStringLiteral("1.0"))
             .arg(
                 quotePipelineValue(
                     providerHost.trimmed()))
@@ -352,9 +359,43 @@ void CustomerVoiceAudio::stop()
     }
 }
 
+void CustomerVoiceAudio::setMuted(
+    bool muted)
+{
+    muted_ = muted;
+
+    if (senderPipeline_ == nullptr) {
+        return;
+    }
+
+    GstElement *volume =
+        gst_bin_get_by_name(
+            GST_BIN(senderPipeline_),
+            "voice-volume");
+
+    if (volume == nullptr) {
+        return;
+    }
+
+    g_object_set(
+        volume,
+        "volume",
+        muted_
+            ? 0.0
+            : 1.0,
+        nullptr);
+
+    gst_object_unref(volume);
+}
+
 bool CustomerVoiceAudio::isRunning() const
 {
     return
         senderPipeline_ != nullptr ||
         receiverPipeline_ != nullptr;
+}
+
+bool CustomerVoiceAudio::isMuted() const
+{
+    return muted_;
 }
