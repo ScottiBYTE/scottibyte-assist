@@ -639,6 +639,24 @@ void LanSession::notifyProviderScreenClosed()
         {});
 }
 
+void LanSession::requestVoiceStart()
+{
+    sendMessage(
+        MessageType::VoiceStart,
+        {});
+
+    emit voiceStartRequested();
+}
+
+void LanSession::requestVoiceStop()
+{
+    sendMessage(
+        MessageType::VoiceStop,
+        {});
+
+    emit voiceStopRequested();
+}
+
 void LanSession::sendPointerMove(
     int x,
     int y)
@@ -869,6 +887,18 @@ void LanSession::processIncomingData()
                     payload.at(0) != 0);
             }
 
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::VoiceStart) {
+            emit voiceStartRequested();
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::VoiceStop) {
+            emit voiceStopRequested();
             continue;
         }
 

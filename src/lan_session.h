@@ -39,6 +39,9 @@ public:
 
     void notifyProviderScreenClosed();
 
+    void requestVoiceStart();
+    void requestVoiceStop();
+
     void sendPointerMove(
         int x,
         int y);
@@ -84,6 +87,9 @@ signals:
     void providerShareChanged(
         bool active);
 
+    void voiceStartRequested();
+    void voiceStopRequested();
+
     void clipboardTextReceived(
         const QString &text);
 
@@ -111,7 +117,9 @@ private:
         ClipboardText = 9,
         ProviderFrame = 10,
         ProviderShareState = 11,
-        ProviderScreenClosed = 12
+        ProviderScreenClosed = 12,
+        VoiceStart = 13,
+        VoiceStop = 14
     };
 
     void startAdvertising();
