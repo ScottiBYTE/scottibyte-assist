@@ -1,3 +1,4 @@
+#include "audio_devices.h"
 #include "desktop_backend.h"
 #include "lan_session.h"
 #include "remote_view.h"
@@ -9,7 +10,9 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QEvent>
+#include <QFormLayout>
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -19,11 +22,14 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPaintEvent>
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScreen>
+#include <QSettings>
 #include <QShortcut>
 #include <QStackedWidget>
 #include <QTimer>
@@ -135,6 +141,482 @@ private:
     std::function<void()>
         userDismissedCallback_;
 };
+
+class AssistAudioComboBox final
+    : public QComboBox
+{
+public:
+    explicit AssistAudioComboBox(
+        QWidget *parent = nullptr)
+        : QComboBox(parent)
+    {
+        setCursor(
+            Qt::PointingHandCursor);
+    }
+
+protected:
+    void paintEvent(
+        QPaintEvent *event) override
+    {
+        QComboBox::paintEvent(event);
+
+        QPainter painter(this);
+
+        painter.setRenderHint(
+            QPainter::Antialiasing,
+            true);
+
+        const int centerX =
+            width() - 18;
+
+        const int centerY =
+            height() / 2;
+
+        QPolygon arrow;
+
+        arrow
+            << QPoint(
+                   centerX - 5,
+                   centerY - 3)
+            << QPoint(
+                   centerX + 5,
+                   centerY - 3)
+            << QPoint(
+                   centerX,
+                   centerY + 4);
+
+        painter.setPen(
+            Qt::NoPen);
+
+        painter.setBrush(
+            isEnabled()
+                ? QColor(
+                      94,
+                      228,
+                      255)
+                : QColor(
+                      125,
+                      137,
+                      152));
+
+        painter.drawPolygon(
+            arrow);
+    }
+};
+
+void populateAudioCombo(
+    QComboBox *combo,
+    const QList<AudioDevice> &devices,
+    const QString &savedNodeName)
+{
+    combo->clear();
+
+    combo->addItem(
+        QStringLiteral("System Default"),
+        QString());
+
+    for (const AudioDevice &device :
+         devices) {
+        combo->addItem(
+            device.description,
+            device.nodeName);
+    }
+
+    const int savedIndex =
+        combo->findData(
+            savedNodeName);
+
+    combo->setCurrentIndex(
+        savedIndex >= 0
+            ? savedIndex
+            : 0);
+}
+
+void showSettingsDialog(
+    QWidget *parent)
+{
+    QSettings settings(
+        QStringLiteral("ScottiBYTE"),
+        QStringLiteral("Assist"));
+
+    QDialog dialog(parent);
+
+    dialog.setObjectName(
+        QStringLiteral("settingsDialog"));
+
+    dialog.setWindowTitle(
+        QStringLiteral(
+            "ScottiBYTE Assist Settings"));
+
+    dialog.setMinimumWidth(620);
+
+    dialog.setStyleSheet(
+        QStringLiteral(
+            R"CSS(
+QDialog#settingsDialog {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 1,
+        stop: 0 #09294c,
+        stop: 0.55 #071d39,
+        stop: 1 #151043
+    );
+}
+
+QDialog#settingsDialog QLabel {
+    color: #c8d8e7;
+    font-size: 14px;
+}
+
+QDialog#settingsDialog QLabel#settingsStatus {
+    color: #5ee4ff;
+    background: rgba(7, 37, 67, 190);
+    border: 1px solid #2d789b;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-weight: 700;
+}
+
+QDialog#settingsDialog QLineEdit,
+QDialog#settingsDialog QComboBox {
+    min-height: 38px;
+    padding: 0 12px;
+    color: #ffffff;
+    background: #071a34;
+    border: 1px solid #39dfff;
+    border-radius: 10px;
+    selection-background-color: #245f96;
+}
+
+QDialog#settingsDialog QComboBox {
+    padding-right: 38px;
+    font-weight: 600;
+}
+
+QDialog#settingsDialog QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 34px;
+    border: none;
+    background: transparent;
+}
+
+QDialog#settingsDialog QComboBox::down-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+}
+
+QDialog#settingsDialog QComboBox QAbstractItemView {
+    color: #ffffff;
+    background: #071a34;
+    border: 1px solid #39dfff;
+    selection-background-color: #245f96;
+    selection-color: #ffffff;
+    outline: none;
+}
+
+QDialog#settingsDialog QPushButton {
+    min-height: 38px;
+    padding: 0 20px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #245f96,
+        stop: 1 #07284b
+    );
+    border: 1px solid #28c7f7;
+    border-radius: 10px;
+}
+
+QDialog#settingsDialog QPushButton:hover {
+    background: #176da0;
+}
+
+QDialog#settingsDialog QPushButton#saveSettingsButton {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #1d9ac5,
+        stop: 1 #6728bb
+    );
+}
+
+QDialog#settingsDialog QPushButton#cancelSettingsButton {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #a93650,
+        stop: 1 #671227
+    );
+    border-color: #ff6b86;
+}
+)CSS"));
+
+    auto *layout =
+        new QVBoxLayout(&dialog);
+
+    layout->setContentsMargins(
+        20,
+        20,
+        20,
+        20);
+
+    layout->setSpacing(12);
+
+    auto *form =
+        new QFormLayout;
+
+    form->setFieldGrowthPolicy(
+        QFormLayout::AllNonFixedFieldsGrow);
+
+    auto *serverUrl =
+        new QLineEdit;
+
+    serverUrl->setText(
+        settings.value(
+            QStringLiteral(
+                "connection/serverUrl"),
+            QStringLiteral(
+                "https://assist.scottibyte.com"))
+            .toString());
+
+    serverUrl->setPlaceholderText(
+        QStringLiteral(
+            "https://assist.example.com"));
+
+    auto *inputDevice =
+        new AssistAudioComboBox;
+
+    inputDevice->setCursor(
+        Qt::PointingHandCursor);
+
+    inputDevice->setToolTip(
+        QStringLiteral(
+            "Select the microphone or audio input device."));
+
+    auto *outputDevice =
+        new AssistAudioComboBox;
+
+    outputDevice->setCursor(
+        Qt::PointingHandCursor);
+
+    outputDevice->setToolTip(
+        QStringLiteral(
+            "Select the speakers, headphones, or "
+            "audio output device."));
+
+    auto *deviceStatus =
+        new QLabel;
+
+    deviceStatus->setObjectName(
+        QStringLiteral("settingsStatus"));
+
+    deviceStatus->setWordWrap(true);
+
+    auto *refreshDevices =
+        new QPushButton(
+            QStringLiteral(
+                "Refresh Audio Devices"));
+
+    const auto refresh =
+        [
+            inputDevice,
+            outputDevice,
+            deviceStatus,
+            &settings
+        ]()
+        {
+            const QString selectedInput =
+                inputDevice->count() > 0
+                    ? inputDevice
+                          ->currentData()
+                          .toString()
+                    : settings.value(
+                          QStringLiteral(
+                              "voice/inputNode"))
+                          .toString();
+
+            const QString selectedOutput =
+                outputDevice->count() > 0
+                    ? outputDevice
+                          ->currentData()
+                          .toString()
+                    : settings.value(
+                          QStringLiteral(
+                              "voice/outputNode"))
+                          .toString();
+
+            const AudioDeviceInventory inventory =
+                queryAudioDevices();
+
+            populateAudioCombo(
+                inputDevice,
+                inventory.inputs,
+                selectedInput);
+
+            populateAudioCombo(
+                outputDevice,
+                inventory.outputs,
+                selectedOutput);
+
+            if (!inventory.error.isEmpty()) {
+                deviceStatus->setText(
+                    QStringLiteral(
+                        "Audio device discovery failed: ") +
+                    inventory.error);
+                return;
+            }
+
+            if (
+                inventory.inputs.isEmpty() &&
+                inventory.outputs.isEmpty()) {
+                deviceStatus->setText(
+                    QStringLiteral(
+                        "No PipeWire audio input or "
+                        "output devices were detected. "
+                        "Assist sessions will still work "
+                        "without voice."));
+            } else if (
+                inventory.inputs.isEmpty()) {
+                deviceStatus->setText(
+                    QStringLiteral(
+                        "No audio input devices were "
+                        "detected. Listening may still "
+                        "be available."));
+            } else if (
+                inventory.outputs.isEmpty()) {
+                deviceStatus->setText(
+                    QStringLiteral(
+                        "No audio output devices were "
+                        "detected. Microphone transmission "
+                        "may still be available."));
+            } else {
+                deviceStatus->setText(
+                    QStringLiteral(
+                        "%1 input device(s) and %2 output "
+                        "device(s) detected.")
+                        .arg(
+                            inventory.inputs.size())
+                        .arg(
+                            inventory.outputs.size()));
+            }
+        };
+
+    QObject::connect(
+        refreshDevices,
+        &QPushButton::clicked,
+        &dialog,
+        refresh);
+
+    form->addRow(
+        QStringLiteral(
+            "Assist Server URL"),
+        serverUrl);
+
+    form->addRow(
+        QStringLiteral(
+            "Audio input"),
+        inputDevice);
+
+    form->addRow(
+        QStringLiteral(
+            "Audio output"),
+        outputDevice);
+
+    layout->addLayout(form);
+    layout->addWidget(refreshDevices);
+    layout->addWidget(deviceStatus);
+    layout->addStretch();
+
+    auto *buttons =
+        new QDialogButtonBox(
+            QDialogButtonBox::Save |
+            QDialogButtonBox::Cancel);
+
+    if (
+        QPushButton *saveButton =
+            buttons->button(
+                QDialogButtonBox::Save)) {
+        saveButton->setObjectName(
+            QStringLiteral(
+                "saveSettingsButton"));
+
+        saveButton->setText(
+            QStringLiteral("Save"));
+    }
+
+    if (
+        QPushButton *cancelButton =
+            buttons->button(
+                QDialogButtonBox::Cancel)) {
+        cancelButton->setObjectName(
+            QStringLiteral(
+                "cancelSettingsButton"));
+
+        cancelButton->setText(
+            QStringLiteral("Cancel"));
+    }
+
+    QObject::connect(
+        buttons,
+        &QDialogButtonBox::accepted,
+        &dialog,
+        [
+            &dialog,
+            &settings,
+            serverUrl,
+            inputDevice,
+            outputDevice
+        ]()
+        {
+            QString normalizedServerUrl =
+                serverUrl->text().trimmed();
+
+            while (
+                normalizedServerUrl.endsWith(
+                    QChar('/'))) {
+                normalizedServerUrl.chop(1);
+            }
+
+            settings.setValue(
+                QStringLiteral(
+                    "connection/serverUrl"),
+                normalizedServerUrl);
+
+            settings.setValue(
+                QStringLiteral(
+                    "voice/inputNode"),
+                inputDevice
+                    ->currentData()
+                    .toString());
+
+            settings.setValue(
+                QStringLiteral(
+                    "voice/outputNode"),
+                outputDevice
+                    ->currentData()
+                    .toString());
+
+            settings.sync();
+
+            dialog.accept();
+        });
+
+    QObject::connect(
+        buttons,
+        &QDialogButtonBox::rejected,
+        &dialog,
+        &QDialog::reject);
+
+    layout->addWidget(buttons);
+
+    refresh();
+
+    dialog.exec();
+}
 
 class FullScreenExitBubble final
     : public QPushButton
@@ -1634,13 +2116,8 @@ QLabel#remotePlaceholder {
         window,
         [window]()
         {
-            QMessageBox::information(
-                window,
-                QStringLiteral(
-                    "Settings"),
-                QStringLiteral(
-                    "Settings will be added after the "
-                    "LAN remote-control proof."));
+            showSettingsDialog(
+                window);
         });
 
     QObject::connect(

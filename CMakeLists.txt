@@ -49,6 +49,8 @@ qt_add_executable(
   scottibyte-assist
   assets.qrc
   src/main.cpp
+  src/audio_devices.cpp
+  src/audio_devices.h
   src/desktop_backend.h
   src/lan_session.cpp
   src/lan_session.h
