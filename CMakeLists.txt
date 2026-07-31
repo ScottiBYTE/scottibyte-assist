@@ -98,3 +98,17 @@ install(
   TARGETS scottibyte-assist
   RUNTIME DESTINATION bin
 )
+
+qt_add_executable(
+  customer-voice-test
+  src/customer_voice_test.cpp
+  src/customer_voice_audio.cpp
+  src/customer_voice_audio.h
+)
+
+target_link_libraries(
+  customer-voice-test
+  PRIVATE
+    Qt6::Core
+    PkgConfig::GSTREAMER
+)
