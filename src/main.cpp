@@ -1618,6 +1618,7 @@ QLabel#remotePlaceholder {
             QStringLiteral("Mute Microphone"),
             QStringLiteral("secondaryButton"));
 
+    providerMuteButton->setCheckable(true);
     providerMuteButton->setEnabled(false);
 
     providerMuteButton->setToolTip(
@@ -2351,7 +2352,8 @@ QLabel#remotePlaceholder {
             customerStopVoiceButton,
             customerMuteButton,
             providerStartVoiceButton,
-            providerStopVoiceButton
+            providerStopVoiceButton,
+            providerMuteButton
         ](
             bool connected)
         {
@@ -2364,6 +2366,13 @@ QLabel#remotePlaceholder {
                 QStringLiteral(
                     "Mute Microphone"));
             customerMuteButton->blockSignals(false);
+
+            providerMuteButton->blockSignals(true);
+            providerMuteButton->setChecked(false);
+            providerMuteButton->setText(
+                QStringLiteral(
+                    "Mute Microphone"));
+            providerMuteButton->blockSignals(false);
 
             const bool customerConnected =
                 connected &&
@@ -2383,6 +2392,7 @@ QLabel#remotePlaceholder {
                 providerConnected);
 
             providerStopVoiceButton->setEnabled(false);
+            providerMuteButton->setEnabled(false);
         });
 
     QObject::connect(
@@ -2410,6 +2420,7 @@ QLabel#remotePlaceholder {
             customerMuteButton,
             providerStartVoiceButton,
             providerStopVoiceButton,
+            providerMuteButton,
             receiveStatus,
             provideStatus
         ]()
@@ -2418,19 +2429,42 @@ QLabel#remotePlaceholder {
                 QStringLiteral("ScottiBYTE"),
                 QStringLiteral("ScottiBYTE Assist"));
 
+            const QString peerHost =
+                lanSession->peerAddress();
+
+            const QString inputNode =
+                settings.value(
+                    QStringLiteral(
+                        "voice/inputNode"))
+                    .toString();
+
+            const QString outputNode =
+                settings.value(
+                    QStringLiteral(
+                        "voice/outputNode"))
+                    .toString();
+
             if (receiveButton->isChecked()) {
-                if (!customerVoiceAudio->
+                const bool receiverStarted =
+                    customerVoiceAudio->
+                        startProviderReceiver(
+                            3101,
+                            outputNode);
+
+                const bool senderStarted =
+                    receiverStarted &&
+                    customerVoiceAudio->
                         startCustomerSender(
-                            lanSession->peerAddress(),
+                            peerHost,
                             3100,
-                            settings.value(
-                                QStringLiteral(
-                                    "voice/inputNode"))
-                                .toString())) {
+                            inputNode);
+
+                if (!receiverStarted || !senderStarted) {
+                    customerVoiceAudio->stop();
+
                     receiveStatus->setText(
                         QStringLiteral(
-                            "Microphone transmission "
-                            "could not start."));
+                            "Full-duplex voice could not start."));
                     return;
                 }
 
@@ -2440,30 +2474,41 @@ QLabel#remotePlaceholder {
 
                 receiveStatus->setText(
                     QStringLiteral(
-                        "Microphone transmission is active."));
+                        "Full-duplex voice is active."));
 
                 return;
             }
 
-            if (!customerVoiceAudio->
+            const bool receiverStarted =
+                customerVoiceAudio->
                     startProviderReceiver(
                         3100,
-                        settings.value(
-                            QStringLiteral(
-                                "voice/outputNode"))
-                            .toString())) {
+                        outputNode);
+
+            const bool senderStarted =
+                receiverStarted &&
+                customerVoiceAudio->
+                    startCustomerSender(
+                        peerHost,
+                        3101,
+                        inputNode);
+
+            if (!receiverStarted || !senderStarted) {
+                customerVoiceAudio->stop();
+
                 provideStatus->setText(
                     QStringLiteral(
-                        "Voice playback could not start."));
+                        "Full-duplex voice could not start."));
                 return;
             }
 
             providerStartVoiceButton->setEnabled(false);
             providerStopVoiceButton->setEnabled(true);
+            providerMuteButton->setEnabled(true);
 
             provideStatus->setText(
                 QStringLiteral(
-                    "Voice playback is active."));
+                    "Full-duplex voice is active."));
         });
 
     QObject::connect(
@@ -2478,6 +2523,7 @@ QLabel#remotePlaceholder {
             customerMuteButton,
             providerStartVoiceButton,
             providerStopVoiceButton,
+            providerMuteButton,
             receiveStatus,
             provideStatus
         ]()
@@ -2491,6 +2537,13 @@ QLabel#remotePlaceholder {
                 QStringLiteral(
                     "Mute Microphone"));
             customerMuteButton->blockSignals(false);
+
+            providerMuteButton->blockSignals(true);
+            providerMuteButton->setChecked(false);
+            providerMuteButton->setText(
+                QStringLiteral(
+                    "Mute Microphone"));
+            providerMuteButton->blockSignals(false);
 
             if (receiveButton->isChecked()) {
                 customerStartVoiceButton->setEnabled(true);
@@ -2506,6 +2559,7 @@ QLabel#remotePlaceholder {
 
             providerStartVoiceButton->setEnabled(true);
             providerStopVoiceButton->setEnabled(false);
+            providerMuteButton->setEnabled(false);
 
             provideStatus->setText(
                 QStringLiteral(
@@ -2533,6 +2587,34 @@ QLabel#remotePlaceholder {
                           "Mute Microphone"));
 
             receiveStatus->setText(
+                muted
+                    ? QStringLiteral(
+                          "Microphone muted.")
+                    : QStringLiteral(
+                          "Microphone unmuted."));
+        });
+
+    QObject::connect(
+        providerMuteButton,
+        &QPushButton::toggled,
+        window,
+        [
+            customerVoiceAudio,
+            providerMuteButton,
+            provideStatus
+        ](
+            bool muted)
+        {
+            customerVoiceAudio->setMuted(muted);
+
+            providerMuteButton->setText(
+                muted
+                    ? QStringLiteral(
+                          "Unmute Microphone")
+                    : QStringLiteral(
+                          "Mute Microphone"));
+
+            provideStatus->setText(
                 muted
                     ? QStringLiteral(
                           "Microphone muted.")
