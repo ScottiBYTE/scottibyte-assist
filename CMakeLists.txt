@@ -29,6 +29,15 @@ pkg_check_modules(
   libei-1.0
 )
 
+pkg_check_modules(
+  GSTREAMER
+  REQUIRED
+  IMPORTED_TARGET
+  gstreamer-1.0
+  gstreamer-audio-1.0
+  gstreamer-rtp-1.0
+)
+
 find_library(
   XTST_LIBRARY
   Xtst
@@ -51,6 +60,8 @@ qt_add_executable(
   src/main.cpp
   src/audio_devices.cpp
   src/audio_devices.h
+  src/customer_voice_audio.cpp
+  src/customer_voice_audio.h
   src/desktop_backend.h
   src/lan_session.cpp
   src/lan_session.h
@@ -78,6 +89,7 @@ target_link_libraries(
     Qt6::Widgets
     PkgConfig::PIPEWIRE
     PkgConfig::LIBEI
+    PkgConfig::GSTREAMER
     X11::X11
     ${XTST_LIBRARY}
 )
