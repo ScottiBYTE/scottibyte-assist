@@ -2263,23 +2263,40 @@ QLabel#remotePlaceholder {
         window,
         [
             customerVoiceAudio,
+            lanSession,
             receiveButton,
+            receiveStatus,
             provideStatus
         ](
             bool connected)
         {
-            const bool providerConnected =
-                connected &&
-                !receiveButton->isChecked();
+            customerVoiceAudio->stop();
 
-            if (!providerConnected) {
-                customerVoiceAudio->stop();
+            if (!connected) {
                 return;
             }
 
             QSettings settings(
                 QStringLiteral("ScottiBYTE"),
                 QStringLiteral("ScottiBYTE Assist"));
+
+            if (receiveButton->isChecked()) {
+                if (!customerVoiceAudio->
+                        startCustomerSender(
+                            lanSession->peerAddress(),
+                            3100,
+                            settings.value(
+                                QStringLiteral(
+                                    "voice/inputNode"))
+                                .toString())) {
+                    receiveStatus->setText(
+                        QStringLiteral(
+                            "Connected, but microphone "
+                            "transmission could not start."));
+                }
+
+                return;
+            }
 
             if (!customerVoiceAudio->
                     startProviderReceiver(
@@ -2290,8 +2307,8 @@ QLabel#remotePlaceholder {
                             .toString())) {
                 provideStatus->setText(
                     QStringLiteral(
-                        "The support session is connected, "
-                        "but voice playback could not start."));
+                        "Connected, but voice playback "
+                        "could not start."));
             }
         });
 
