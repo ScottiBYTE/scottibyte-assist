@@ -1,4 +1,5 @@
 #include "audio_devices.h"
+#include "customer_voice_audio.h"
 #include "desktop_backend.h"
 #include "lan_session.h"
 #include "remote_view.h"
@@ -1797,6 +1798,9 @@ QLabel#remotePlaceholder {
     auto *lanSession =
         new LanSession(window);
 
+    auto *customerVoiceAudio =
+        new CustomerVoiceAudio(window);
+
     providerScreenDismissFilter->
         setUserDismissedCallback(
             [lanSession]()
@@ -2245,6 +2249,70 @@ QLabel#remotePlaceholder {
                 provideStatus->setText(
                     fullMessage);
             }
+        });
+
+    /*
+     * Provider-side voice receiver only.
+     *
+     * This does not alter LAN discovery or session transport.
+     * Customer microphone transmission is not integrated yet.
+     */
+    QObject::connect(
+        lanSession,
+        &LanSession::connectedChanged,
+        window,
+        [
+            customerVoiceAudio,
+            receiveButton,
+            provideStatus
+        ](
+            bool connected)
+        {
+            const bool providerConnected =
+                connected &&
+                !receiveButton->isChecked();
+
+            if (!providerConnected) {
+                customerVoiceAudio->stop();
+                return;
+            }
+
+            QSettings settings(
+                QStringLiteral("ScottiBYTE"),
+                QStringLiteral("ScottiBYTE Assist"));
+
+            if (!customerVoiceAudio->
+                    startProviderReceiver(
+                        3100,
+                        settings.value(
+                            QStringLiteral(
+                                "voice/outputNode"))
+                            .toString())) {
+                provideStatus->setText(
+                    QStringLiteral(
+                        "The support session is connected, "
+                        "but voice playback could not start."));
+            }
+        });
+
+    QObject::connect(
+        customerVoiceAudio,
+        &CustomerVoiceAudio::errorOccurred,
+        window,
+        [
+            receiveButton,
+            provideStatus
+        ](
+            const QString &message)
+        {
+            if (receiveButton->isChecked()) {
+                return;
+            }
+
+            provideStatus->setText(
+                QStringLiteral(
+                    "Voice playback error: ") +
+                message);
         });
 
     QObject::connect(
