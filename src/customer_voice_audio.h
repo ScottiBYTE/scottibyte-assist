@@ -26,6 +26,8 @@ public:
         std::uint16_t listenPort,
         const QString &outputNode);
 
+    void stopSender();
+    void stopReceiver();
     void stop();
 
     void setMuted(

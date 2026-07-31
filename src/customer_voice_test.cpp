@@ -12,7 +12,10 @@ void printUsage()
     QTextStream(stderr)
         << "Usage:\n"
         << "  customer-voice-test receiver <port> [output-node]\n"
-        << "  customer-voice-test sender <host> <port> [input-node]\n";
+        << "  customer-voice-test sender <host> <port> [input-node]\n"
+        << "  customer-voice-test duplex "
+           "<host> <send-port> <listen-port> "
+           "[input-node] [output-node]\n";
 }
 
 }
@@ -118,6 +121,61 @@ int main(
                 arguments.at(2),
                 port,
                 inputNode);
+    } else if (
+        mode == QStringLiteral("duplex")) {
+        if (arguments.size() < 5) {
+            printUsage();
+            return 1;
+        }
+
+        bool validSendPort = false;
+        bool validListenPort = false;
+
+        const quint16 sendPort =
+            arguments.at(3).toUShort(
+                &validSendPort);
+
+        const quint16 listenPort =
+            arguments.at(4).toUShort(
+                &validListenPort);
+
+        if (
+            !validSendPort ||
+            sendPort == 0 ||
+            !validListenPort ||
+            listenPort == 0) {
+            printUsage();
+            return 1;
+        }
+
+        const QString inputNode =
+            arguments.size() >= 6
+                ? arguments.at(5)
+                : QString();
+
+        const QString outputNode =
+            arguments.size() >= 7
+                ? arguments.at(6)
+                : QString();
+
+        const bool receiverStarted =
+            audio.startProviderReceiver(
+                listenPort,
+                outputNode);
+
+        const bool senderStarted =
+            audio.startCustomerSender(
+                arguments.at(2),
+                sendPort,
+                inputNode);
+
+        started =
+            receiverStarted &&
+            senderStarted;
+
+        if (!started) {
+            audio.stop();
+        }
     } else {
         printUsage();
         return 1;

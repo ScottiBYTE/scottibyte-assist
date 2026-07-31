@@ -110,7 +110,7 @@ bool CustomerVoiceAudio::startCustomerSender(
     std::uint16_t providerPort,
     const QString &inputNode)
 {
-    stop();
+    stopSender();
 
     if (!initializeGStreamer()) {
         emit errorOccurred(
@@ -228,7 +228,7 @@ bool CustomerVoiceAudio::startProviderReceiver(
     std::uint16_t listenPort,
     const QString &outputNode)
 {
-    stop();
+    stopReceiver();
 
     if (!initializeGStreamer()) {
         emit errorOccurred(
@@ -341,21 +341,30 @@ void CustomerVoiceAudio::stopPipeline(
     pipeline = nullptr;
 }
 
+void CustomerVoiceAudio::stopSender()
+{
+    stopPipeline(
+        senderPipeline_);
+}
+
+void CustomerVoiceAudio::stopReceiver()
+{
+    stopPipeline(
+        receiverPipeline_);
+}
+
 void CustomerVoiceAudio::stop()
 {
     const bool wasRunning =
         isRunning();
 
-    stopPipeline(
-        senderPipeline_);
-
-    stopPipeline(
-        receiverPipeline_);
+    stopSender();
+    stopReceiver();
 
     if (wasRunning) {
         emit statusChanged(
             QStringLiteral(
-                "Customer-to-provider voice stopped."));
+                "Voice stopped."));
     }
 }
 
