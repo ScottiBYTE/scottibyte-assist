@@ -32,6 +32,8 @@ public:
 
     void disconnectSession();
 
+    QString peerAddress() const;
+
     void startProviderShare();
     void stopProviderShare();
 

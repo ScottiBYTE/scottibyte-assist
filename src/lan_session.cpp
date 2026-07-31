@@ -379,6 +379,17 @@ void LanSession::connectToCustomer(
         port);
 }
 
+QString LanSession::peerAddress() const
+{
+    if (socket_ == nullptr) {
+        return {};
+    }
+
+    return socket_->
+        peerAddress()
+        .toString();
+}
+
 void LanSession::acceptProvider()
 {
     if (socket_ != nullptr) {
