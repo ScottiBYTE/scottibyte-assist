@@ -67,6 +67,8 @@ qt_add_executable(
   src/lan_session.h
   src/libei_input.cpp
   src/libei_input.h
+  src/pipewire_echo_cancel.cpp
+  src/pipewire_echo_cancel.h
   src/pipewire_preview.cpp
   src/pipewire_preview.h
   src/portal_session.cpp
@@ -111,4 +113,18 @@ target_link_libraries(
   PRIVATE
     Qt6::Core
     PkgConfig::GSTREAMER
+)
+
+
+qt_add_executable(
+  pipewire-echo-cancel-test
+  src/pipewire_echo_cancel_test.cpp
+  src/pipewire_echo_cancel.cpp
+  src/pipewire_echo_cancel.h
+)
+
+target_link_libraries(
+  pipewire-echo-cancel-test
+  PRIVATE
+    Qt6::Core
 )
