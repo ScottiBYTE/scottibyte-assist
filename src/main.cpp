@@ -1423,17 +1423,24 @@ QLabel#remotePlaceholder {
         22,
         18);
 
-    progressLayout->addWidget(
+    auto *progressHeading =
         makeLabel(
             QStringLiteral(
-                "Preparing secure session..."),
-            QStringLiteral("sectionHeading")));
+                "Secure session ready"),
+            QStringLiteral("sectionHeading"));
+
+    auto *progressDetail =
+        makeLabel(
+            QStringLiteral(
+                "Waiting for the person helping you "
+                "to connect."),
+            QStringLiteral("smallText"));
 
     progressLayout->addWidget(
-        makeLabel(
-            QStringLiteral(
-                "This usually takes only a moment."),
-            QStringLiteral("smallText")));
+        progressHeading);
+
+    progressLayout->addWidget(
+        progressDetail);
 
     receiveLayout->addWidget(receiveTitle);
     receiveLayout->addWidget(receiveDescription);
@@ -2135,6 +2142,8 @@ QLabel#remotePlaceholder {
             lanSession,
             supportCode,
             receiveStatus,
+            progressHeading,
+            progressDetail,
             newCodeButton,
             endSupportButton,
             &customerCodeConsumed,
@@ -2156,6 +2165,15 @@ QLabel#remotePlaceholder {
             receiveStatus->setText(
                 QStringLiteral(
                     "Waiting for the person helping you..."));
+
+            progressHeading->setText(
+                QStringLiteral(
+                    "Secure session ready"));
+
+            progressDetail->setText(
+                QStringLiteral(
+                    "Waiting for the person helping you "
+                    "to connect."));
 
             lanSession->startCustomer(
                 supportCode->text());
@@ -2694,6 +2712,8 @@ QLabel#remotePlaceholder {
         window,
         [
             receiveButton,
+            progressHeading,
+            progressDetail,
             remoteWindowView,
             remoteWindow,
             fullScreenRemoteView,
@@ -2770,9 +2790,26 @@ QLabel#remotePlaceholder {
                 if (connected) {
                     customerCodeConsumed = true;
 
+                    progressHeading->setText(
+                        QStringLiteral(
+                            "Secure session connected"));
+
+                    progressDetail->setText(
+                        QStringLiteral(
+                            "Remote assistance is active."));
+
                     newCodeButton->setEnabled(false);
                     endSupportButton->setEnabled(true);
                 } else {
+                    progressHeading->setText(
+                        QStringLiteral(
+                            "Secure session ready"));
+
+                    progressDetail->setText(
+                        QStringLiteral(
+                            "Waiting for the person helping "
+                            "you to connect."));
+
                     newCodeButton->setEnabled(true);
                     endSupportButton->setEnabled(false);
 
