@@ -3,8 +3,13 @@
 #include "desktop_backend.h"
 #include "lan_session.h"
 #include "remote_view.h"
+
+#if defined(Q_OS_WIN)
+#include "windows_desktop_backend.h"
+#else
 #include "wayland_desktop_backend.h"
 #include "x11_desktop_backend.h"
+#endif
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -1898,6 +1903,26 @@ QLabel#remotePlaceholder {
     DesktopBackend *desktopBackend =
         nullptr;
 
+#if defined(Q_OS_WIN)
+    auto *windowsBackend =
+        new WindowsDesktopBackend(window);
+
+    desktopBackend =
+        windowsBackend;
+
+    lanSession->setDesktopBackend(
+        desktopBackend);
+
+    shareSourceCombo->clear();
+
+    shareSourceCombo->addItem(
+        QStringLiteral(
+            "Primary Windows display"),
+        QStringLiteral("primary"));
+
+    shareSourceCombo->setEnabled(false);
+    refreshShareSourcesButton->setEnabled(false);
+#else
     const QString sessionType =
         qEnvironmentVariable(
             "XDG_SESSION_TYPE");
@@ -1976,7 +2001,8 @@ QLabel#remotePlaceholder {
                                 shareSource());
                 }
 
-                if (selectedIndex < 0 &&
+                if (
+                    selectedIndex < 0 &&
                     shareSourceCombo->count() > 0) {
                     selectedIndex = 0;
                 }
@@ -2025,9 +2051,11 @@ QLabel#remotePlaceholder {
                     ->currentData()
                     .toString());
         });
+#endif
 
     QString lastClipboardText;
 
+#if !defined(Q_OS_WIN)
     if (waylandBackend != nullptr) {
         QObject::connect(
             waylandBackend,
@@ -2042,7 +2070,9 @@ QLabel#remotePlaceholder {
             waylandBackend,
             &WaylandDesktopBackend::
                 applyRemoteClipboardText);
-    } else {
+    } else
+#endif
+    {
         QClipboard *clipboard =
             QApplication::clipboard();
 

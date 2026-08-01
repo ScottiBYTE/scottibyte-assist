@@ -77,6 +77,8 @@ qt_add_executable(
   src/remote_view.h
   src/wayland_desktop_backend.cpp
   src/wayland_desktop_backend.h
+  src/windows_desktop_backend.cpp
+  src/windows_desktop_backend.h
   src/x11_desktop_backend.cpp
   src/x11_desktop_backend.h
 )
