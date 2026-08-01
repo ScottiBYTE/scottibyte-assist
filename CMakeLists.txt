@@ -34,6 +34,17 @@ set(
 )
 
 if(WIN32)
+  find_package(PkgConfig REQUIRED)
+
+  pkg_check_modules(
+    GSTREAMER
+    REQUIRED
+    IMPORTED_TARGET
+    gstreamer-1.0
+    gstreamer-audio-1.0
+    gstreamer-rtp-1.0
+  )
+
   set(
     ASSIST_PLATFORM_SOURCES
     src/windows_audio_devices.cpp
@@ -115,7 +126,13 @@ target_link_libraries(
     Qt6::Widgets
 )
 
-if(NOT WIN32)
+if(WIN32)
+  target_link_libraries(
+    scottibyte-assist
+    PRIVATE
+      PkgConfig::GSTREAMER
+  )
+else()
   target_link_libraries(
     scottibyte-assist
     PRIVATE
