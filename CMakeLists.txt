@@ -127,6 +127,12 @@ target_link_libraries(
 )
 
 if(WIN32)
+  set_target_properties(
+    scottibyte-assist
+    PROPERTIES
+      WIN32_EXECUTABLE TRUE
+  )
+
   target_link_libraries(
     scottibyte-assist
     PRIVATE

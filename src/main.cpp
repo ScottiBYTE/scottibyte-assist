@@ -17,7 +17,9 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QEvent>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QFont>
 #include <QFrame>
@@ -844,6 +846,43 @@ int main(
     QApplication application(
         argc,
         argv);
+
+#if defined(Q_OS_WIN)
+    const QDir applicationDirectory(
+        QCoreApplication::applicationDirPath());
+
+    const QString bundledPluginPath =
+        applicationDirectory.filePath(
+            QStringLiteral("gstreamer-1.0"));
+
+    const QString bundledPluginScanner =
+        applicationDirectory.filePath(
+            QStringLiteral(
+                "gstreamer-libexec/"
+                "gst-plugin-scanner.exe"));
+
+    if (QDir(bundledPluginPath).exists())
+    {
+        qputenv(
+            "GST_PLUGIN_SYSTEM_PATH_1_0",
+            QDir::toNativeSeparators(
+                bundledPluginPath).toUtf8());
+
+        qputenv(
+            "GST_PLUGIN_PATH_1_0",
+            QDir::toNativeSeparators(
+                bundledPluginPath).toUtf8());
+    }
+
+    if (QFileInfo::exists(
+            bundledPluginScanner))
+    {
+        qputenv(
+            "GST_PLUGIN_SCANNER",
+            QDir::toNativeSeparators(
+                bundledPluginScanner).toUtf8());
+    }
+#endif
 
     application.setApplicationName(
         QStringLiteral(
