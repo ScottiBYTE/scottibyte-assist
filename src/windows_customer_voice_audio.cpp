@@ -131,7 +131,13 @@ bool CustomerVoiceAudio::startCustomerSender(
     QString source =
         QStringLiteral("wasapi2src low-latency=true");
 
-    Q_UNUSED(inputNode);
+    if (!inputNode.trimmed().isEmpty()) {
+        source +=
+            QStringLiteral(" device=%1")
+                .arg(
+                    quotePipelineValue(
+                        inputNode.trimmed()));
+    }
 
     const QString pipelineDescription =
         QStringLiteral(
@@ -241,7 +247,13 @@ bool CustomerVoiceAudio::startProviderReceiver(
     QString sink =
         QStringLiteral("wasapi2sink low-latency=true");
 
-    Q_UNUSED(outputNode);
+    if (!outputNode.trimmed().isEmpty()) {
+        sink +=
+            QStringLiteral(" device=%1")
+                .arg(
+                    quotePipelineValue(
+                        outputNode.trimmed()));
+    }
 
     const QString pipelineDescription =
         QStringLiteral(

@@ -481,8 +481,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
                 inventory.outputs.isEmpty()) {
                 deviceStatus->setText(
                     QStringLiteral(
-                        "No PipeWire audio input or "
-                        "output devices were detected. "
+                        "No audio input or output "
+                        "devices were detected. "
                         "Assist sessions will still work "
                         "without voice."));
             } else if (
