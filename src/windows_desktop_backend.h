@@ -2,6 +2,8 @@
 
 #include "desktop_backend.h"
 
+#include <QTimer>
+
 class WindowsDesktopBackend final
     : public DesktopBackend
 {
@@ -42,4 +44,13 @@ public slots:
 
     void releaseKey(
         int qtKey) override;
+
+private slots:
+    void captureFrame();
+
+private:
+    QTimer captureTimer_;
+    bool running_ = false;
+    int frameWidth_ = 0;
+    int frameHeight_ = 0;
 };

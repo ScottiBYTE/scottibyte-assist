@@ -28,12 +28,8 @@ void RemoteView::setFrame(
 {
     frame_ = image;
 
-    if (frame_.isNull()) {
-        unsetCursor();
-    } else {
-        setCursor(
-            Qt::BlankCursor);
-    }
+    setCursor(
+        Qt::ArrowCursor);
 
     update();
 }
