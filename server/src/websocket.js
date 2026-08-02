@@ -19,6 +19,9 @@ import {
 
 const clients = new Set();
 
+const RELAY_CHUNK_MAX_BYTES =
+  48 * 1024;
+
 const SIGNAL_TYPES = new Set([
   'session.identity',
   'session.offer',
@@ -439,6 +442,167 @@ function forwardSignal(
   });
 }
 
+function relayPeers(
+  client
+) {
+  const recipientRole =
+    client.role === 'supporter'
+      ? 'customer'
+      : 'supporter';
+
+  return [...clients].filter(
+    peer =>
+      peer !== client &&
+      peer.sessionCode ===
+        client.sessionCode &&
+      peer.role === recipientRole &&
+      peer.authenticated &&
+      peer.relayReady &&
+      peer.socket.readyState ===
+        WebSocket.OPEN
+  );
+}
+
+function handleRelayStart(
+  client,
+  message
+) {
+  if (
+    !client.authenticated ||
+    !client.sessionCode ||
+    !['supporter', 'customer']
+      .includes(client.role)
+  ) {
+    return sendError(
+      client.socket,
+      'subscription_required',
+      'Subscribe to a session before starting the relay.',
+      message.requestId
+    );
+  }
+
+  const session =
+    getSession(client.sessionCode);
+
+  if (
+    !session ||
+    session.status !==
+      'SUPPORTER_JOINED'
+  ) {
+    return sendError(
+      client.socket,
+      'session_not_ready',
+      'The session is not ready for relay traffic.',
+      message.requestId
+    );
+  }
+
+  client.relayReady = true;
+
+  const peers =
+    relayPeers(client);
+
+  sendJson(client.socket, {
+    type: 'session.relay.accepted',
+    requestId:
+      message.requestId ?? null,
+    ready:
+      peers.length > 0
+  });
+
+  if (peers.length === 0) {
+    return;
+  }
+
+  const timestamp =
+    new Date().toISOString();
+
+  sendJson(client.socket, {
+    type: 'session.relay.ready',
+    timestamp
+  });
+
+  for (const peer of peers) {
+    sendJson(peer.socket, {
+      type: 'session.relay.ready',
+      timestamp
+    });
+  }
+}
+
+function handleRelayBinary(
+  client,
+  data
+) {
+  if (
+    !client.authenticated ||
+    !client.sessionCode ||
+    !client.relayReady ||
+    !['supporter', 'customer']
+      .includes(client.role)
+  ) {
+    return sendError(
+      client.socket,
+      'relay_not_ready',
+      'The relay is not ready for binary traffic.'
+    );
+  }
+
+  const session =
+    getSession(client.sessionCode);
+
+  if (
+    !session ||
+    session.status !==
+      'SUPPORTER_JOINED'
+  ) {
+    return sendError(
+      client.socket,
+      'session_not_ready',
+      'The session is not ready for relay traffic.'
+    );
+  }
+
+  const payload =
+    Buffer.isBuffer(data)
+      ? data
+      : Buffer.from(data);
+
+  if (
+    payload.length === 0 ||
+    payload.length >
+      RELAY_CHUNK_MAX_BYTES
+  ) {
+    return sendError(
+      client.socket,
+      'invalid_relay_chunk',
+      `Relay chunks must contain between 1 and ${
+        RELAY_CHUNK_MAX_BYTES
+      } bytes.`
+    );
+  }
+
+  const peers =
+    relayPeers(client);
+
+  if (peers.length === 0) {
+    return sendError(
+      client.socket,
+      'relay_peer_unavailable',
+      'The relay peer is not currently available.'
+    );
+  }
+
+  for (const peer of peers) {
+    peer.socket.send(
+      payload,
+      {
+        binary: true
+      }
+    );
+  }
+}
+
 function handlePing(
   client,
   message
@@ -502,6 +666,12 @@ function handleMessage(
         message
       );
 
+    case 'session.relay.start':
+      return handleRelayStart(
+        client,
+        message
+      );
+
     case 'ping':
       return handlePing(
         client,
@@ -542,6 +712,7 @@ export function createWebSocketServer(
         authenticated: false,
         sessionCode: null,
         deviceId: null,
+        relayReady: false,
         alive: true,
         remoteAddress:
           websocketSourceIp(request)
@@ -556,7 +727,15 @@ export function createWebSocketServer(
 
       socket.on(
         'message',
-        (data) => {
+        (data, isBinary) => {
+          if (isBinary) {
+            handleRelayBinary(
+              client,
+              data
+            );
+            return;
+          }
+
           handleMessage(
             client,
             data
@@ -649,6 +828,7 @@ export function broadcastSessionEvent(
       'session.ended'
     ) {
       client.sessionCode = null;
+      client.relayReady = false;
       client.authenticated =
         client.role === 'supporter';
     }
