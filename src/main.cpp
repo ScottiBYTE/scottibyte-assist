@@ -3,6 +3,7 @@
 #include "desktop_backend.h"
 #include "lan_session.h"
 #include "remote_view.h"
+#include "wan_signaling_client.h"
 
 #if defined(Q_OS_WIN)
 #include "windows_desktop_backend.h"
@@ -19,13 +20,17 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QEvent>
+#include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QHostInfo>
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -33,12 +38,12 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPushButton>
-#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScreen>
 #include <QSettings>
 #include <QShortcut>
+#include <QStandardPaths>
 #include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -49,19 +54,140 @@
 namespace
 {
 
-QString createSupportCode()
+QString formattedSupportCode(
+    QString code)
 {
-    const int value =
-        QRandomGenerator::global()->bounded(
-            100000,
-            1000000);
+    code.remove(QChar(' '));
+    code = code.trimmed();
 
-    const QString digits =
-        QString::number(value);
+    if (code.size() != 6) {
+        return code;
+    }
 
-    return digits.left(3) +
+    return code.left(3) +
         QStringLiteral(" ") +
-        digits.mid(3);
+        code.mid(3);
+}
+
+QUrl configuredAssistServerUrl()
+{
+    QSettings settings(
+        QStringLiteral("ScottiBYTE"),
+        QStringLiteral("Assist"));
+
+    QString value =
+        settings.value(
+            QStringLiteral(
+                "connection/serverUrl"),
+            QStringLiteral(
+                "https://assist.scottibyte.com"))
+            .toString()
+            .trimmed();
+
+    while (value.endsWith(QChar('/'))) {
+        value.chop(1);
+    }
+
+    return QUrl(value);
+}
+
+QUrl assistWebSocketUrl(
+    const QUrl &serverUrl)
+{
+    QUrl result = serverUrl;
+
+    if (
+        result.scheme().compare(
+            QStringLiteral("https"),
+            Qt::CaseInsensitive) == 0
+    ) {
+        result.setScheme(
+            QStringLiteral("wss"));
+    } else {
+        result.setScheme(
+            QStringLiteral("ws"));
+    }
+
+    QString path = result.path();
+
+    if (path.endsWith(QChar('/'))) {
+        path.chop(1);
+    }
+
+    result.setPath(
+        path +
+        QStringLiteral("/ws"));
+
+    return result;
+}
+
+QString loadProviderCredential(
+    QString *errorMessage)
+{
+    const QString path =
+        QStandardPaths::writableLocation(
+            QStandardPaths::ConfigLocation) +
+        QStringLiteral(
+            "/ScottiBYTE/Assist/provider.json");
+
+    QFile file(path);
+
+    if (
+        !file.open(
+            QIODevice::ReadOnly)
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "No provider credential is installed "
+                    "on this computer.");
+        }
+
+        return {};
+    }
+
+    QJsonParseError parseError;
+
+    const QJsonDocument document =
+        QJsonDocument::fromJson(
+            file.readAll(),
+            &parseError);
+
+    if (
+        parseError.error !=
+            QJsonParseError::NoError ||
+        !document.isObject()
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The installed provider credential "
+                    "file is invalid.");
+        }
+
+        return {};
+    }
+
+    const QString credential =
+        document.object()
+            .value(
+                QStringLiteral(
+                    "credential"))
+            .toString()
+            .trimmed();
+
+    if (credential.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The installed provider credential "
+                    "is missing.");
+        }
+
+        return {};
+    }
+
+    return credential;
 }
 
 QLabel *makeLabel(
@@ -1357,7 +1483,7 @@ QLabel#remotePlaceholder {
 
     auto *supportCode =
         makeLabel(
-            createSupportCode(),
+            QStringLiteral("--- ---"),
             QStringLiteral("supportCode"));
 
     supportCode->setAlignment(
@@ -1941,6 +2067,12 @@ QLabel#remotePlaceholder {
     auto *lanSession =
         new LanSession(window);
 
+    auto *customerSignaling =
+        new WanSignalingClient(window);
+
+    auto *providerSignaling =
+        new WanSignalingClient(window);
+
     auto *customerVoiceAudio =
         new CustomerVoiceAudio(window);
 
@@ -2185,6 +2317,7 @@ QLabel#remotePlaceholder {
     const auto startCustomerSession =
         [
             lanSession,
+            customerSignaling,
             supportCode,
             receiveStatus,
             progressHeading,
@@ -2194,18 +2327,64 @@ QLabel#remotePlaceholder {
             &customerCodeConsumed,
             &restartingCustomerSession
         ](
-            bool generateNewCode)
+            bool)
         {
             restartingCustomerSession = true;
             customerCodeConsumed = false;
 
-            if (generateNewCode) {
-                supportCode->setText(
-                    createSupportCode());
-            }
+            lanSession->disconnectSession();
+            customerSignaling->
+                disconnectFromServer();
 
-            newCodeButton->setEnabled(true);
+            supportCode->setText(
+                QStringLiteral("--- ---"));
+
+            newCodeButton->setEnabled(false);
             endSupportButton->setEnabled(false);
+
+            receiveStatus->setText(
+                QStringLiteral(
+                    "Requesting a secure support code..."));
+
+            progressHeading->setText(
+                QStringLiteral(
+                    "Creating secure session"));
+
+            progressDetail->setText(
+                QStringLiteral(
+                    "Connecting to the ScottiBYTE "
+                    "Assist server."));
+
+            const QUrl serverUrl =
+                configuredAssistServerUrl();
+
+            customerSignaling->
+                createCustomerSession(
+                    serverUrl,
+                    assistWebSocketUrl(
+                        serverUrl),
+                    QHostInfo::localHostName());
+
+            restartingCustomerSession = false;
+        };
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::
+            sessionCodeAssigned,
+        window,
+        [
+            lanSession,
+            supportCode,
+            receiveStatus,
+            progressHeading,
+            progressDetail,
+            newCodeButton
+        ](
+            const QString &code)
+        {
+            supportCode->setText(
+                formattedSupportCode(code));
 
             receiveStatus->setText(
                 QStringLiteral(
@@ -2220,11 +2399,39 @@ QLabel#remotePlaceholder {
                     "Waiting for the person helping you "
                     "to connect."));
 
-            lanSession->startCustomer(
-                supportCode->text());
+            newCodeButton->setEnabled(true);
 
-            restartingCustomerSession = false;
-        };
+            lanSession->startCustomer(
+                code);
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::errorOccurred,
+        window,
+        [
+            receiveStatus,
+            progressHeading,
+            progressDetail,
+            newCodeButton
+        ](
+            const QString &message)
+        {
+            receiveStatus->setText(
+                QStringLiteral("Error: ") +
+                message);
+
+            progressHeading->setText(
+                QStringLiteral(
+                    "Unable to create session"));
+
+            progressDetail->setText(
+                QStringLiteral(
+                    "Check the Assist Server URL and "
+                    "your network connection."));
+
+            newCodeButton->setEnabled(true);
+        });
 
     startCustomerSession(false);
 
@@ -2315,6 +2522,7 @@ QLabel#remotePlaceholder {
         window,
         [
             lanSession,
+            providerSignaling,
             codeEntry,
             connectButton,
             disconnectButton,
@@ -2324,7 +2532,8 @@ QLabel#remotePlaceholder {
             QString code =
                 codeEntry->text();
 
-            code.remove(' ');
+            code.remove(QChar(' '));
+            code = code.trimmed();
 
             if (code.size() != 6) {
                 provideStatus->setText(
@@ -2333,12 +2542,42 @@ QLabel#remotePlaceholder {
                 return;
             }
 
+            QString credentialError;
+
+            const QString credential =
+                loadProviderCredential(
+                    &credentialError);
+
+            if (credential.isEmpty()) {
+                provideStatus->setText(
+                    credentialError);
+                return;
+            }
+
+            const QUrl serverUrl =
+                configuredAssistServerUrl();
+
+            providerSignaling->
+                claimSupportSession(
+                    serverUrl,
+                    assistWebSocketUrl(
+                        serverUrl),
+                    code,
+                    credential,
+                    QHostInfo::localHostName());
+
+            /*
+             * Preserve the existing direct LAN path.
+             * WAN candidate routing will be added as
+             * a separate, tested milestone.
+             */
             lanSession->connectProvider(
                 code);
 
             provideStatus->setText(
                 QStringLiteral(
-                    "Looking for the support computer on the LAN..."));
+                    "Claiming the support code and "
+                    "looking on the LAN..."));
 
             connectButton->setEnabled(false);
             codeEntry->setEnabled(false);
@@ -2351,6 +2590,7 @@ QLabel#remotePlaceholder {
         window,
         [
             lanSession,
+            providerSignaling,
             shareProviderScreenButton,
             remoteWindowView,
             remoteWindow,
@@ -2371,6 +2611,9 @@ QLabel#remotePlaceholder {
 
             lanSession->disconnectSession();
 
+            providerSignaling->
+                disconnectFromServer();
+
             remoteWindowView->clearFrame();
             fullScreenRemoteView->clearFrame();
 
@@ -2380,6 +2623,40 @@ QLabel#remotePlaceholder {
             provideStatus->setText(
                 QStringLiteral(
                     "Disconnected."));
+
+            codeEntry->setEnabled(true);
+            connectButton->setEnabled(true);
+            disconnectButton->setEnabled(false);
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::
+            sessionSubscribed,
+        window,
+        [provideStatus]()
+        {
+            provideStatus->setText(
+                QStringLiteral(
+                    "Support code claimed. Looking for "
+                    "the customer computer..."));
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::errorOccurred,
+        window,
+        [
+            provideStatus,
+            codeEntry,
+            connectButton,
+            disconnectButton
+        ](
+            const QString &message)
+        {
+            provideStatus->setText(
+                QStringLiteral("Error: ") +
+                message);
 
             codeEntry->setEnabled(true);
             connectButton->setEnabled(true);
