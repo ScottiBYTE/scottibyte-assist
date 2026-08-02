@@ -843,6 +843,12 @@ int main(
     int argc,
     char *argv[])
 {
+#if !defined(Q_OS_WIN)
+    QGuiApplication::setDesktopFileName(
+        QStringLiteral(
+            "scottibyte-assist"));
+#endif
+
     QApplication application(
         argc,
         argv);

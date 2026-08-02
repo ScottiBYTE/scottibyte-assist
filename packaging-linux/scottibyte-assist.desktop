@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=ScottiBYTE Assist
+Comment=Remote desktop assistance and voice
+Exec=env BAMF_DESKTOP_FILE_HINT=/usr/share/applications/scottibyte-assist.desktop /usr/bin/scottibyte-assist
+Icon=scottibyte-assist
+Terminal=false
+Categories=Network;RemoteAccess;
+StartupNotify=false
+StartupWMClass=ScottiBYTE Assist
