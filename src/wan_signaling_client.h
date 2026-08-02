@@ -30,6 +30,8 @@ public:
         const QString &supporterToken,
         const QString &deviceId);
 
+    void sendCandidateRequest();
+
     void sendCandidate(
         const QString &address,
         quint16 port);
@@ -48,6 +50,8 @@ signals:
         const QString &code);
 
     void sessionSubscribed();
+
+    void candidateRequestReceived();
 
     void peerCandidateReceived(
         const QString &address,

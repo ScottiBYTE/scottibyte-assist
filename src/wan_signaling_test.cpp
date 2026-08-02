@@ -47,6 +47,8 @@ int main(
 
     bool customerSubscribed = false;
     bool supporterSubscribed = false;
+    bool candidateRequestSent = false;
+    bool candidateRequestReceived = false;
     bool candidateSent = false;
 
     QTimer timeout;
@@ -140,8 +142,31 @@ int main(
 
             if (
                 customerSubscribed &&
-                !candidateSent
+                !candidateRequestSent
             ) {
+                candidateRequestSent = true;
+
+                supporter.sendCandidateRequest();
+
+                std::cout
+                    << "SUPPORTER: Sent candidate request."
+                    << std::endl;
+            }
+        });
+
+    QObject::connect(
+        &customer,
+        &WanSignalingClient::candidateRequestReceived,
+        &application,
+        [&]()
+        {
+            candidateRequestReceived = true;
+
+            std::cout
+                << "CUSTOMER: Received candidate request."
+                << std::endl;
+
+            if (!candidateSent) {
                 candidateSent = true;
 
                 customer.sendCandidate(
@@ -150,7 +175,7 @@ int main(
                     4242);
 
                 std::cout
-                    << "CUSTOMER: Sent test candidate."
+                    << "CUSTOMER: Sent test TCP candidate."
                     << std::endl;
             }
         });
@@ -171,6 +196,9 @@ int main(
             if (
                 customerSubscribed &&
                 supporterSubscribed &&
+                candidateRequestSent &&
+                candidateRequestReceived &&
+                candidateSent &&
                 address ==
                     QStringLiteral(
                         "203.0.113.10") &&
@@ -179,8 +207,9 @@ int main(
                 std::cout
                     << "PASS: Customer creation, "
                        "supporter claim, both WebSocket "
-                       "subscriptions, and candidate "
-                       "forwarding succeeded."
+                       "subscriptions, candidate request, "
+                       "and TCP candidate response "
+                       "succeeded."
                     << std::endl;
 
                 application.exit(0);

@@ -494,6 +494,37 @@ void WanSignalingClient::processTextMessage(
                 QStringLiteral("payload"))
                 .toObject();
 
+        const QString kind =
+            payload.value(
+                QStringLiteral("kind"))
+                .toString()
+                .trimmed()
+                .toLower();
+
+        if (
+            kind ==
+            QStringLiteral("request")
+        ) {
+            emit candidateRequestReceived();
+            return;
+        }
+
+        /*
+         * An absent kind remains compatible with
+         * protocol-v4 candidate payloads created
+         * before candidate requests were added.
+         */
+        if (
+            !kind.isEmpty() &&
+            kind != QStringLiteral("tcp")
+        ) {
+            fail(
+                QStringLiteral(
+                    "The peer sent an unsupported "
+                    "connection candidate."));
+            return;
+        }
+
         const QString address =
             payload.value(
                 QStringLiteral("address"))
@@ -596,6 +627,32 @@ void WanSignalingClient::sendSessionSubscription()
         fields);
 }
 
+void WanSignalingClient::sendCandidateRequest()
+{
+    if (
+        state_ != State::Subscribed
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("kind"),
+        QStringLiteral("request"));
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral(
+            "session.candidate"),
+        fields);
+}
+
 void WanSignalingClient::sendCandidate(
     const QString &address,
     quint16 port)
@@ -609,6 +666,10 @@ void WanSignalingClient::sendCandidate(
     }
 
     QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("kind"),
+        QStringLiteral("tcp"));
 
     payload.insert(
         QStringLiteral("address"),

@@ -424,6 +424,98 @@ QString LanSession::peerAddress() const
         .toString();
 }
 
+QStringList LanSession::customerCandidateAddresses() const
+{
+    QStringList addresses;
+
+    if (
+        role_ != Role::Customer ||
+        !tcpServer_->isListening()
+    ) {
+        return addresses;
+    }
+
+    const QList<QNetworkInterface> interfaces =
+        QNetworkInterface::allInterfaces();
+
+    for (const QNetworkInterface &interface :
+         interfaces) {
+        if (
+            !(interface.flags() &
+              QNetworkInterface::IsUp) ||
+            !(interface.flags() &
+              QNetworkInterface::IsRunning) ||
+            (interface.flags() &
+             QNetworkInterface::IsLoopBack)
+        ) {
+            continue;
+        }
+
+        const QString interfaceName =
+            interface.name().toLower();
+
+        if (
+            interfaceName.startsWith(
+                QStringLiteral("docker")) ||
+            interfaceName.startsWith(
+                QStringLiteral("veth")) ||
+            interfaceName.startsWith(
+                QStringLiteral("virbr")) ||
+            interfaceName.startsWith(
+                QStringLiteral("incusbr")) ||
+            interfaceName.startsWith(
+                QStringLiteral("lxdbr")) ||
+            interfaceName.startsWith(
+                QStringLiteral("br-"))
+        ) {
+            continue;
+        }
+
+        for (const QNetworkAddressEntry &entry :
+             interface.addressEntries()) {
+            const QHostAddress address =
+                entry.ip();
+
+            if (
+                address.protocol() !=
+                    QAbstractSocket::IPv4Protocol ||
+                address.isLoopback()
+            ) {
+                continue;
+            }
+
+            const QString addressText =
+                address.toString();
+
+            if (
+                addressText.startsWith(
+                    QStringLiteral("169.254."))
+            ) {
+                continue;
+            }
+
+            if (!addresses.contains(addressText)) {
+                addresses.append(addressText);
+            }
+        }
+    }
+
+    return addresses;
+}
+
+quint16 LanSession::customerSessionPort() const
+{
+    return sessionPort_;
+}
+
+bool LanSession::isConnected() const
+{
+    return
+        socket_ != nullptr &&
+        socket_->state() ==
+            QAbstractSocket::ConnectedState;
+}
+
 void LanSession::acceptProvider()
 {
     if (socket_ != nullptr) {

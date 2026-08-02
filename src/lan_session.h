@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 class DesktopBackend;
 class QTcpServer;
@@ -38,6 +39,12 @@ public:
     void disconnectSession();
 
     QString peerAddress() const;
+
+    QStringList customerCandidateAddresses() const;
+
+    quint16 customerSessionPort() const;
+
+    bool isConnected() const;
 
     void startProviderShare();
     void stopProviderShare();

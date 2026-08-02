@@ -2073,6 +2073,15 @@ QLabel#remotePlaceholder {
     auto *providerSignaling =
         new WanSignalingClient(window);
 
+    auto *providerCandidateFallbackTimer =
+        new QTimer(window);
+
+    providerCandidateFallbackTimer->
+        setSingleShot(true);
+
+    providerCandidateFallbackTimer->
+        setInterval(3000);
+
     auto *customerVoiceAudio =
         new CustomerVoiceAudio(window);
 
@@ -2567,9 +2576,9 @@ QLabel#remotePlaceholder {
                     QHostInfo::localHostName());
 
             /*
-             * Preserve the existing direct LAN path.
-             * WAN candidate routing will be added as
-             * a separate, tested milestone.
+             * Begin LAN discovery immediately while
+             * server signaling requests a direct TCP
+             * candidate. The first successful path wins.
              */
             lanSession->connectProvider(
                 code);
@@ -2591,6 +2600,7 @@ QLabel#remotePlaceholder {
         [
             lanSession,
             providerSignaling,
+            providerCandidateFallbackTimer,
             shareProviderScreenButton,
             remoteWindowView,
             remoteWindow,
@@ -2614,6 +2624,9 @@ QLabel#remotePlaceholder {
             providerSignaling->
                 disconnectFromServer();
 
+            providerCandidateFallbackTimer->
+                stop();
+
             remoteWindowView->clearFrame();
             fullScreenRemoteView->clearFrame();
 
@@ -2634,12 +2647,106 @@ QLabel#remotePlaceholder {
         &WanSignalingClient::
             sessionSubscribed,
         window,
-        [provideStatus]()
+        [
+            providerSignaling,
+            provideStatus
+        ]()
         {
             provideStatus->setText(
                 QStringLiteral(
-                    "Support code claimed. Looking for "
-                    "the customer computer..."));
+                    "Support code claimed. Requesting "
+                    "the customer connection address..."));
+
+            providerSignaling->
+                sendCandidateRequest();
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::
+            candidateRequestReceived,
+        window,
+        [
+            customerSignaling,
+            lanSession
+        ]()
+        {
+            const QStringList addresses =
+                lanSession->
+                    customerCandidateAddresses();
+
+            if (addresses.isEmpty()) {
+                return;
+            }
+
+            customerSignaling->sendCandidate(
+                addresses.constFirst(),
+                lanSession->
+                    customerSessionPort());
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::
+            peerCandidateReceived,
+        window,
+        [
+            lanSession,
+            providerSignaling,
+            providerCandidateFallbackTimer,
+            provideStatus
+        ](
+            const QString &address,
+            quint16 port)
+        {
+            if (lanSession->isConnected()) {
+                return;
+            }
+
+            provideStatus->setText(
+                QStringLiteral(
+                    "Trying the customer connection "
+                    "address..."));
+
+            lanSession->connectProviderDirect(
+                providerSignaling->
+                    sessionCode(),
+                address,
+                port);
+
+            providerCandidateFallbackTimer->
+                start();
+        });
+
+    QObject::connect(
+        providerCandidateFallbackTimer,
+        &QTimer::timeout,
+        window,
+        [
+            lanSession,
+            providerSignaling,
+            provideStatus
+        ]()
+        {
+            if (lanSession->isConnected()) {
+                return;
+            }
+
+            const QString code =
+                providerSignaling->
+                    sessionCode();
+
+            if (code.isEmpty()) {
+                return;
+            }
+
+            provideStatus->setText(
+                QStringLiteral(
+                    "Direct address did not connect. "
+                    "Looking on the LAN..."));
+
+            lanSession->connectProvider(
+                code);
         });
 
     QObject::connect(
@@ -2717,6 +2824,7 @@ QLabel#remotePlaceholder {
         window,
         [
             customerVoiceAudio,
+            providerCandidateFallbackTimer,
             receiveButton,
             customerStartVoiceButton,
             customerStopVoiceButton,
@@ -2727,6 +2835,11 @@ QLabel#remotePlaceholder {
         ](
             bool connected)
         {
+            if (connected) {
+                providerCandidateFallbackTimer->
+                    stop();
+            }
+
             customerVoiceAudio->stop();
             customerVoiceAudio->setMuted(false);
 
