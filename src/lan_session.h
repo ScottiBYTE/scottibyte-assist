@@ -30,6 +30,11 @@ public:
     void connectProvider(
         const QString &code);
 
+    void connectProviderDirect(
+        const QString &code,
+        const QString &address,
+        quint16 port);
+
     void disconnectSession();
 
     QString peerAddress() const;

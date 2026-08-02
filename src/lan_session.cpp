@@ -315,6 +315,40 @@ void LanSession::connectProvider(
             "Looking for the support computer on the LAN..."));
 }
 
+void LanSession::connectProviderDirect(
+    const QString &code,
+    const QString &address,
+    quint16 port)
+{
+    disconnectSession();
+
+    code_ = normalizedCode(code);
+
+    if (code_.size() != 6) {
+        emit errorOccurred(
+            QStringLiteral(
+                "Enter all six digits."));
+        return;
+    }
+
+    const QString trimmedAddress =
+        address.trimmed();
+
+    if (trimmedAddress.isEmpty() ||
+        port == 0) {
+        emit errorOccurred(
+            QStringLiteral(
+                "The direct support address is invalid."));
+        return;
+    }
+
+    role_ = Role::Provider;
+
+    connectToCustomer(
+        trimmedAddress,
+        port);
+}
+
 void LanSession::processDiscoveryDatagrams()
 {
     while (

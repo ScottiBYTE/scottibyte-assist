@@ -17,6 +17,7 @@ find_package(
     Core
     Gui
     Network
+    WebSockets
     Widgets
 )
 
@@ -31,6 +32,8 @@ set(
   src/lan_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/wan_signaling_client.cpp
+  src/wan_signaling_client.h
 )
 
 if(WIN32)
@@ -123,6 +126,7 @@ target_link_libraries(
     Qt6::Core
     Qt6::Gui
     Qt6::Network
+    Qt6::WebSockets
     Qt6::Widgets
 )
 
@@ -157,6 +161,21 @@ install(
 )
 
 if(NOT WIN32)
+  qt_add_executable(
+    wan-signaling-test
+    src/wan_signaling_test.cpp
+    src/wan_signaling_client.cpp
+    src/wan_signaling_client.h
+  )
+
+  target_link_libraries(
+    wan-signaling-test
+    PRIVATE
+      Qt6::Core
+      Qt6::Network
+      Qt6::WebSockets
+  )
+
   qt_add_executable(
     customer-voice-test
     src/customer_voice_test.cpp
