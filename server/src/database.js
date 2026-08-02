@@ -194,6 +194,31 @@ function ensureReceiptTokenColumn() {
   `);
 }
 
+function createProviderCredentialsTable() {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS provider_credentials (
+      id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      credential_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT,
+      revoked_at TEXT
+    ) STRICT;
+
+    CREATE INDEX IF NOT EXISTS
+      idx_provider_credentials_active
+      ON provider_credentials(
+        revoked_at
+      );
+
+    CREATE INDEX IF NOT EXISTS
+      idx_provider_credentials_created_at
+      ON provider_credentials(
+        created_at
+      );
+  `);
+}
+
 function createAuditTable() {
   database.exec(`
     CREATE TABLE IF NOT EXISTS session_audit_events (
@@ -241,6 +266,7 @@ function createAuditTable() {
 
 migrateLegacySessionsTable();
 ensureReceiptTokenColumn();
+createProviderCredentialsTable();
 createAuditTable();
 
 function canonicalize(value) {

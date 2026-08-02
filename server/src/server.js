@@ -2,6 +2,7 @@ import http from 'node:http';
 import express from 'express';
 
 import {
+  requireMasterSupporter,
   requireSupporter,
   validateSupporterToken
 } from './auth.js';
@@ -14,6 +15,12 @@ import {
   validateCustomerToken,
   validateReceiptToken
 } from './sessions.js';
+
+import {
+  createProviderCredential,
+  listProviderCredentials,
+  revokeProviderCredential
+} from './providers.js';
 
 import {
   getAuditEventsBySessionId,
@@ -149,6 +156,55 @@ app.get(
       websocket: websocketStats(),
       timestamp: new Date().toISOString()
     });
+  }
+);
+
+app.get(
+  '/api/providers',
+  requireMasterSupporter,
+  (_request, response) => {
+    response.status(200).json({
+      providers:
+        listProviderCredentials()
+    });
+  }
+);
+
+app.post(
+  '/api/providers',
+  requireMasterSupporter,
+  (request, response) => {
+    const result =
+      createProviderCredential(
+        request.body?.displayName
+      );
+
+    if (result.error) {
+      return response
+        .status(400)
+        .json(result);
+    }
+
+    response.status(201).json(result);
+  }
+);
+
+app.post(
+  '/api/providers/:id/revoke',
+  requireMasterSupporter,
+  (request, response) => {
+    const result =
+      revokeProviderCredential(
+        request.params.id
+      );
+
+    if (result.error) {
+      return response
+        .status(404)
+        .json(result);
+    }
+
+    response.status(200).json(result);
   }
 );
 
