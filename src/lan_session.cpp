@@ -511,9 +511,77 @@ quint16 LanSession::customerSessionPort() const
 bool LanSession::isConnected() const
 {
     return
-        socket_ != nullptr &&
-        socket_->state() ==
-            QAbstractSocket::ConnectedState;
+        relayActive_ ||
+        (
+            socket_ != nullptr &&
+            socket_->state() ==
+                QAbstractSocket::ConnectedState
+        );
+}
+
+void LanSession::activateRelayTransport()
+{
+    if (
+        role_ == Role::Inactive ||
+        code_.isEmpty() ||
+        relayActive_
+    ) {
+        return;
+    }
+
+    advertiseTimer_->stop();
+    discoverySocket_->close();
+    tcpServer_->close();
+
+    if (socket_ != nullptr) {
+        QTcpSocket *socket =
+            socket_;
+
+        socket_ = nullptr;
+
+        socket->disconnect(
+            this);
+
+        socket->abort();
+        socket->deleteLater();
+    }
+
+    receiveBuffer_.clear();
+    expectedPayloadSize_ = 0;
+
+    relayActive_ = true;
+
+    if (
+        role_ == Role::Customer &&
+        desktopBackend_ != nullptr
+    ) {
+        desktopBackend_->start();
+    }
+
+    emit statusChanged(
+        role_ == Role::Customer
+            ? QStringLiteral(
+                  "The person helping you is connected "
+                  "through the Assist relay.")
+            : QStringLiteral(
+                  "Connected to the support computer "
+                  "through the Assist relay."));
+
+    emit connectedChanged(true);
+}
+
+void LanSession::receiveRelayBytes(
+    const QByteArray &bytes)
+{
+    if (
+        !relayActive_ ||
+        bytes.isEmpty()
+    ) {
+        return;
+    }
+
+    processIncomingBytes(
+        bytes);
 }
 
 void LanSession::acceptProvider()
@@ -547,6 +615,7 @@ void LanSession::acceptProvider()
 void LanSession::attachSocket(
     QTcpSocket *socket)
 {
+    relayActive_ = false;
     socket_ = socket;
 
     connect(
@@ -636,6 +705,7 @@ void LanSession::disconnectSession()
 
     receiveBuffer_.clear();
     expectedPayloadSize_ = 0;
+    relayActive_ = false;
 
     if (socket_ != nullptr) {
         QTcpSocket *socket =
@@ -665,9 +735,7 @@ void LanSession::disconnectSession()
 void LanSession::startProviderShare()
 {
     if (role_ != Role::Provider ||
-        socket_ == nullptr ||
-        socket_->state() !=
-            QAbstractSocket::ConnectedState ||
+        !isConnected() ||
         desktopBackend_ == nullptr ||
         providerShareActive_) {
         return;
@@ -714,10 +782,10 @@ void LanSession::stopProviderShare()
 void LanSession::sendDesktopFrame(
     const QImage &sourceImage)
 {
-    if (socket_ == nullptr ||
-        socket_->state() !=
-            QAbstractSocket::ConnectedState ||
-        sourceImage.isNull()) {
+    if (
+        !isConnected() ||
+        sourceImage.isNull()
+    ) {
         return;
     }
 
@@ -753,10 +821,10 @@ void LanSession::sendDesktopFrame(
 
 void LanSession::notifyProviderScreenClosed()
 {
-    if (role_ != Role::Customer ||
-        socket_ == nullptr ||
-        socket_->state() !=
-            QAbstractSocket::ConnectedState) {
+    if (
+        role_ != Role::Customer ||
+        !isConnected()
+    ) {
         return;
     }
 
@@ -868,9 +936,7 @@ void LanSession::sendMessage(
     MessageType type,
     const QByteArray &payload)
 {
-    if (socket_ == nullptr ||
-        socket_->state() !=
-            QAbstractSocket::ConnectedState) {
+    if (!isConnected()) {
         return;
     }
 
@@ -890,7 +956,15 @@ void LanSession::sendMessage(
 
     packet.append(payload);
 
-    socket_->write(packet);
+    if (relayActive_) {
+        emit relayBytesReady(
+            packet);
+        return;
+    }
+
+    if (socket_ != nullptr) {
+        socket_->write(packet);
+    }
 }
 
 void LanSession::processIncomingData()
@@ -899,8 +973,19 @@ void LanSession::processIncomingData()
         return;
     }
 
-    receiveBuffer_.append(
+    processIncomingBytes(
         socket_->readAll());
+}
+
+void LanSession::processIncomingBytes(
+    const QByteArray &bytes)
+{
+    if (bytes.isEmpty()) {
+        return;
+    }
+
+    receiveBuffer_.append(
+        bytes);
 
     while (true) {
         if (expectedPayloadSize_ == 0) {

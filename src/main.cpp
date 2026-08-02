@@ -2742,12 +2742,82 @@ QLabel#remotePlaceholder {
 
             provideStatus->setText(
                 QStringLiteral(
-                    "Direct address did not connect. "
-                    "Looking on the LAN..."));
+                    "Direct connection did not succeed. "
+                    "Starting the Assist relay..."));
 
-            lanSession->connectProvider(
-                code);
+            providerSignaling->
+                sendRelayRequest();
+
+            providerSignaling->
+                startRelay();
         });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::
+            relayRequestReceived,
+        window,
+        [
+            customerSignaling
+        ]()
+        {
+            customerSignaling->
+                startRelay();
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::relayReady,
+        window,
+        [
+            lanSession
+        ]()
+        {
+            if (!lanSession->isConnected()) {
+                lanSession->
+                    activateRelayTransport();
+            }
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::relayReady,
+        window,
+        [
+            lanSession
+        ]()
+        {
+            if (!lanSession->isConnected()) {
+                lanSession->
+                    activateRelayTransport();
+            }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::relayBytesReady,
+        customerSignaling,
+        &WanSignalingClient::sendRelayBytes);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::relayBytesReady,
+        providerSignaling,
+        &WanSignalingClient::sendRelayBytes);
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::
+            relayBytesReceived,
+        lanSession,
+        &LanSession::receiveRelayBytes);
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::
+            relayBytesReceived,
+        lanSession,
+        &LanSession::receiveRelayBytes);
 
     QObject::connect(
         providerSignaling,

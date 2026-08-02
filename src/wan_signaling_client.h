@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QObject>
 #include <QUrl>
@@ -32,9 +33,16 @@ public:
 
     void sendCandidateRequest();
 
+    void sendRelayRequest();
+
     void sendCandidate(
         const QString &address,
         quint16 port);
+
+    void startRelay();
+
+    void sendRelayBytes(
+        const QByteArray &bytes);
 
     void disconnectFromServer();
 
@@ -53,9 +61,16 @@ signals:
 
     void candidateRequestReceived();
 
+    void relayRequestReceived();
+
     void peerCandidateReceived(
         const QString &address,
         quint16 port);
+
+    void relayReady();
+
+    void relayBytesReceived(
+        const QByteArray &bytes);
 
     void disconnected();
 
@@ -116,5 +131,10 @@ private:
     QString supporterToken_;
     QString deviceId_;
 
+    bool relayReady_ = false;
+
     quint64 nextRequestId_ = 1;
+
+    static constexpr int relayChunkMaximum_ =
+        48 * 1024;
 };

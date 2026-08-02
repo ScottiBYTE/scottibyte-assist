@@ -87,6 +87,25 @@ WanSignalingClient::WanSignalingClient(
 
     connect(
         socket_,
+        &QWebSocket::binaryMessageReceived,
+        this,
+        [this](
+            const QByteArray &message)
+        {
+            if (
+                state_ != State::Subscribed ||
+                !relayReady_ ||
+                message.isEmpty()
+            ) {
+                return;
+            }
+
+            emit relayBytesReceived(
+                message);
+        });
+
+    connect(
+        socket_,
         &QWebSocket::disconnected,
         this,
         [this]()
@@ -487,6 +506,36 @@ void WanSignalingClient::processTextMessage(
     if (
         type ==
         QStringLiteral(
+            "session.relay.accepted")
+    ) {
+        if (
+            object.value(
+                QStringLiteral("ready"))
+                .toBool()
+        ) {
+            relayReady_ = true;
+            emit relayReady();
+        }
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
+            "session.relay.ready")
+    ) {
+        if (!relayReady_) {
+            relayReady_ = true;
+            emit relayReady();
+        }
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
             "session.candidate")
     ) {
         const QJsonObject payload =
@@ -506,6 +555,14 @@ void WanSignalingClient::processTextMessage(
             QStringLiteral("request")
         ) {
             emit candidateRequestReceived();
+            return;
+        }
+
+        if (
+            kind ==
+            QStringLiteral("relay-request")
+        ) {
+            emit relayRequestReceived();
             return;
         }
 
@@ -653,6 +710,32 @@ void WanSignalingClient::sendCandidateRequest()
         fields);
 }
 
+void WanSignalingClient::sendRelayRequest()
+{
+    if (
+        state_ != State::Subscribed
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("kind"),
+        QStringLiteral("relay-request"));
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral(
+            "session.candidate"),
+        fields);
+}
+
 void WanSignalingClient::sendCandidate(
     const QString &address,
     quint16 port)
@@ -689,6 +772,51 @@ void WanSignalingClient::sendCandidate(
         QStringLiteral(
             "session.candidate"),
         fields);
+}
+
+void WanSignalingClient::startRelay()
+{
+    if (
+        state_ != State::Subscribed
+    ) {
+        return;
+    }
+
+    relayReady_ = false;
+
+    sendJson(
+        QStringLiteral(
+            "session.relay.start"));
+}
+
+void WanSignalingClient::sendRelayBytes(
+    const QByteArray &bytes)
+{
+    if (
+        state_ != State::Subscribed ||
+        !relayReady_ ||
+        bytes.isEmpty() ||
+        socket_->state() !=
+            QAbstractSocket::ConnectedState
+    ) {
+        return;
+    }
+
+    int offset = 0;
+
+    while (offset < bytes.size()) {
+        const int chunkSize =
+            qMin(
+                relayChunkMaximum_,
+                bytes.size() - offset);
+
+        socket_->sendBinaryMessage(
+            bytes.mid(
+                offset,
+                chunkSize));
+
+        offset += chunkSize;
+    }
 }
 
 void WanSignalingClient::sendJson(
@@ -730,6 +858,7 @@ void WanSignalingClient::disconnectFromServer()
     customerToken_.clear();
     supporterToken_.clear();
     deviceId_.clear();
+    relayReady_ = false;
 
     if (
         socket_->state() !=

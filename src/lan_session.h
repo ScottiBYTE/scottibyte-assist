@@ -46,6 +46,11 @@ public:
 
     bool isConnected() const;
 
+    void activateRelayTransport();
+
+    void receiveRelayBytes(
+        const QByteArray &bytes);
+
     void startProviderShare();
     void stopProviderShare();
 
@@ -105,6 +110,9 @@ signals:
     void clipboardTextReceived(
         const QString &text);
 
+    void relayBytesReady(
+        const QByteArray &bytes);
+
     void errorOccurred(
         const QString &message);
 
@@ -148,6 +156,9 @@ private:
 
     void processIncomingData();
 
+    void processIncomingBytes(
+        const QByteArray &bytes);
+
     void sendMessage(
         MessageType type,
         const QByteArray &payload);
@@ -168,6 +179,7 @@ private:
     DesktopBackend *desktopBackend_ = nullptr;
 
     bool providerShareActive_ = false;
+    bool relayActive_ = false;
 
     QByteArray receiveBuffer_;
 
