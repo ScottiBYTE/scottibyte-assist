@@ -851,6 +851,21 @@ void LanSession::requestVoiceStop()
     emit voiceStopRequested();
 }
 
+void LanSession::sendVoicePacket(
+    const QByteArray &packet)
+{
+    if (
+        packet.isEmpty() ||
+        packet.size() > 64 * 1024
+    ) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::VoicePacket,
+        packet);
+}
+
 void LanSession::sendPointerMove(
     int x,
     int y)
@@ -1110,6 +1125,16 @@ void LanSession::processIncomingBytes(
         if (expectedMessageType_ ==
             MessageType::VoiceStop) {
             emit voiceStopRequested();
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::VoicePacket) {
+            if (!payload.isEmpty()) {
+                emit voicePacketReceived(
+                    payload);
+            }
+
             continue;
         }
 

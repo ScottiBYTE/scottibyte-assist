@@ -2949,6 +2949,21 @@ QLabel#remotePlaceholder {
         });
 
     QObject::connect(
+        customerVoiceAudio,
+        &CustomerVoiceAudio::
+            voicePacketReady,
+        lanSession,
+        &LanSession::sendVoicePacket,
+        Qt::QueuedConnection);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::voicePacketReceived,
+        customerVoiceAudio,
+        &CustomerVoiceAudio::pushVoicePacket,
+        Qt::QueuedConnection);
+
+    QObject::connect(
         customerStartVoiceButton,
         &QPushButton::clicked,
         lanSession,
@@ -2982,9 +2997,6 @@ QLabel#remotePlaceholder {
                 QStringLiteral("ScottiBYTE"),
                 QStringLiteral("ScottiBYTE Assist"));
 
-            const QString peerHost =
-                lanSession->peerAddress();
-
             const QString inputNode =
                 settings.value(
                     QStringLiteral(
@@ -3000,16 +3012,13 @@ QLabel#remotePlaceholder {
             if (receiveButton->isChecked()) {
                 const bool receiverStarted =
                     customerVoiceAudio->
-                        startProviderReceiver(
-                            3101,
+                        startPacketReceiver(
                             outputNode);
 
                 const bool senderStarted =
                     receiverStarted &&
                     customerVoiceAudio->
-                        startCustomerSender(
-                            peerHost,
-                            3100,
+                        startPacketSender(
                             inputNode);
 
                 if (!receiverStarted || !senderStarted) {
@@ -3034,16 +3043,13 @@ QLabel#remotePlaceholder {
 
             const bool receiverStarted =
                 customerVoiceAudio->
-                    startProviderReceiver(
-                        3100,
+                    startPacketReceiver(
                         outputNode);
 
             const bool senderStarted =
                 receiverStarted &&
                 customerVoiceAudio->
-                    startCustomerSender(
-                        peerHost,
-                        3101,
+                    startPacketSender(
                         inputNode);
 
             if (!receiverStarted || !senderStarted) {

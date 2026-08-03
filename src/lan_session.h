@@ -59,6 +59,9 @@ public:
     void requestVoiceStart();
     void requestVoiceStop();
 
+    void sendVoicePacket(
+        const QByteArray &packet);
+
     void sendPointerMove(
         int x,
         int y);
@@ -107,6 +110,9 @@ signals:
     void voiceStartRequested();
     void voiceStopRequested();
 
+    void voicePacketReceived(
+        const QByteArray &packet);
+
     void clipboardTextReceived(
         const QString &text);
 
@@ -139,7 +145,8 @@ private:
         ProviderShareState = 11,
         ProviderScreenClosed = 12,
         VoiceStart = 13,
-        VoiceStop = 14
+        VoiceStop = 14,
+        VoicePacket = 15
     };
 
     void startAdvertising();

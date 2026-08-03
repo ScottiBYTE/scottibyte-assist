@@ -44,6 +44,7 @@ if(WIN32)
     REQUIRED
     IMPORTED_TARGET
     gstreamer-1.0
+    gstreamer-app-1.0
     gstreamer-audio-1.0
     gstreamer-rtp-1.0
   )
@@ -85,6 +86,7 @@ else()
     REQUIRED
     IMPORTED_TARGET
     gstreamer-1.0
+    gstreamer-app-1.0
     gstreamer-audio-1.0
     gstreamer-rtp-1.0
   )

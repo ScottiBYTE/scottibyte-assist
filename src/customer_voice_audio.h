@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QObject>
 #include <QString>
 
@@ -26,6 +27,15 @@ public:
         std::uint16_t listenPort,
         const QString &outputNode);
 
+    bool startPacketSender(
+        const QString &inputNode);
+
+    bool startPacketReceiver(
+        const QString &outputNode);
+
+    void pushVoicePacket(
+        const QByteArray &packet);
+
     void stopSender();
     void stopReceiver();
     void stop();
@@ -43,6 +53,9 @@ signals:
     void errorOccurred(
         const QString &message);
 
+    void voicePacketReady(
+        const QByteArray &packet);
+
 private:
     static bool initializeGStreamer();
 
@@ -58,6 +71,7 @@ private:
 
     GstElement *senderPipeline_ = nullptr;
     GstElement *receiverPipeline_ = nullptr;
+    GstElement *receiverAppSource_ = nullptr;
 
     bool muted_ = false;
 };

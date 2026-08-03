@@ -15,6 +15,8 @@ void printUsage()
         << "  customer-voice-test sender <host> <port> [input-node]\n"
         << "  customer-voice-test duplex "
            "<host> <send-port> <listen-port> "
+           "[input-node] [output-node]\n"
+        << "  customer-voice-test packet-loopback "
            "[input-node] [output-node]\n";
 }
 
@@ -31,7 +33,7 @@ int main(
     const QStringList arguments =
         application.arguments();
 
-    if (arguments.size() < 3) {
+    if (arguments.size() < 2) {
         printUsage();
         return 1;
     }
@@ -72,7 +74,53 @@ int main(
 
     bool started = false;
 
-    if (mode == QStringLiteral("receiver")) {
+    if (
+        mode ==
+        QStringLiteral("packet-loopback")
+    ) {
+        const QString inputNode =
+            arguments.size() >= 3
+                ? arguments.at(2)
+                : QString();
+
+        const QString outputNode =
+            arguments.size() >= 4
+                ? arguments.at(3)
+                : QString();
+
+        QObject::connect(
+            &audio,
+            &CustomerVoiceAudio::
+                voicePacketReady,
+            &audio,
+            &CustomerVoiceAudio::
+                pushVoicePacket,
+            Qt::QueuedConnection);
+
+        const bool receiverStarted =
+            audio.startPacketReceiver(
+                outputNode);
+
+        const bool senderStarted =
+            receiverStarted &&
+            audio.startPacketSender(
+                inputNode);
+
+        started =
+            receiverStarted &&
+            senderStarted;
+
+        if (!started) {
+            audio.stop();
+        }
+    } else if (
+        mode == QStringLiteral("receiver")
+    ) {
+        if (arguments.size() < 3) {
+            printUsage();
+            return 1;
+        }
+
         bool validPort = false;
 
         const quint16 port =
