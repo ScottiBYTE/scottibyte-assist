@@ -88,7 +88,7 @@ WanSignalingClient::WanSignalingClient(
         3000);
 
     relayPongDeadlineTimer_->setInterval(
-        6000);
+        20000);
 
     relayPongDeadlineTimer_->setSingleShot(
         true);
@@ -152,6 +152,20 @@ WanSignalingClient::WanSignalingClient(
             if (
                 relayPongDeadlineTimer_->
                     isActive()
+            ) {
+                return;
+            }
+
+            /*
+             * Do not queue a heartbeat behind a
+             * substantial desktop/voice backlog.
+             * The deadline begins when ping() is
+             * called, not when the frame actually
+             * leaves the socket.
+             */
+            if (
+                socket_->bytesToWrite() >
+                    64 * 1024
             ) {
                 return;
             }
@@ -953,12 +967,6 @@ void WanSignalingClient::startRelayHeartbeat()
     if (!relayHeartbeatTimer_->isActive()) {
         relayHeartbeatTimer_->start();
     }
-
-    socket_->ping(
-        QByteArrayLiteral(
-            "assist-relay-heartbeat"));
-
-    relayPongDeadlineTimer_->start();
 }
 
 void WanSignalingClient::stopRelayHeartbeat()
