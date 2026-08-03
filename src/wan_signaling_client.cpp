@@ -106,6 +106,17 @@ WanSignalingClient::WanSignalingClient(
 
     connect(
         socket_,
+        &QWebSocket::bytesWritten,
+        this,
+        [this](
+            qint64)
+        {
+            emit relayBytesQueuedChanged(
+                socket_->bytesToWrite());
+        });
+
+    connect(
+        socket_,
         &QWebSocket::disconnected,
         this,
         [this]()
@@ -814,6 +825,9 @@ void WanSignalingClient::sendRelayBytes(
             bytes.mid(
                 offset,
                 chunkSize));
+
+        emit relayBytesQueuedChanged(
+            socket_->bytesToWrite());
 
         offset += chunkSize;
     }

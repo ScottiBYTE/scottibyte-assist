@@ -51,6 +51,9 @@ public:
     void receiveRelayBytes(
         const QByteArray &bytes);
 
+    void setRelayBytesQueued(
+        qint64 bytes);
+
     void startProviderShare();
     void stopProviderShare();
 
@@ -188,6 +191,8 @@ private:
     bool providerShareActive_ = false;
     bool relayActive_ = false;
 
+    qint64 relayBytesQueued_ = 0;
+
     QByteArray receiveBuffer_;
 
     quint32 expectedPayloadSize_ = 0;
@@ -199,4 +204,7 @@ private:
 
     static constexpr quint16 sessionPort_ =
         3093;
+
+    static constexpr qint64 frameBacklogLimit_ =
+        512 * 1024;
 };

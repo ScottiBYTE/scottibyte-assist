@@ -548,6 +548,7 @@ void LanSession::activateRelayTransport()
 
     receiveBuffer_.clear();
     expectedPayloadSize_ = 0;
+    relayBytesQueued_ = 0;
 
     relayActive_ = true;
 
@@ -582,6 +583,15 @@ void LanSession::receiveRelayBytes(
 
     processIncomingBytes(
         bytes);
+}
+
+void LanSession::setRelayBytesQueued(
+    qint64 bytes)
+{
+    relayBytesQueued_ =
+        qMax<qint64>(
+            0,
+            bytes);
 }
 
 void LanSession::acceptProvider()
@@ -706,6 +716,7 @@ void LanSession::disconnectSession()
     receiveBuffer_.clear();
     expectedPayloadSize_ = 0;
     relayActive_ = false;
+    relayBytesQueued_ = 0;
 
     if (socket_ != nullptr) {
         QTcpSocket *socket =
@@ -785,6 +796,22 @@ void LanSession::sendDesktopFrame(
     if (
         !isConnected() ||
         sourceImage.isNull()
+    ) {
+        return;
+    }
+
+    const qint64 queuedBytes =
+        relayActive_
+            ? relayBytesQueued_
+            : (
+                socket_ != nullptr
+                    ? socket_->bytesToWrite()
+                    : 0
+            );
+
+    if (
+        queuedBytes >
+        frameBacklogLimit_
     ) {
         return;
     }

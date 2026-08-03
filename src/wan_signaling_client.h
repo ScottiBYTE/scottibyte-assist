@@ -72,6 +72,9 @@ signals:
     void relayBytesReceived(
         const QByteArray &bytes);
 
+    void relayBytesQueuedChanged(
+        qint64 bytes);
+
     void disconnected();
 
     void errorOccurred(

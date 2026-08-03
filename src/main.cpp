@@ -2794,6 +2794,20 @@ QLabel#remotePlaceholder {
         });
 
     QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::
+            relayBytesQueuedChanged,
+        lanSession,
+        &LanSession::setRelayBytesQueued);
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::
+            relayBytesQueuedChanged,
+        lanSession,
+        &LanSession::setRelayBytesQueued);
+
+    QObject::connect(
         lanSession,
         &LanSession::relayBytesReady,
         customerSignaling,
