@@ -144,8 +144,25 @@ WanSignalingClient::WanSignalingClient(
         [this](
             QAbstractSocket::SocketError)
         {
+            const bool wasActive =
+                state_ != State::Idle;
+
             fail(
                 socket_->errorString());
+
+            if (!wasActive) {
+                return;
+            }
+
+            state_ = State::Idle;
+            relayReady_ = false;
+
+            emit statusChanged(
+                QStringLiteral(
+                    "Disconnected from the Assist "
+                    "signaling service."));
+
+            emit disconnected();
         });
 }
 

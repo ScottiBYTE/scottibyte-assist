@@ -594,6 +594,19 @@ void LanSession::setRelayBytesQueued(
             bytes);
 }
 
+void LanSession::relayTransportLost()
+{
+    if (!relayActive_) {
+        return;
+    }
+
+    disconnectSession();
+
+    emit statusChanged(
+        QStringLiteral(
+            "The Assist relay connection was lost."));
+}
+
 void LanSession::acceptProvider()
 {
     if (socket_ != nullptr) {

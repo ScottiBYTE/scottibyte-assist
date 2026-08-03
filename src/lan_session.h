@@ -54,6 +54,8 @@ public:
     void setRelayBytesQueued(
         qint64 bytes);
 
+    void relayTransportLost();
+
     void startProviderShare();
     void stopProviderShare();
 

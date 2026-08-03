@@ -2795,6 +2795,18 @@ QLabel#remotePlaceholder {
 
     QObject::connect(
         customerSignaling,
+        &WanSignalingClient::disconnected,
+        lanSession,
+        &LanSession::relayTransportLost);
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::disconnected,
+        lanSession,
+        &LanSession::relayTransportLost);
+
+    QObject::connect(
+        customerSignaling,
         &WanSignalingClient::
             relayBytesQueuedChanged,
         lanSession,
