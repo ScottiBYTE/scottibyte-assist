@@ -2,6 +2,7 @@
 #include "desktop_backend.h"
 
 #include <QBuffer>
+#include <QDateTime>
 #include <QDataStream>
 #include <QHostAddress>
 #include <QNetworkDatagram>
@@ -519,6 +520,93 @@ bool LanSession::isConnected() const
         );
 }
 
+QString LanSession::diagnosticSummary() const
+{
+    const QString transport =
+        relayActive_
+            ? QStringLiteral(
+                  "Assist WAN relay")
+            : (
+                socket_ != nullptr
+                    ? QStringLiteral(
+                          "Direct LAN TCP")
+                    : QStringLiteral(
+                          "Disconnected")
+            );
+
+    QString roleText;
+
+    switch (role_) {
+    case Role::Inactive:
+        roleText =
+            QStringLiteral("Inactive");
+        break;
+
+    case Role::Customer:
+        roleText =
+            QStringLiteral("Customer");
+        break;
+
+    case Role::Provider:
+        roleText =
+            QStringLiteral("Provider");
+        break;
+    }
+
+    QString lastFrameText =
+        QStringLiteral("Never");
+
+    if (lastDesktopFrameReceivedMs_ > 0) {
+        const qint64 elapsed =
+            QDateTime::
+                currentMSecsSinceEpoch() -
+            lastDesktopFrameReceivedMs_;
+
+        lastFrameText =
+            QStringLiteral("%1 seconds ago")
+                .arg(
+                    static_cast<double>(
+                        elapsed) /
+                        1000.0,
+                    0,
+                    'f',
+                    1);
+    }
+
+    return QStringLiteral(
+        "Desktop transport\n"
+        "Role: %1\n"
+        "Transport: %2\n"
+        "Connected: %3\n"
+        "Relay queued bytes: %4\n"
+        "Relay bytes received: %5\n"
+        "Frames prepared: %6\n"
+        "Frames sent: %7\n"
+        "Frames dropped for backlog: %8\n"
+        "Frames received: %9\n"
+        "Last frame received: %10")
+        .arg(
+            roleText,
+            transport,
+            isConnected()
+                ? QStringLiteral("Yes")
+                : QStringLiteral("No"),
+            QString::number(
+                relayBytesQueued_),
+            QString::number(
+                relayBytesReceived_),
+            QString::number(
+                desktopFramesPrepared_),
+            QString::number(
+                desktopFramesSent_),
+            QString::number(
+                desktopFramesDropped_),
+            QString::number(
+                desktopFramesReceived_),
+            lastFrameText);
+}
+
+
 void LanSession::activateRelayTransport()
 {
     if (
@@ -550,6 +638,13 @@ void LanSession::activateRelayTransport()
     expectedPayloadSize_ = 0;
     relayBytesQueued_ = 0;
 
+    relayBytesReceived_ = 0;
+    desktopFramesPrepared_ = 0;
+    desktopFramesSent_ = 0;
+    desktopFramesDropped_ = 0;
+    desktopFramesReceived_ = 0;
+    lastDesktopFrameReceivedMs_ = 0;
+
     relayActive_ = true;
 
     if (
@@ -580,6 +675,10 @@ void LanSession::receiveRelayBytes(
     ) {
         return;
     }
+
+    relayBytesReceived_ +=
+        static_cast<quint64>(
+            bytes.size());
 
     processIncomingBytes(
         bytes);
@@ -813,6 +912,8 @@ void LanSession::sendDesktopFrame(
         return;
     }
 
+    ++desktopFramesPrepared_;
+
     const qint64 queuedBytes =
         relayActive_
             ? relayBytesQueued_
@@ -826,6 +927,7 @@ void LanSession::sendDesktopFrame(
         queuedBytes >
         frameBacklogLimit_
     ) {
+        ++desktopFramesDropped_;
         return;
     }
 
@@ -857,6 +959,8 @@ void LanSession::sendDesktopFrame(
     sendMessage(
         messageType,
         encoded);
+
+    ++desktopFramesSent_;
 }
 
 void LanSession::notifyProviderScreenClosed()
@@ -1115,6 +1219,12 @@ void LanSession::processIncomingBytes(
                 "JPG");
 
             if (!image.isNull()) {
+                ++desktopFramesReceived_;
+
+                lastDesktopFrameReceivedMs_ =
+                    QDateTime::
+                        currentMSecsSinceEpoch();
+
                 if (
                     expectedMessageType_ ==
                     MessageType::ProviderFrame) {

@@ -46,6 +46,8 @@ public:
 
     bool isConnected() const;
 
+    QString diagnosticSummary() const;
+
     void activateRelayTransport();
 
     void receiveRelayBytes(
@@ -194,6 +196,14 @@ private:
     bool relayActive_ = false;
 
     qint64 relayBytesQueued_ = 0;
+
+    quint64 relayBytesReceived_ = 0;
+    quint64 desktopFramesPrepared_ = 0;
+    quint64 desktopFramesSent_ = 0;
+    quint64 desktopFramesDropped_ = 0;
+    quint64 desktopFramesReceived_ = 0;
+
+    qint64 lastDesktopFrameReceivedMs_ = 0;
 
     QByteArray receiveBuffer_;
 

@@ -1,6 +1,7 @@
 #include "wan_signaling_client.h"
 
 #include <QAbstractSocket>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -130,6 +131,9 @@ WanSignalingClient::WanSignalingClient(
                 return;
             }
 
+            lastPongMs_ =
+                QDateTime::currentMSecsSinceEpoch();
+
             relayPongDeadlineTimer_->stop();
         });
 
@@ -169,6 +173,9 @@ WanSignalingClient::WanSignalingClient(
             ) {
                 return;
             }
+
+            lastPingMs_ =
+                QDateTime::currentMSecsSinceEpoch();
 
             socket_->ping(
                 QByteArrayLiteral(
@@ -275,6 +282,11 @@ void WanSignalingClient::createCustomerSession(
     role_ = Role::Customer;
     state_ = State::CreatingSession;
 
+    serverClientId_ = -1;
+    lastPingMs_ = 0;
+    lastPongMs_ = 0;
+    lastError_.clear();
+
     apiBaseUrl_ = apiBaseUrl;
     webSocketUrl_ = webSocketUrl;
     deviceId_ =
@@ -365,6 +377,11 @@ void WanSignalingClient::claimSupportSession(
 
     role_ = Role::Supporter;
     state_ = State::ClaimingSession;
+
+    serverClientId_ = -1;
+    lastPingMs_ = 0;
+    lastPongMs_ = 0;
+    lastError_.clear();
 
     apiBaseUrl_ = apiBaseUrl;
     webSocketUrl_ = webSocketUrl;
@@ -562,6 +579,12 @@ void WanSignalingClient::processTextMessage(
         QStringLiteral(
             "connection.ready")
     ) {
+        serverClientId_ =
+            object.value(
+                QStringLiteral(
+                    "clientId"))
+                .toInt(-1);
+
         const int protocolVersion =
             object.value(
                 QStringLiteral(
@@ -982,6 +1005,8 @@ void WanSignalingClient::handleUnexpectedDisconnect(
         return;
     }
 
+    lastError_ = message;
+
     fail(message);
 
     state_ = State::Idle;
@@ -1066,9 +1091,183 @@ QString WanSignalingClient::sessionCode() const
     return code_;
 }
 
+QString WanSignalingClient::diagnosticSummary(
+    const QString &label) const
+{
+    QString roleText;
+
+    switch (role_) {
+    case Role::Inactive:
+        roleText =
+            QStringLiteral("Inactive");
+        break;
+
+    case Role::Customer:
+        roleText =
+            QStringLiteral("Customer");
+        break;
+
+    case Role::Supporter:
+        roleText =
+            QStringLiteral("Supporter");
+        break;
+    }
+
+    QString stateText;
+
+    switch (state_) {
+    case State::Idle:
+        stateText =
+            QStringLiteral("Idle");
+        break;
+
+    case State::CreatingSession:
+        stateText =
+            QStringLiteral("Creating session");
+        break;
+
+    case State::ClaimingSession:
+        stateText =
+            QStringLiteral("Claiming session");
+        break;
+
+    case State::OpeningWebSocket:
+        stateText =
+            QStringLiteral("Opening WebSocket");
+        break;
+
+    case State::AuthenticatingSupporter:
+        stateText =
+            QStringLiteral("Authenticating supporter");
+        break;
+
+    case State::Subscribing:
+        stateText =
+            QStringLiteral("Subscribing");
+        break;
+
+    case State::Subscribed:
+        stateText =
+            QStringLiteral("Subscribed");
+        break;
+    }
+
+    QString socketStateText;
+
+    switch (socket_->state()) {
+    case QAbstractSocket::UnconnectedState:
+        socketStateText =
+            QStringLiteral("Disconnected");
+        break;
+
+    case QAbstractSocket::HostLookupState:
+        socketStateText =
+            QStringLiteral("Resolving host");
+        break;
+
+    case QAbstractSocket::ConnectingState:
+        socketStateText =
+            QStringLiteral("Connecting");
+        break;
+
+    case QAbstractSocket::ConnectedState:
+        socketStateText =
+            QStringLiteral("Connected");
+        break;
+
+    case QAbstractSocket::BoundState:
+        socketStateText =
+            QStringLiteral("Bound");
+        break;
+
+    case QAbstractSocket::ClosingState:
+        socketStateText =
+            QStringLiteral("Closing");
+        break;
+
+    case QAbstractSocket::ListeningState:
+        socketStateText =
+            QStringLiteral("Listening");
+        break;
+    }
+
+    const qint64 now =
+        QDateTime::currentMSecsSinceEpoch();
+
+    const auto elapsedText =
+        [now](qint64 timestamp)
+        {
+            if (timestamp <= 0) {
+                return QStringLiteral("Never");
+            }
+
+            return QStringLiteral("%1 seconds ago")
+                .arg(
+                    static_cast<double>(
+                        now - timestamp) /
+                        1000.0,
+                    0,
+                    'f',
+                    1);
+        };
+
+    QString sessionText =
+        code_.isEmpty()
+            ? QStringLiteral("None")
+            : code_;
+
+    if (sessionText.size() == 6) {
+        sessionText.insert(
+            3,
+            QChar(' '));
+    }
+
+    return QStringLiteral(
+        "%1\n"
+        "Role: %2\n"
+        "Internal state: %3\n"
+        "WebSocket state: %4\n"
+        "Server client ID: %5\n"
+        "Session code: %6\n"
+        "Device ID: %7\n"
+        "Relay ready: %8\n"
+        "Queued outbound bytes: %9\n"
+        "Heartbeat deadline: %10\n"
+        "Last ping: %11\n"
+        "Last pong: %12\n"
+        "Last error: %13")
+        .arg(
+            label,
+            roleText,
+            stateText,
+            socketStateText,
+            serverClientId_ >= 0
+                ? QString::number(
+                      serverClientId_)
+                : QStringLiteral("None"),
+            sessionText,
+            deviceId_.isEmpty()
+                ? QStringLiteral("None")
+                : deviceId_,
+            relayReady_
+                ? QStringLiteral("Yes")
+                : QStringLiteral("No"),
+            QString::number(
+                socket_->bytesToWrite()),
+            relayPongDeadlineTimer_->isActive()
+                ? QStringLiteral("Active")
+                : QStringLiteral("Inactive"),
+            elapsedText(lastPingMs_),
+            elapsedText(lastPongMs_),
+            lastError_.isEmpty()
+                ? QStringLiteral("None")
+                : lastError_);
+}
+
 void WanSignalingClient::fail(
     const QString &message)
 {
+    lastError_ = message;
     emit errorOccurred(
         message.isEmpty()
             ? QStringLiteral(

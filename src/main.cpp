@@ -37,10 +37,12 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScreen>
+#include <QScrollBar>
 #include <QSettings>
 #include <QShortcut>
 #include <QStandardPaths>
@@ -748,6 +750,225 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     layout->addWidget(buttons);
 
     refresh();
+
+    dialog.exec();
+}
+
+void showSessionDetailsDialog(
+    QWidget *parent,
+    WanSignalingClient *customerSignaling,
+    WanSignalingClient *providerSignaling,
+    LanSession *lanSession)
+{
+    QDialog dialog(parent);
+
+    dialog.setObjectName(
+        QStringLiteral(
+            "sessionDetailsDialog"));
+
+    dialog.setWindowTitle(
+        QStringLiteral(
+            "ScottiBYTE Assist — Session Details"));
+
+    dialog.setMinimumSize(
+        720,
+        650);
+
+    dialog.resize(
+        780,
+        720);
+
+    dialog.setStyleSheet(
+        QStringLiteral(
+            R"CSS(
+QDialog#sessionDetailsDialog {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 1,
+        stop: 0 #09294c,
+        stop: 0.55 #071d39,
+        stop: 1 #151043
+    );
+}
+
+QDialog#sessionDetailsDialog QLabel#detailsTitle {
+    color: #ffffff;
+    font-size: 26px;
+    font-weight: 800;
+}
+
+QDialog#sessionDetailsDialog QLabel#detailsSubtitle {
+    color: #5ee4ff;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QDialog#sessionDetailsDialog QFrame#detailsCard {
+    background: rgba(4, 24, 50, 205);
+    border: 1px solid #1e87b8;
+    border-radius: 14px;
+}
+
+QDialog#sessionDetailsDialog QPlainTextEdit {
+    color: #dcecff;
+    background: transparent;
+    border: none;
+    padding: 12px;
+    font-family:
+        "Ubuntu Mono",
+        "Noto Sans Mono",
+        monospace;
+    font-size: 13px;
+    selection-background-color: #245f96;
+}
+
+QDialog#sessionDetailsDialog QPushButton {
+    min-height: 38px;
+    padding: 0 24px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #245f96,
+        stop: 1 #07284b
+    );
+    border: 1px solid #28c7f7;
+    border-radius: 10px;
+}
+
+QDialog#sessionDetailsDialog QPushButton:hover {
+    background: #176da0;
+}
+)CSS"));
+
+    auto *layout =
+        new QVBoxLayout(&dialog);
+
+    layout->setContentsMargins(
+        22,
+        20,
+        22,
+        20);
+
+    layout->setSpacing(12);
+
+    auto *title =
+        makeLabel(
+            QStringLiteral(
+                "Session details"),
+            QStringLiteral(
+                "detailsTitle"));
+
+    auto *subtitle =
+        makeLabel(
+            QStringLiteral(
+                "Live connection and desktop-flow diagnostics"),
+            QStringLiteral(
+                "detailsSubtitle"));
+
+    auto *card =
+        makeCard(
+            QStringLiteral(
+                "detailsCard"));
+
+    auto *cardLayout =
+        new QVBoxLayout(card);
+
+    cardLayout->setContentsMargins(
+        4,
+        4,
+        4,
+        4);
+
+    auto *detailsText =
+        new QPlainTextEdit;
+
+    detailsText->setReadOnly(true);
+    detailsText->setLineWrapMode(
+        QPlainTextEdit::NoWrap);
+
+    cardLayout->addWidget(
+        detailsText);
+
+    auto *closeButton =
+        makeButton(
+            QStringLiteral("Close"));
+
+    auto *buttonRow =
+        new QHBoxLayout;
+
+    buttonRow->addStretch();
+    buttonRow->addWidget(
+        closeButton);
+
+    layout->addWidget(title);
+    layout->addWidget(subtitle);
+    layout->addWidget(card, 1);
+    layout->addLayout(buttonRow);
+
+    const auto refresh =
+        [
+            detailsText,
+            customerSignaling,
+            providerSignaling,
+            lanSession
+        ]()
+        {
+            const QString summary =
+                customerSignaling->
+                    diagnosticSummary(
+                        QStringLiteral(
+                            "Customer signaling")) +
+                QStringLiteral(
+                    "\n\n"
+                    "----------------------------------------"
+                    "\n\n") +
+                providerSignaling->
+                    diagnosticSummary(
+                        QStringLiteral(
+                            "Provider signaling")) +
+                QStringLiteral(
+                    "\n\n"
+                    "----------------------------------------"
+                    "\n\n") +
+                lanSession->
+                    diagnosticSummary();
+
+            const int scrollPosition =
+                detailsText->
+                    verticalScrollBar()->
+                    value();
+
+            detailsText->setPlainText(
+                summary);
+
+            detailsText->
+                verticalScrollBar()->
+                setValue(
+                    scrollPosition);
+        };
+
+    auto *refreshTimer =
+        new QTimer(&dialog);
+
+    refreshTimer->setInterval(
+        500);
+
+    QObject::connect(
+        refreshTimer,
+        &QTimer::timeout,
+        &dialog,
+        refresh);
+
+    QObject::connect(
+        closeButton,
+        &QPushButton::clicked,
+        &dialog,
+        &QDialog::accept);
+
+    refresh();
+    refreshTimer->start();
 
     dialog.exec();
 }
@@ -2497,16 +2718,18 @@ QLabel#remotePlaceholder {
         detailsButton,
         &QPushButton::clicked,
         window,
-        [window]()
+        [
+            window,
+            customerSignaling,
+            providerSignaling,
+            lanSession
+        ]()
         {
-            QMessageBox::information(
+            showSessionDetailsDialog(
                 window,
-                QStringLiteral(
-                    "Session details"),
-                QStringLiteral(
-                    "No active LAN connection.\n\n"
-                    "Technical details will remain hidden "
-                    "from the main interface."));
+                customerSignaling,
+                providerSignaling,
+                lanSession);
         });
 
     QObject::connect(

@@ -51,6 +51,9 @@ public:
 
     QString sessionCode() const;
 
+    QString diagnosticSummary(
+        const QString &label) const;
+
 signals:
     void statusChanged(
         const QString &status);
@@ -144,6 +147,13 @@ private:
     QString deviceId_;
 
     bool relayReady_ = false;
+
+    int serverClientId_ = -1;
+
+    qint64 lastPingMs_ = 0;
+    qint64 lastPongMs_ = 0;
+
+    QString lastError_;
 
     quint64 nextRequestId_ = 1;
 
