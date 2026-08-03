@@ -463,6 +463,36 @@ function relayPeers(
   );
 }
 
+function notifyRelayPeerDisconnected(
+  client
+) {
+  if (
+    !client.authenticated ||
+    !client.sessionCode ||
+    !client.relayReady ||
+    !['supporter', 'customer']
+      .includes(client.role)
+  ) {
+    return;
+  }
+
+  const peers =
+    relayPeers(client);
+
+  const timestamp =
+    new Date().toISOString();
+
+  for (const peer of peers) {
+    peer.relayReady = false;
+
+    sendJson(peer.socket, {
+      type:
+        'session.relay.peer_disconnected',
+      timestamp
+    });
+  }
+}
+
 function handleRelayStart(
   client,
   message
@@ -744,6 +774,10 @@ export function createWebSocketServer(
       );
 
       socket.on('close', () => {
+        notifyRelayPeerDisconnected(
+          client
+        );
+
         clients.delete(client);
       });
 
@@ -772,7 +806,6 @@ export function createWebSocketServer(
       for (const client of clients) {
         if (!client.alive) {
           client.socket.terminate();
-          clients.delete(client);
           continue;
         }
 
