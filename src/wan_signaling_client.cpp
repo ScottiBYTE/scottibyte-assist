@@ -5,6 +5,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QTimer>
 #include <QWebSocket>
 
 namespace
@@ -77,8 +78,21 @@ WanSignalingClient::WanSignalingClient(
           new QWebSocket(
               QString(),
               QWebSocketProtocol::VersionLatest,
-              this))
+              this)),
+      relayHeartbeatTimer_(
+          new QTimer(this)),
+      relayPongDeadlineTimer_(
+          new QTimer(this))
 {
+    relayHeartbeatTimer_->setInterval(
+        3000);
+
+    relayPongDeadlineTimer_->setInterval(
+        6000);
+
+    relayPongDeadlineTimer_->setSingleShot(
+        true);
+
     connect(
         socket_,
         &QWebSocket::textMessageReceived,
@@ -106,6 +120,70 @@ WanSignalingClient::WanSignalingClient(
 
     connect(
         socket_,
+        &QWebSocket::pong,
+        this,
+        [this](
+            quint64,
+            const QByteArray &)
+        {
+            if (!relayReady_) {
+                return;
+            }
+
+            relayPongDeadlineTimer_->stop();
+        });
+
+    connect(
+        relayHeartbeatTimer_,
+        &QTimer::timeout,
+        this,
+        [this]()
+        {
+            if (
+                state_ != State::Subscribed ||
+                !relayReady_ ||
+                socket_->state() !=
+                    QAbstractSocket::ConnectedState
+            ) {
+                stopRelayHeartbeat();
+                return;
+            }
+
+            if (
+                relayPongDeadlineTimer_->
+                    isActive()
+            ) {
+                return;
+            }
+
+            socket_->ping(
+                QByteArrayLiteral(
+                    "assist-relay-heartbeat"));
+
+            relayPongDeadlineTimer_->start();
+        });
+
+    connect(
+        relayPongDeadlineTimer_,
+        &QTimer::timeout,
+        this,
+        [this]()
+        {
+            if (
+                state_ != State::Subscribed ||
+                !relayReady_
+            ) {
+                return;
+            }
+
+            handleUnexpectedDisconnect(
+                QStringLiteral(
+                    "The Assist relay heartbeat "
+                    "timed out."));
+        });
+
+    connect(
+        socket_,
         &QWebSocket::bytesWritten,
         this,
         [this](
@@ -125,6 +203,9 @@ WanSignalingClient::WanSignalingClient(
                 state_ != State::Idle;
 
             state_ = State::Idle;
+            relayReady_ = false;
+
+            stopRelayHeartbeat();
 
             if (wasActive) {
                 emit statusChanged(
@@ -144,25 +225,14 @@ WanSignalingClient::WanSignalingClient(
         [this](
             QAbstractSocket::SocketError)
         {
-            const bool wasActive =
-                state_ != State::Idle;
-
-            fail(
-                socket_->errorString());
-
-            if (!wasActive) {
+            if (state_ == State::Idle) {
+                fail(
+                    socket_->errorString());
                 return;
             }
 
-            state_ = State::Idle;
-            relayReady_ = false;
-
-            emit statusChanged(
-                QStringLiteral(
-                    "Disconnected from the Assist "
-                    "signaling service."));
-
-            emit disconnected();
+            handleUnexpectedDisconnect(
+                socket_->errorString());
         });
 }
 
@@ -542,6 +612,7 @@ void WanSignalingClient::processTextMessage(
                 .toBool()
         ) {
             relayReady_ = true;
+            startRelayHeartbeat();
             emit relayReady();
         }
 
@@ -555,7 +626,23 @@ void WanSignalingClient::processTextMessage(
     ) {
         if (!relayReady_) {
             relayReady_ = true;
+            startRelayHeartbeat();
             emit relayReady();
+        }
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
+            "session.relay.peer_disconnected")
+    ) {
+        if (relayReady_) {
+            handleUnexpectedDisconnect(
+                QStringLiteral(
+                    "The Assist relay peer "
+                    "disconnected."));
         }
 
         return;
@@ -850,6 +937,65 @@ void WanSignalingClient::sendRelayBytes(
     }
 }
 
+void WanSignalingClient::startRelayHeartbeat()
+{
+    if (
+        state_ != State::Subscribed ||
+        !relayReady_ ||
+        socket_->state() !=
+            QAbstractSocket::ConnectedState
+    ) {
+        return;
+    }
+
+    relayPongDeadlineTimer_->stop();
+
+    if (!relayHeartbeatTimer_->isActive()) {
+        relayHeartbeatTimer_->start();
+    }
+
+    socket_->ping(
+        QByteArrayLiteral(
+            "assist-relay-heartbeat"));
+
+    relayPongDeadlineTimer_->start();
+}
+
+void WanSignalingClient::stopRelayHeartbeat()
+{
+    relayHeartbeatTimer_->stop();
+    relayPongDeadlineTimer_->stop();
+}
+
+void WanSignalingClient::handleUnexpectedDisconnect(
+    const QString &message)
+{
+    if (state_ == State::Idle) {
+        return;
+    }
+
+    fail(message);
+
+    state_ = State::Idle;
+    relayReady_ = false;
+
+    stopRelayHeartbeat();
+
+    emit statusChanged(
+        QStringLiteral(
+            "Disconnected from the Assist "
+            "signaling service."));
+
+    emit disconnected();
+
+    if (
+        socket_->state() !=
+        QAbstractSocket::UnconnectedState
+    ) {
+        socket_->abort();
+    }
+}
+
 void WanSignalingClient::sendJson(
     const QString &type,
     const QJsonObject &additionalFields)
@@ -890,6 +1036,8 @@ void WanSignalingClient::disconnectFromServer()
     supporterToken_.clear();
     deviceId_.clear();
     relayReady_ = false;
+
+    stopRelayHeartbeat();
 
     if (
         socket_->state() !=

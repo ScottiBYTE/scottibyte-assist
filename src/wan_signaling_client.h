@@ -7,6 +7,7 @@
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QTimer;
 class QWebSocket;
 
 class WanSignalingClient final : public QObject
@@ -117,11 +118,19 @@ private:
         const QString &type,
         const QJsonObject &additionalFields = {});
 
+    void startRelayHeartbeat();
+    void stopRelayHeartbeat();
+    void handleUnexpectedDisconnect(
+        const QString &message);
+
     void fail(
         const QString &message);
 
     QNetworkAccessManager *network_ = nullptr;
     QWebSocket *socket_ = nullptr;
+
+    QTimer *relayHeartbeatTimer_ = nullptr;
+    QTimer *relayPongDeadlineTimer_ = nullptr;
 
     Role role_ = Role::Inactive;
     State state_ = State::Idle;
