@@ -751,6 +751,14 @@ export function createWebSocketServer(
       nextClientId += 1;
       clients.add(client);
 
+      console.log(
+        `WebSocket client ${client.id} connected`,
+        {
+          remoteAddress:
+            client.remoteAddress
+        }
+      );
+
       socket.on('pong', () => {
         client.alive = true;
       });
@@ -773,13 +781,35 @@ export function createWebSocketServer(
         }
       );
 
-      socket.on('close', () => {
-        notifyRelayPeerDisconnected(
-          client
-        );
+      socket.on(
+        'close',
+        (code, reason) => {
+          console.log(
+            `WebSocket client ${client.id} closed`,
+            {
+              code,
+              reason:
+                reason.toString(),
+              role:
+                client.role,
+              sessionCode:
+                client.sessionCode,
+              deviceId:
+                client.deviceId,
+              relayReady:
+                client.relayReady,
+              remoteAddress:
+                client.remoteAddress
+            }
+          );
 
-        clients.delete(client);
-      });
+          notifyRelayPeerDisconnected(
+            client
+          );
+
+          clients.delete(client);
+        }
+      );
 
       socket.on(
         'error',
@@ -805,6 +835,22 @@ export function createWebSocketServer(
     setInterval(() => {
       for (const client of clients) {
         if (!client.alive) {
+          console.warn(
+            `Terminating unresponsive WebSocket client ${client.id}`,
+            {
+              role:
+                client.role,
+              sessionCode:
+                client.sessionCode,
+              deviceId:
+                client.deviceId,
+              relayReady:
+                client.relayReady,
+              remoteAddress:
+                client.remoteAddress
+            }
+          );
+
           client.socket.terminate();
           continue;
         }
