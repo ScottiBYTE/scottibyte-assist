@@ -216,8 +216,10 @@ private:
     quint64 desktopFramesPrepared_ = 0;
     quint64 desktopFramesSent_ = 0;
     quint64 desktopFramesDropped_ = 0;
+    quint64 desktopFramesRateLimited_ = 0;
     quint64 desktopFramesReceived_ = 0;
 
+    qint64 lastDesktopFrameSubmittedMs_ = 0;
     qint64 lastDesktopFrameReceivedMs_ = 0;
 
     QByteArray receiveBuffer_;
@@ -232,6 +234,18 @@ private:
     static constexpr quint16 sessionPort_ =
         3093;
 
-    static constexpr qint64 frameBacklogLimit_ =
+    static constexpr qint64 directFrameBacklogLimit_ =
         512 * 1024;
+
+    static constexpr qint64 relayFrameBacklogLimit_ =
+        128 * 1024;
+
+    static constexpr qint64 relayFrameIntervalMs_ =
+        67;
+
+    static constexpr int directJpegQuality_ =
+        70;
+
+    static constexpr int relayJpegQuality_ =
+        50;
 };

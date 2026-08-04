@@ -659,11 +659,12 @@ QString LanSession::diagnosticSummary() const
         "Connected: %3\n"
         "Relay queued bytes: %4\n"
         "Relay bytes received: %5\n"
-        "Frames prepared: %6\n"
-        "Frames sent: %7\n"
+        "Local frames captured: %6\n"
+        "Local frames submitted: %7\n"
         "Frames dropped for backlog: %8\n"
-        "Frames received: %9\n"
-        "Last frame received: %10")
+        "Frames skipped for relay rate limit: %9\n"
+        "Remote frames received: %10\n"
+        "Last remote frame received: %11")
         .arg(
             roleText,
             transport,
@@ -680,6 +681,8 @@ QString LanSession::diagnosticSummary() const
                 desktopFramesSent_),
             QString::number(
                 desktopFramesDropped_),
+            QString::number(
+                desktopFramesRateLimited_),
             QString::number(
                 desktopFramesReceived_),
             lastFrameText);
@@ -721,7 +724,9 @@ void LanSession::activateRelayTransport()
     desktopFramesPrepared_ = 0;
     desktopFramesSent_ = 0;
     desktopFramesDropped_ = 0;
+    desktopFramesRateLimited_ = 0;
     desktopFramesReceived_ = 0;
+    lastDesktopFrameSubmittedMs_ = 0;
     lastDesktopFrameReceivedMs_ = 0;
 
     relayActive_ = true;
@@ -982,23 +987,6 @@ void LanSession::sendDesktopFrame(
 
     ++desktopFramesPrepared_;
 
-    const qint64 queuedBytes =
-        relayActive_
-            ? relayBytesQueued_
-            : (
-                socket_ != nullptr
-                    ? socket_->bytesToWrite()
-                    : 0
-            );
-
-    if (
-        queuedBytes >
-        frameBacklogLimit_
-    ) {
-        ++desktopFramesDropped_;
-        return;
-    }
-
     MessageType messageType =
         MessageType::Frame;
 
@@ -1014,19 +1002,63 @@ void LanSession::sendDesktopFrame(
         return;
     }
 
+    const qint64 nowMs =
+        QDateTime::currentMSecsSinceEpoch();
+
+    if (
+        relayActive_ &&
+        lastDesktopFrameSubmittedMs_ > 0 &&
+        nowMs - lastDesktopFrameSubmittedMs_ <
+            relayFrameIntervalMs_
+    ) {
+        ++desktopFramesRateLimited_;
+        return;
+    }
+
+    const qint64 queuedBytes =
+        relayActive_
+            ? relayBytesQueued_
+            : (
+                socket_ != nullptr
+                    ? socket_->bytesToWrite()
+                    : 0
+            );
+
+    const qint64 backlogLimit =
+        relayActive_
+            ? relayFrameBacklogLimit_
+            : directFrameBacklogLimit_;
+
+    if (queuedBytes > backlogLimit) {
+        ++desktopFramesDropped_;
+        return;
+    }
+
     QByteArray encoded;
 
     QBuffer buffer(&encoded);
     buffer.open(QIODevice::WriteOnly);
 
-    sourceImage.save(
-        &buffer,
-        "JPG",
-        70);
+    const int jpegQuality =
+        relayActive_
+            ? relayJpegQuality_
+            : directJpegQuality_;
+
+    if (
+        !sourceImage.save(
+            &buffer,
+            "JPG",
+            jpegQuality)
+    ) {
+        return;
+    }
 
     sendMessage(
         messageType,
         encoded);
+
+    lastDesktopFrameSubmittedMs_ =
+        nowMs;
 
     ++desktopFramesSent_;
 }
