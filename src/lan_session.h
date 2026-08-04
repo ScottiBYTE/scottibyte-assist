@@ -63,6 +63,9 @@ public:
 
     void notifyProviderScreenClosed();
 
+    void requestRemoteControlStart();
+    void requestRemoteControlStop();
+
     void requestVoiceStart();
     void requestVoiceStop();
 
@@ -153,7 +156,9 @@ private:
         ProviderScreenClosed = 12,
         VoiceStart = 13,
         VoiceStop = 14,
-        VoicePacket = 15
+        VoicePacket = 15,
+        RemoteControlStart = 16,
+        RemoteControlStop = 17
     };
 
     void startAdvertising();

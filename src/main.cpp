@@ -1584,6 +1584,11 @@ QLabel#remotePlaceholder {
             QStringLiteral("Assist"),
             QStringLiteral("brandSubtitle")));
 
+    auto *detailsButton =
+        makeButton(
+            QStringLiteral("ⓘ  Details"),
+            QStringLiteral("settingsButton"));
+
     auto *settingsButton =
         makeButton(
             QStringLiteral("⚙  Settings"),
@@ -1592,6 +1597,7 @@ QLabel#remotePlaceholder {
     headerLayout->addWidget(logo);
     headerLayout->addLayout(brandLayout);
     headerLayout->addStretch();
+    headerLayout->addWidget(detailsButton);
     headerLayout->addWidget(settingsButton);
 
     rootLayout->addWidget(header);
@@ -1754,11 +1760,6 @@ QLabel#remotePlaceholder {
 
     endSupportButton->setEnabled(false);
 
-    auto *detailsButton =
-        makeButton(
-            QStringLiteral("ⓘ  Details"),
-            QStringLiteral("secondaryButton"));
-
     auto *customerStartVoiceButton =
         makeButton(
             QStringLiteral("Start Voice"),
@@ -1800,7 +1801,6 @@ QLabel#remotePlaceholder {
 
     receiveActions->addWidget(newCodeButton);
     receiveActions->addWidget(endSupportButton);
-    receiveActions->addWidget(detailsButton);
 
     auto *progressCard =
         makeCard(
@@ -2064,6 +2064,13 @@ QLabel#remotePlaceholder {
         Qt::WA_QuitOnClose,
         false);
 
+    auto *remoteWindowDismissFilter =
+        new UserDismissTrackingFilter(
+            remoteWindow);
+
+    remoteWindow->installEventFilter(
+        remoteWindowDismissFilter);
+
     auto *remoteWindowLayout =
         new QVBoxLayout(
             remoteWindow);
@@ -2312,6 +2319,23 @@ QLabel#remotePlaceholder {
             {
                 lanSession->
                     notifyProviderScreenClosed();
+            });
+
+    remoteWindowDismissFilter->
+        setUserDismissedCallback(
+            [
+                lanSession,
+                remoteWindowView,
+                fullScreenRemoteView,
+                fullScreenWindow
+            ]()
+            {
+                lanSession->
+                    requestRemoteControlStop();
+
+                remoteWindowView->clearFrame();
+                fullScreenRemoteView->clearFrame();
+                fullScreenWindow->close();
             });
 
     DesktopBackend *desktopBackend =
@@ -3609,12 +3633,11 @@ QLabel#remotePlaceholder {
             if (connected) {
                 providerWasConnected = true;
 
-                remoteWindow->showNormal();
-                remoteWindow->raise();
-                remoteWindow->activateWindow();
-
-                remoteWindowView->setFocus(
-                    Qt::OtherFocusReason);
+                provideStatus->setText(
+                    QStringLiteral(
+                        "Session connected. Choose Remote "
+                        "Control Customer when you are "
+                        "ready to view a display."));
             } else if (providerWasConnected) {
                 providerWasConnected = false;
                 codeEntry->clear();
@@ -3823,7 +3846,16 @@ QLabel#remotePlaceholder {
         fullScreenButton,
         &QPushButton::clicked,
         window,
-        showRemoteFullScreen);
+        [
+            lanSession,
+            showRemoteFullScreen
+        ]()
+        {
+            lanSession->
+                requestRemoteControlStart();
+
+            showRemoteFullScreen();
+        });
 
     QObject::connect(
         remoteWindowFullScreenButton,
@@ -3836,10 +3868,14 @@ QLabel#remotePlaceholder {
         &QPushButton::clicked,
         window,
         [
+            lanSession,
             remoteWindow,
             remoteWindowView
         ]()
         {
+            lanSession->
+                requestRemoteControlStart();
+
             remoteWindow->showNormal();
             remoteWindow->raise();
             remoteWindow->activateWindow();

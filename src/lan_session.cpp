@@ -647,13 +647,6 @@ void LanSession::activateRelayTransport()
 
     relayActive_ = true;
 
-    if (
-        role_ == Role::Customer &&
-        desktopBackend_ != nullptr
-    ) {
-        desktopBackend_->start();
-    }
-
     emit statusChanged(
         role_ == Role::Customer
             ? QStringLiteral(
@@ -722,10 +715,6 @@ void LanSession::acceptProvider()
 
     advertiseTimer_->stop();
     tcpServer_->close();
-
-    if (desktopBackend_ != nullptr) {
-        desktopBackend_->start();
-    }
 
     emit statusChanged(
         QStringLiteral(
@@ -975,6 +964,42 @@ void LanSession::notifyProviderScreenClosed()
     sendMessage(
         MessageType::ProviderScreenClosed,
         {});
+}
+
+void LanSession::requestRemoteControlStart()
+{
+    if (
+        role_ != Role::Provider ||
+        !isConnected()
+    ) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::RemoteControlStart,
+        {});
+
+    emit statusChanged(
+        QStringLiteral(
+            "Requesting the customer desktop."));
+}
+
+void LanSession::requestRemoteControlStop()
+{
+    if (
+        role_ != Role::Provider ||
+        !isConnected()
+    ) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::RemoteControlStop,
+        {});
+
+    emit statusChanged(
+        QStringLiteral(
+            "Customer desktop viewing stopped."));
 }
 
 void LanSession::requestVoiceStart()
@@ -1234,6 +1259,40 @@ void LanSession::processIncomingBytes(
                     emit frameReceived(
                         image);
                 }
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::RemoteControlStart) {
+            if (
+                role_ == Role::Customer &&
+                desktopBackend_ != nullptr
+            ) {
+                desktopBackend_->start();
+
+                emit statusChanged(
+                    QStringLiteral(
+                        "The provider is viewing and "
+                        "controlling your desktop."));
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::RemoteControlStop) {
+            if (
+                role_ == Role::Customer &&
+                desktopBackend_ != nullptr
+            ) {
+                desktopBackend_->stop();
+
+                emit statusChanged(
+                    QStringLiteral(
+                        "The provider stopped viewing "
+                        "your desktop."));
             }
 
             continue;
