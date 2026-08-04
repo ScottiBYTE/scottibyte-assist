@@ -214,6 +214,29 @@ bool WaylandDesktopBackend::isSupported() const
     return portalSession_->isSupported();
 }
 
+QList<DesktopBackend::DisplaySource>
+WaylandDesktopBackend::
+availableRemoteControlDisplays() const
+{
+    return {
+        {
+            QStringLiteral("portal"),
+            QStringLiteral(
+                "Choose a display using the "
+                "Wayland screen chooser")
+        }
+    };
+}
+
+bool WaylandDesktopBackend::
+setRemoteControlDisplay(
+    const QString &displayId)
+{
+    return
+        displayId ==
+        QStringLiteral("portal");
+}
+
 void WaylandDesktopBackend::start()
 {
     if (!isSupported()) {

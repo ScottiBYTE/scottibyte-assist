@@ -17,6 +17,12 @@ public:
 
     bool isSupported() const override;
 
+    QList<DisplaySource>
+        availableRemoteControlDisplays() const override;
+
+    bool setRemoteControlDisplay(
+        const QString &displayId) override;
+
 public slots:
     void start() override;
     void stop() override;

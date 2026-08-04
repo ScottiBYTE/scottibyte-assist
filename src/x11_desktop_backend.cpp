@@ -39,6 +39,98 @@ bool X11DesktopBackend::isSupported() const
                 Qt::CaseInsensitive);
 }
 
+QList<DesktopBackend::DisplaySource>
+X11DesktopBackend::
+availableRemoteControlDisplays() const
+{
+    QList<DisplaySource> sources;
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    QScreen *primary =
+        QGuiApplication::primaryScreen();
+
+    for (
+        int index = 0;
+        index < screens.size();
+        ++index
+    ) {
+        QScreen *screen =
+            screens.at(index);
+
+        if (screen == nullptr) {
+            continue;
+        }
+
+        const QRect geometry =
+            screen->geometry();
+
+        QString name =
+            screen->name().trimmed();
+
+        if (name.isEmpty()) {
+            name =
+                QStringLiteral("Display %1")
+                    .arg(index + 1);
+        }
+
+        QString label =
+            QStringLiteral(
+                "Display %1 — %2 — %3×%4")
+                .arg(index + 1)
+                .arg(name)
+                .arg(geometry.width())
+                .arg(geometry.height());
+
+        if (screen == primary) {
+            label +=
+                QStringLiteral(" — Primary");
+        }
+
+        sources.append(
+            {
+                QStringLiteral("screen:%1")
+                    .arg(index),
+                label
+            });
+    }
+
+    return sources;
+}
+
+bool X11DesktopBackend::
+setRemoteControlDisplay(
+    const QString &displayId)
+{
+    if (!displayId.startsWith(
+            QStringLiteral("screen:"))) {
+        return false;
+    }
+
+    bool valid = false;
+
+    const int index =
+        displayId.mid(
+            QStringLiteral("screen:").size())
+            .toInt(&valid);
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (
+        !valid ||
+        index < 0 ||
+        index >= screens.size() ||
+        screens.at(index) == nullptr
+    ) {
+        return false;
+    }
+
+    shareSourceId_ = displayId;
+    return true;
+}
+
 QList<X11DesktopBackend::ShareSource>
 X11DesktopBackend::availableShareSources() const
 {

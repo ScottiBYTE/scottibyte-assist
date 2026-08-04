@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QImage>
+#include <QList>
 #include <QObject>
 #include <QString>
 
@@ -9,6 +10,12 @@ class DesktopBackend : public QObject
     Q_OBJECT
 
 public:
+    struct DisplaySource
+    {
+        QString id;
+        QString label;
+    };
+
     explicit DesktopBackend(
         QObject *parent = nullptr)
         : QObject(parent)
@@ -18,6 +25,12 @@ public:
     ~DesktopBackend() override = default;
 
     virtual bool isSupported() const = 0;
+
+    virtual QList<DisplaySource>
+        availableRemoteControlDisplays() const = 0;
+
+    virtual bool setRemoteControlDisplay(
+        const QString &displayId) = 0;
 
 public slots:
     virtual void start() = 0;

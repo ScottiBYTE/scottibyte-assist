@@ -201,6 +201,118 @@ bool WindowsDesktopBackend::isSupported() const
         != nullptr;
 }
 
+QList<DesktopBackend::DisplaySource>
+WindowsDesktopBackend::
+availableRemoteControlDisplays() const
+{
+    QList<DisplaySource> sources;
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    QScreen *primary =
+        QGuiApplication::primaryScreen();
+
+    for (
+        int index = 0;
+        index < screens.size();
+        ++index
+    ) {
+        QScreen *screen =
+            screens.at(index);
+
+        if (screen == nullptr) {
+            continue;
+        }
+
+        const QRect geometry =
+            screen->geometry();
+
+        QString name =
+            screen->name().trimmed();
+
+        if (name.isEmpty()) {
+            name =
+                QStringLiteral("Display %1")
+                    .arg(index + 1);
+        }
+
+        QString label =
+            QStringLiteral(
+                "Display %1 — %2 — %3×%4")
+                .arg(index + 1)
+                .arg(name)
+                .arg(geometry.width())
+                .arg(geometry.height());
+
+        if (screen == primary) {
+            label +=
+                QStringLiteral(" — Primary");
+        }
+
+        sources.append(
+            {
+                QStringLiteral("screen:%1")
+                    .arg(index),
+                label
+            });
+    }
+
+    return sources;
+}
+
+bool WindowsDesktopBackend::
+setRemoteControlDisplay(
+    const QString &displayId)
+{
+    if (!displayId.startsWith(
+            QStringLiteral("screen:"))) {
+        return false;
+    }
+
+    bool valid = false;
+
+    const int index =
+        displayId.mid(
+            QStringLiteral("screen:").size())
+            .toInt(&valid);
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (
+        !valid ||
+        index < 0 ||
+        index >= screens.size() ||
+        screens.at(index) == nullptr
+    ) {
+        return false;
+    }
+
+    selectedScreenIndex_ = index;
+    return true;
+}
+
+QScreen *WindowsDesktopBackend::
+selectedScreen() const
+{
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (
+        selectedScreenIndex_ >= 0 &&
+        selectedScreenIndex_ <
+            screens.size() &&
+        screens.at(
+            selectedScreenIndex_) != nullptr
+    ) {
+        return screens.at(
+            selectedScreenIndex_);
+    }
+
+    return QGuiApplication::primaryScreen();
+}
+
 void WindowsDesktopBackend::start()
 {
     if (running_) {
@@ -248,7 +360,7 @@ void WindowsDesktopBackend::captureFrame()
     }
 
     QScreen *screen =
-        QGuiApplication::primaryScreen();
+        selectedScreen();
 
     if (screen == nullptr) {
         stop();
@@ -296,7 +408,7 @@ void WindowsDesktopBackend::movePointerTo(
     }
 
     QScreen *screen =
-        QGuiApplication::primaryScreen();
+        selectedScreen();
 
     if (screen == nullptr) {
         return;

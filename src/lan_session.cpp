@@ -84,6 +84,85 @@ bool decodeKey(
     return true;
 }
 
+QByteArray encodeDisplayList(
+    const QList<DesktopBackend::DisplaySource> &sources)
+{
+    QByteArray payload;
+
+    QDataStream stream(
+        &payload,
+        QIODevice::WriteOnly);
+
+    stream.setByteOrder(
+        QDataStream::BigEndian);
+
+    stream
+        << static_cast<quint32>(
+               sources.size());
+
+    for (const auto &source : sources) {
+        stream
+            << source.id
+            << source.label;
+    }
+
+    return payload;
+}
+
+bool decodeDisplayList(
+    const QByteArray &payload,
+    QStringList &displayIds,
+    QStringList &displayLabels)
+{
+    displayIds.clear();
+    displayLabels.clear();
+
+    QDataStream stream(payload);
+
+    stream.setByteOrder(
+        QDataStream::BigEndian);
+
+    quint32 count = 0;
+    stream >> count;
+
+    if (
+        stream.status() !=
+            QDataStream::Ok ||
+        count > 32
+    ) {
+        return false;
+    }
+
+    for (
+        quint32 index = 0;
+        index < count;
+        ++index
+    ) {
+        QString id;
+        QString label;
+
+        stream
+            >> id
+            >> label;
+
+        if (
+            stream.status() !=
+                QDataStream::Ok ||
+            id.isEmpty() ||
+            label.isEmpty()
+        ) {
+            return false;
+        }
+
+        displayIds.append(id);
+        displayLabels.append(label);
+    }
+
+    return
+        stream.status() ==
+        QDataStream::Ok;
+}
+
 bool decodePoint(
     const QByteArray &payload,
     int &x,
@@ -966,7 +1045,7 @@ void LanSession::notifyProviderScreenClosed()
         {});
 }
 
-void LanSession::requestRemoteControlStart()
+void LanSession::requestRemoteControlDisplays()
 {
     if (
         role_ != Role::Provider ||
@@ -976,12 +1055,35 @@ void LanSession::requestRemoteControlStart()
     }
 
     sendMessage(
-        MessageType::RemoteControlStart,
+        MessageType::
+            RemoteControlDisplaysRequest,
         {});
 
     emit statusChanged(
         QStringLiteral(
-            "Requesting the customer desktop."));
+            "Requesting the customer's "
+            "available displays."));
+}
+
+void LanSession::requestRemoteControlStart(
+    const QString &displayId)
+{
+    if (
+        role_ != Role::Provider ||
+        !isConnected() ||
+        displayId.trimmed().isEmpty()
+    ) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::RemoteControlStart,
+        displayId.trimmed().toUtf8());
+
+    emit statusChanged(
+        QStringLiteral(
+            "Requesting the selected "
+            "customer display."));
 }
 
 void LanSession::requestRemoteControlStop()
@@ -1265,17 +1367,80 @@ void LanSession::processIncomingBytes(
         }
 
         if (expectedMessageType_ ==
+            MessageType::
+                RemoteControlDisplaysRequest) {
+            if (
+                role_ == Role::Customer &&
+                desktopBackend_ != nullptr
+            ) {
+                const auto displays =
+                    desktopBackend_->
+                        availableRemoteControlDisplays();
+
+                sendMessage(
+                    MessageType::
+                        RemoteControlDisplaysResponse,
+                    encodeDisplayList(displays));
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::
+                RemoteControlDisplaysResponse) {
+            if (role_ == Role::Provider) {
+                QStringList displayIds;
+                QStringList displayLabels;
+
+                if (decodeDisplayList(
+                        payload,
+                        displayIds,
+                        displayLabels)) {
+                    emit
+                        remoteControlDisplaysReceived(
+                            displayIds,
+                            displayLabels);
+                } else {
+                    emit errorOccurred(
+                        QStringLiteral(
+                            "The customer sent an invalid "
+                            "display list."));
+                }
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
             MessageType::RemoteControlStart) {
             if (
                 role_ == Role::Customer &&
                 desktopBackend_ != nullptr
             ) {
+                const QString displayId =
+                    QString::fromUtf8(payload)
+                        .trimmed();
+
+                if (
+                    !desktopBackend_->
+                        setRemoteControlDisplay(
+                            displayId)
+                ) {
+                    emit errorOccurred(
+                        QStringLiteral(
+                            "The requested customer "
+                            "display is unavailable."));
+
+                    continue;
+                }
+
                 desktopBackend_->start();
 
                 emit statusChanged(
                     QStringLiteral(
                         "The provider is viewing and "
-                        "controlling your desktop."));
+                        "controlling the selected display."));
             }
 
             continue;

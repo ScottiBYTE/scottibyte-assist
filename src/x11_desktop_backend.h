@@ -24,6 +24,12 @@ public:
 
     bool isSupported() const override;
 
+    QList<DisplaySource>
+        availableRemoteControlDisplays() const override;
+
+    bool setRemoteControlDisplay(
+        const QString &displayId) override;
+
     QList<ShareSource>
         availableShareSources() const;
 

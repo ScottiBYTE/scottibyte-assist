@@ -4,6 +4,8 @@
 
 #include <QTimer>
 
+class QScreen;
+
 class WindowsDesktopBackend final
     : public DesktopBackend
 {
@@ -14,6 +16,12 @@ public:
         QObject *parent = nullptr);
 
     bool isSupported() const override;
+
+    QList<DisplaySource>
+        availableRemoteControlDisplays() const override;
+
+    bool setRemoteControlDisplay(
+        const QString &displayId) override;
 
 public slots:
     void start() override;
@@ -49,8 +57,12 @@ private slots:
     void captureFrame();
 
 private:
+    QScreen *selectedScreen() const;
+
     QTimer captureTimer_;
     bool running_ = false;
+
+    int selectedScreenIndex_ = -1;
     int frameWidth_ = 0;
     int frameHeight_ = 0;
 };

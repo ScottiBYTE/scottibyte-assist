@@ -63,7 +63,11 @@ public:
 
     void notifyProviderScreenClosed();
 
-    void requestRemoteControlStart();
+    void requestRemoteControlDisplays();
+
+    void requestRemoteControlStart(
+        const QString &displayId);
+
     void requestRemoteControlStop();
 
     void requestVoiceStart();
@@ -117,6 +121,10 @@ signals:
     void providerShareChanged(
         bool active);
 
+    void remoteControlDisplaysReceived(
+        const QStringList &displayIds,
+        const QStringList &displayLabels);
+
     void voiceStartRequested();
     void voiceStopRequested();
 
@@ -158,7 +166,9 @@ private:
         VoiceStop = 14,
         VoicePacket = 15,
         RemoteControlStart = 16,
-        RemoteControlStop = 17
+        RemoteControlStop = 17,
+        RemoteControlDisplaysRequest = 18,
+        RemoteControlDisplaysResponse = 19
     };
 
     void startAdvertising();
