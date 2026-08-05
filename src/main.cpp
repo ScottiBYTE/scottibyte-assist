@@ -50,6 +50,7 @@
 #include <QStandardPaths>
 #include <QStackedWidget>
 #include <QTimer>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -760,7 +761,8 @@ void showSessionDetailsDialog(
     QWidget *parent,
     WanSignalingClient *customerSignaling,
     WanSignalingClient *providerSignaling,
-    LanSession *lanSession)
+    LanSession *lanSession,
+    const QString *previousSessionDiagnostics)
 {
     QDialog dialog(parent);
 
@@ -777,8 +779,8 @@ void showSessionDetailsDialog(
         650);
 
     dialog.resize(
-        780,
-        720);
+        820,
+        740);
 
     dialog.setStyleSheet(
         QStringLiteral(
@@ -824,6 +826,34 @@ QDialog#sessionDetailsDialog QPlainTextEdit {
     selection-background-color: #245f96;
 }
 
+QDialog#sessionDetailsDialog QTabWidget::pane {
+    background: rgba(4, 24, 50, 205);
+    border: 1px solid #1e87b8;
+    border-radius: 12px;
+    top: -1px;
+}
+
+QDialog#sessionDetailsDialog QTabBar::tab {
+    min-width: 165px;
+    min-height: 38px;
+    padding: 0 18px;
+    color: #bdd5ed;
+    background: #071d39;
+    border: 1px solid #1e87b8;
+    border-bottom: none;
+    font-weight: 700;
+}
+
+QDialog#sessionDetailsDialog QTabBar::tab:selected {
+    color: #ffffff;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #27bfe8,
+        stop: 1 #8e35e8
+    );
+}
+
 QDialog#sessionDetailsDialog QPushButton {
     min-height: 38px;
     padding: 0 24px;
@@ -865,33 +895,122 @@ QDialog#sessionDetailsDialog QPushButton:hover {
     auto *subtitle =
         makeLabel(
             QStringLiteral(
-                "Live connection and desktop-flow diagnostics"),
+                "Current and previous connection diagnostics"),
             QStringLiteral(
                 "detailsSubtitle"));
 
-    auto *card =
-        makeCard(
+    auto *tabs =
+        new QTabWidget;
+
+    /*
+     * Current session tab.
+     */
+    auto *currentPage =
+        new QWidget;
+
+    auto *currentLayout =
+        new QVBoxLayout(currentPage);
+
+    currentLayout->setContentsMargins(
+        10,
+        10,
+        10,
+        10);
+
+    currentLayout->setSpacing(8);
+
+    auto *copyCurrentButton =
+        makeButton(
             QStringLiteral(
-                "detailsCard"));
+                "Copy Current Log"));
 
-    auto *cardLayout =
-        new QVBoxLayout(card);
+    copyCurrentButton->setToolTip(
+        QStringLiteral(
+            "Copy the current live diagnostics "
+            "to the clipboard"));
 
-    cardLayout->setContentsMargins(
-        4,
-        4,
-        4,
-        4);
+    auto *currentButtonRow =
+        new QHBoxLayout;
 
-    auto *detailsText =
+    currentButtonRow->addWidget(
+        copyCurrentButton);
+
+    currentButtonRow->addStretch();
+
+    auto *currentText =
         new QPlainTextEdit;
 
-    detailsText->setReadOnly(true);
-    detailsText->setLineWrapMode(
+    currentText->setReadOnly(true);
+
+    currentText->setLineWrapMode(
         QPlainTextEdit::NoWrap);
 
-    cardLayout->addWidget(
-        detailsText);
+    currentLayout->addLayout(
+        currentButtonRow);
+
+    currentLayout->addWidget(
+        currentText,
+        1);
+
+    /*
+     * Previous session tab.
+     */
+    auto *previousPage =
+        new QWidget;
+
+    auto *previousLayout =
+        new QVBoxLayout(previousPage);
+
+    previousLayout->setContentsMargins(
+        10,
+        10,
+        10,
+        10);
+
+    previousLayout->setSpacing(8);
+
+    auto *copyPreviousButton =
+        makeButton(
+            QStringLiteral(
+                "Copy Previous Log"));
+
+    copyPreviousButton->setToolTip(
+        QStringLiteral(
+            "Copy the frozen previous-session "
+            "diagnostics to the clipboard"));
+
+    auto *previousButtonRow =
+        new QHBoxLayout;
+
+    previousButtonRow->addWidget(
+        copyPreviousButton);
+
+    previousButtonRow->addStretch();
+
+    auto *previousText =
+        new QPlainTextEdit;
+
+    previousText->setReadOnly(true);
+
+    previousText->setLineWrapMode(
+        QPlainTextEdit::NoWrap);
+
+    previousLayout->addLayout(
+        previousButtonRow);
+
+    previousLayout->addWidget(
+        previousText,
+        1);
+
+    tabs->addTab(
+        currentPage,
+        QStringLiteral(
+            "Current session"));
+
+    tabs->addTab(
+        previousPage,
+        QStringLiteral(
+            "Previous session"));
 
     auto *closeButton =
         makeButton(
@@ -901,23 +1020,23 @@ QDialog#sessionDetailsDialog QPushButton:hover {
         new QHBoxLayout;
 
     buttonRow->addStretch();
+
     buttonRow->addWidget(
         closeButton);
 
     layout->addWidget(title);
     layout->addWidget(subtitle);
-    layout->addWidget(card, 1);
+    layout->addWidget(tabs, 1);
     layout->addLayout(buttonRow);
 
-    const auto refresh =
+    const auto currentSummary =
         [
-            detailsText,
             customerSignaling,
             providerSignaling,
             lanSession
         ]()
         {
-            const QString summary =
+            return
                 customerSignaling->
                     diagnosticSummary(
                         QStringLiteral(
@@ -936,20 +1055,96 @@ QDialog#sessionDetailsDialog QPushButton:hover {
                     "\n\n") +
                 lanSession->
                     diagnosticSummary();
+        };
+
+    const auto refreshCurrent =
+        [
+            currentText,
+            currentSummary
+        ]()
+        {
+            /*
+             * Do not destroy Ctrl+A or mouse
+             * selections during live refresh.
+             */
+            if (
+                currentText->
+                    textCursor().
+                    hasSelection()
+            ) {
+                return;
+            }
+
+            const QString summary =
+                currentSummary();
+
+            if (
+                currentText->toPlainText() ==
+                summary
+            ) {
+                return;
+            }
 
             const int scrollPosition =
-                detailsText->
+                currentText->
                     verticalScrollBar()->
                     value();
 
-            detailsText->setPlainText(
+            currentText->setPlainText(
                 summary);
 
-            detailsText->
+            currentText->
                 verticalScrollBar()->
                 setValue(
                     scrollPosition);
         };
+
+    const QString previousSummary =
+        previousSessionDiagnostics != nullptr &&
+        !previousSessionDiagnostics->
+            trimmed().
+            isEmpty()
+            ? *previousSessionDiagnostics
+            : QStringLiteral(
+                  "No previous session diagnostics "
+                  "have been captured yet.");
+
+    previousText->setPlainText(
+        previousSummary);
+
+    QObject::connect(
+        copyCurrentButton,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            currentText
+        ]()
+        {
+            QApplication::clipboard()->
+                setText(
+                    currentText->
+                        toPlainText());
+        });
+
+    QObject::connect(
+        copyPreviousButton,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            previousText
+        ]()
+        {
+            QApplication::clipboard()->
+                setText(
+                    previousText->
+                        toPlainText());
+        });
+
+    QObject::connect(
+        closeButton,
+        &QPushButton::clicked,
+        &dialog,
+        &QDialog::accept);
 
     auto *refreshTimer =
         new QTimer(&dialog);
@@ -961,15 +1156,9 @@ QDialog#sessionDetailsDialog QPushButton:hover {
         refreshTimer,
         &QTimer::timeout,
         &dialog,
-        refresh);
+        refreshCurrent);
 
-    QObject::connect(
-        closeButton,
-        &QPushButton::clicked,
-        &dialog,
-        &QDialog::accept);
-
-    refresh();
+    refreshCurrent();
     refreshTimer->start();
 
     dialog.exec();
@@ -2477,6 +2666,97 @@ QLabel#remotePlaceholder {
     auto *providerSignaling =
         new WanSignalingClient(window);
 
+    QString previousSessionDiagnostics;
+
+    const auto capturePreviousSession =
+        [
+            customerSignaling,
+            providerSignaling,
+            lanSession,
+            &previousSessionDiagnostics
+        ](
+            const QString &reason)
+        {
+            previousSessionDiagnostics =
+                QStringLiteral(
+                    "Captured: %1\n"
+                    "Reason: %2\n\n")
+                    .arg(
+                        QDateTime::
+                            currentDateTime().
+                            toString(
+                                QStringLiteral(
+                                    "yyyy-MM-dd "
+                                    "HH:mm:ss")),
+                        reason.isEmpty()
+                            ? QStringLiteral(
+                                  "Connection ended")
+                            : reason) +
+                customerSignaling->
+                    diagnosticSummary(
+                        QStringLiteral(
+                            "Customer signaling")) +
+                QStringLiteral(
+                    "\n\n"
+                    "----------------------------------------"
+                    "\n\n") +
+                providerSignaling->
+                    diagnosticSummary(
+                        QStringLiteral(
+                            "Provider signaling")) +
+                QStringLiteral(
+                    "\n\n"
+                    "----------------------------------------"
+                    "\n\n") +
+                lanSession->
+                    diagnosticSummary();
+        };
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::errorOccurred,
+        window,
+        [
+            capturePreviousSession
+        ](
+            const QString &message)
+        {
+            capturePreviousSession(
+                QStringLiteral(
+                    "Customer signaling error: ") +
+                message);
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::errorOccurred,
+        window,
+        [
+            capturePreviousSession
+        ](
+            const QString &message)
+        {
+            capturePreviousSession(
+                QStringLiteral(
+                    "Provider signaling error: ") +
+                message);
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::errorOccurred,
+        window,
+        [
+            capturePreviousSession
+        ](
+            const QString &message)
+        {
+            capturePreviousSession(
+                QStringLiteral(
+                    "Desktop transport error: ") +
+                message);
+        });
+
     auto *providerCandidateFallbackTimer =
         new QTimer(window);
 
@@ -2929,14 +3209,16 @@ QLabel#remotePlaceholder {
             window,
             customerSignaling,
             providerSignaling,
-            lanSession
+            lanSession,
+            &previousSessionDiagnostics
         ]()
         {
             showSessionDetailsDialog(
                 window,
                 customerSignaling,
                 providerSignaling,
-                lanSession);
+                lanSession,
+                &previousSessionDiagnostics);
         });
 
     QObject::connect(
