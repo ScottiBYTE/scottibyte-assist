@@ -56,6 +56,16 @@ app.use(express.json({
   limit: '32kb'
 }));
 
+app.use(
+  express.static(
+    'public',
+    {
+      index: 'index.html',
+      extensions: ['html']
+    }
+  )
+);
+
 function validCode(code) {
   return /^\d{6}$/.test(code);
 }
@@ -151,7 +161,7 @@ app.get(
       status: 'ok',
       service:
         'scottibyte-assist-server',
-      version: '1.1.0',
+      version: '1.2.0',
       protocolVersion: 4,
       websocket: websocketStats(),
       timestamp: new Date().toISOString()
@@ -508,7 +518,7 @@ httpServer.listen(
   host,
   () => {
     console.log(
-      `ScottiBYTE Assist Server v1.1.0 listening on http://${host}:${port}`
+      `ScottiBYTE Assist Server v1.2.0 listening on http://${host}:${port}`
     );
   }
 );

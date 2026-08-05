@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>ScottiBYTE Assist</title>
+
+  <meta
+    name="description"
+    content="Download ScottiBYTE Assist for Windows and Ubuntu Linux."
+  >
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #041326;
+      --background-secondary: #071f3d;
+      --card: rgba(8, 35, 67, 0.88);
+      --card-border: #17669a;
+      --text: #f2f8ff;
+      --muted: #b9cee2;
+      --cyan: #50dcff;
+      --blue: #2788d9;
+      --blue-hover: #45a5f2;
+      --green: #55d89a;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(
+          circle at 15% 10%,
+          rgba(26, 110, 174, 0.28),
+          transparent 35%
+        ),
+        radial-gradient(
+          circle at 85% 90%,
+          rgba(73, 45, 170, 0.22),
+          transparent 38%
+        ),
+        linear-gradient(
+          145deg,
+          var(--background),
+          var(--background-secondary)
+        );
+      font-family:
+        Inter,
+        "Segoe UI",
+        Ubuntu,
+        system-ui,
+        sans-serif;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 44px 0 54px;
+    }
+
+    .hero {
+      padding: 54px 28px 44px;
+      text-align: center;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 56px;
+      height: 56px;
+      place-items: center;
+      border: 1px solid #35bbef;
+      border-radius: 17px;
+      color: white;
+      background:
+        linear-gradient(
+          145deg,
+          #258dd2,
+          #154680
+        );
+      box-shadow:
+        0 14px 32px rgba(16, 124, 194, 0.3);
+      font-size: 25px;
+      font-weight: 900;
+    }
+
+    .brand-name {
+      font-size: clamp(27px, 5vw, 42px);
+      font-weight: 850;
+      letter-spacing: -1.2px;
+    }
+
+    .brand-name span {
+      color: var(--cyan);
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 0 auto 18px;
+      font-size: clamp(34px, 7vw, 62px);
+      line-height: 1.06;
+      letter-spacing: -2px;
+    }
+
+    .hero-copy {
+      max-width: 760px;
+      margin: 0 auto;
+      color: var(--muted);
+      font-size: clamp(17px, 2.3vw, 21px);
+      line-height: 1.65;
+    }
+
+    .version-pill {
+      display: inline-flex;
+      gap: 9px;
+      align-items: center;
+      margin-top: 25px;
+      padding: 9px 15px;
+      border: 1px solid rgba(85, 216, 154, 0.55);
+      border-radius: 999px;
+      color: #bdf6d8;
+      background: rgba(24, 111, 72, 0.22);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .version-pill::before {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+      content: "";
+      box-shadow: 0 0 13px var(--green);
+    }
+
+    .downloads {
+      display: grid;
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      margin-top: 20px;
+    }
+
+    .download-card,
+    .info-card {
+      border: 1px solid var(--card-border);
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: 0 18px 50px var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .download-card {
+      display: flex;
+      min-height: 360px;
+      padding: 30px;
+      flex-direction: column;
+    }
+
+    .platform {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .platform-icon {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid #2986bd;
+      border-radius: 16px;
+      background: rgba(21, 102, 157, 0.28);
+      font-size: 27px;
+      font-weight: 900;
+    }
+
+    .platform h2 {
+      margin: 0 0 4px;
+      font-size: 27px;
+    }
+
+    .platform p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .feature-list {
+      margin: 0 0 27px;
+      padding-left: 22px;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .actions {
+      display: grid;
+      gap: 11px;
+      margin-top: auto;
+    }
+
+    .download-button {
+      display: block;
+      padding: 14px 18px;
+      border: 1px solid #5fc9ff;
+      border-radius: 13px;
+      color: white;
+      background:
+        linear-gradient(
+          135deg,
+          #1468aa,
+          #2788d9
+        );
+      box-shadow:
+        0 12px 30px rgba(22, 114, 177, 0.25);
+      text-align: center;
+      text-decoration: none;
+      font-weight: 800;
+      transition:
+        transform 150ms ease,
+        background 150ms ease;
+    }
+
+    .download-button:hover {
+      background:
+        linear-gradient(
+          135deg,
+          #1c79c2,
+          var(--blue-hover)
+        );
+      transform: translateY(-1px);
+    }
+
+    .checksum-link {
+      color: var(--cyan);
+      text-align: center;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .checksum-link:hover {
+      text-decoration: underline;
+    }
+
+    .info-card {
+      margin-top: 24px;
+      padding: 30px;
+    }
+
+    .info-card h2 {
+      margin: 0 0 17px;
+      font-size: 25px;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .step {
+      padding: 18px;
+      border: 1px solid rgba(46, 130, 180, 0.55);
+      border-radius: 15px;
+      background: rgba(5, 27, 53, 0.65);
+    }
+
+    .step-number {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      margin-bottom: 12px;
+      place-items: center;
+      border-radius: 50%;
+      color: #04182c;
+      background: var(--cyan);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .step h3 {
+      margin: 0 0 7px;
+      font-size: 17px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .security-note {
+      margin-top: 24px;
+      padding: 18px 20px;
+      border-left: 4px solid var(--cyan);
+      border-radius: 10px;
+      color: var(--muted);
+      background: rgba(3, 24, 48, 0.72);
+      line-height: 1.6;
+    }
+
+    footer {
+      padding-top: 36px;
+      color: #8faac3;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100% - 22px, 1120px);
+        padding-top: 18px;
+      }
+
+      .hero {
+        padding:
+          36px 12px
+          30px;
+      }
+
+      .downloads,
+      .steps {
+        grid-template-columns: 1fr;
+      }
+
+      .download-card,
+      .info-card {
+        padding: 23px;
+      }
+
+      h1 {
+        letter-spacing: -1.3px;
+      }
+    }
+
+    /*
+     * ScottiBYTE Assist client-style theme
+     */
+    body {
+      background:
+        radial-gradient(
+          circle at 50% -15%,
+          rgba(26, 164, 218, 0.18),
+          transparent 38%
+        ),
+        linear-gradient(
+          145deg,
+          #020d1c 0%,
+          #061a34 52%,
+          #170e45 100%
+        );
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      margin-top: 18px;
+      padding: 42px 28px 38px;
+      border: 1px solid #176a9e;
+      border-radius: 22px;
+      background:
+        linear-gradient(
+          145deg,
+          rgba(7, 39, 73, 0.96),
+          rgba(8, 27, 57, 0.96) 58%,
+          rgba(44, 20, 104, 0.82)
+        );
+      box-shadow:
+        0 22px 55px rgba(0, 0, 0, 0.38);
+    }
+
+    .hero::before {
+      position: absolute;
+      inset: 0 0 auto;
+      height: 5px;
+      background:
+        linear-gradient(
+          90deg,
+          #20c8e8,
+          #3d9cff 48%,
+          #9944ef
+        );
+      content: "";
+    }
+
+    .brand {
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-mark {
+      display: block;
+      width: 68px;
+      height: 68px;
+      border: 1px solid #247cb1;
+      border-radius: 14px;
+      background: #03152c;
+      box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.34);
+      object-fit: contain;
+    }
+
+    .brand-name {
+      color: #ffffff;
+      font-size: clamp(27px, 5vw, 40px);
+      font-weight: 850;
+      letter-spacing: -1px;
+    }
+
+    .brand-name span {
+      color: #62e5ff;
+    }
+
+    h1 {
+      color: #ffffff;
+      font-size: clamp(34px, 6vw, 56px);
+    }
+
+    .hero-copy {
+      color: #c0d5e8;
+    }
+
+    .version-pill {
+      border-color: #1888a8;
+      color: #9aeeff;
+      background: rgba(12, 90, 128, 0.28);
+    }
+
+    .version-pill::before {
+      background: #45e6ff;
+      box-shadow: 0 0 13px #45e6ff;
+    }
+
+    .downloads {
+      margin-top: 26px;
+    }
+
+    .download-card,
+    .info-card {
+      border: 1px solid #176a9e;
+      background:
+        linear-gradient(
+          145deg,
+          rgba(7, 40, 75, 0.97),
+          rgba(6, 29, 59, 0.97)
+        );
+      box-shadow:
+        0 20px 48px rgba(0, 0, 0, 0.32);
+    }
+
+    .download-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .download-card::before {
+      position: absolute;
+      inset: 0 0 auto;
+      height: 4px;
+      background:
+        linear-gradient(
+          90deg,
+          #1fc6e6,
+          #348fe7 52%,
+          #9344ef
+        );
+      content: "";
+    }
+
+    .platform-icon {
+      width: 62px;
+      height: 62px;
+      border-color: #1d8fc3;
+      color: #ffffff;
+      background:
+        linear-gradient(
+          145deg,
+          #126b9c,
+          #133b70
+        );
+      box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.3);
+    }
+
+    .platform h2,
+    .info-card h2,
+    .step h3 {
+      color: #ffffff;
+    }
+
+    .platform p,
+    .feature-list,
+    .step p,
+    .security-note {
+      color: #b8cee2;
+    }
+
+    .download-button {
+      border-color: #61dcff;
+      background:
+        linear-gradient(
+          90deg,
+          #198fc3,
+          #3a77d7 52%,
+          #743cc9
+        );
+      box-shadow:
+        0 11px 28px rgba(21, 127, 190, 0.28);
+    }
+
+    .download-button:hover {
+      background:
+        linear-gradient(
+          90deg,
+          #22abd9,
+          #438be8 52%,
+          #914ce3
+        );
+    }
+
+    .checksum-link {
+      color: #5de2ff;
+    }
+
+    .step {
+      border-color: #176a9e;
+      background:
+        linear-gradient(
+          145deg,
+          rgba(5, 33, 64, 0.95),
+          rgba(4, 24, 50, 0.95)
+        );
+    }
+
+    .step-number {
+      color: #032039;
+      background:
+        linear-gradient(
+          145deg,
+          #5ce9ff,
+          #35b5e8
+        );
+    }
+
+    .security-note {
+      border-left-color: #54ddff;
+      background: rgba(3, 22, 45, 0.86);
+    }
+
+    footer {
+      color: #7fa5c5;
+    }
+
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="brand">
+        <img
+          class="brand-mark"
+          src="/scottibyte-assist.png"
+          alt="ScottiBYTE Assist logo"
+        >
+
+        <div class="brand-name">
+          Scotti<span>BYTE</span> Assist
+        </div>
+      </div>
+
+      <h1>
+        Remote assistance built for direct, personal support
+      </h1>
+
+      <p class="hero-copy">
+        Connect securely to another computer for desktop
+        viewing, remote control, clipboard sharing, and
+        two-way voice communication.
+      </p>
+
+      <div class="version-pill">
+        Current client release: 0.2.0
+      </div>
+    </section>
+
+    <section
+      class="downloads"
+      aria-label="Client downloads"
+    >
+      <article class="download-card">
+        <div class="platform">
+          <div
+            class="platform-icon"
+            aria-hidden="true"
+          >
+            W
+          </div>
+
+          <div>
+            <h2>Windows</h2>
+            <p>64-bit Windows installer</p>
+          </div>
+        </div>
+
+        <ul class="feature-list">
+          <li>Windows 10 or Windows 11</li>
+          <li>Includes the required runtime libraries</li>
+          <li>Installs for the current Windows user</li>
+          <li>Optional desktop shortcut</li>
+        </ul>
+
+        <div class="actions">
+          <a
+            class="download-button"
+            href="/downloads/0.2.0/ScottiBYTE-Assist-Setup-0.2.0.exe"
+            download
+          >
+            Download for Windows
+          </a>
+
+          <a
+            class="checksum-link"
+            href="/downloads/0.2.0/ScottiBYTE-Assist-Setup-0.2.0.exe.sha256"
+          >
+            View SHA-256 checksum
+          </a>
+        </div>
+      </article>
+
+      <article class="download-card">
+        <div class="platform">
+          <div
+            class="platform-icon"
+            aria-hidden="true"
+          >
+            L
+          </div>
+
+          <div>
+            <h2>Ubuntu Linux</h2>
+            <p>64-bit Debian package</p>
+          </div>
+        </div>
+
+        <ul class="feature-list">
+          <li>Designed for Ubuntu 24.04 LTS</li>
+          <li>Wayland screen-portal support</li>
+          <li>X11 multi-monitor support</li>
+          <li>Dependencies installed through APT</li>
+        </ul>
+
+        <div class="actions">
+          <a
+            class="download-button"
+            href="/downloads/0.2.0/ScottiBYTE-Assist_0.2.0_amd64.deb"
+            download
+          >
+            Download for Ubuntu
+          </a>
+
+          <a
+            class="checksum-link"
+            href="/downloads/0.2.0/ScottiBYTE-Assist_0.2.0_amd64.deb.sha256"
+          >
+            View SHA-256 checksum
+          </a>
+        </div>
+      </article>
+    </section>
+
+    <section class="info-card">
+      <h2>How a support session works</h2>
+
+      <div class="steps">
+        <article class="step">
+          <div class="step-number">1</div>
+          <h3>Open Assist</h3>
+          <p>
+            The person receiving assistance opens the client
+            and receives a temporary six-digit support code.
+          </p>
+        </article>
+
+        <article class="step">
+          <div class="step-number">2</div>
+          <h3>Share the code</h3>
+          <p>
+            Give the temporary code only to the person who
+            will provide support.
+          </p>
+        </article>
+
+        <article class="step">
+          <div class="step-number">3</div>
+          <h3>Approve access</h3>
+          <p>
+            Desktop viewing and remote control begin only
+            after the customer approves the requested display.
+          </p>
+        </article>
+      </div>
+
+      <div class="security-note">
+        Support codes are temporary. Remote desktop capture
+        does not begin automatically when a session connects.
+        The customer remains in control of display approval
+        and can end the session at any time.
+      </div>
+    </section>
+
+    <footer>
+      ScottiBYTE Assist 0.2.0
+    </footer>
+  </main>
+</body>
+</html>
