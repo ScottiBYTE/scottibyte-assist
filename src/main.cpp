@@ -19,6 +19,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
 #include <QFile>
@@ -1242,6 +1243,10 @@ int main(
         QStringLiteral(
             "ScottiBYTE Assist"));
 
+    application.setApplicationVersion(
+        QStringLiteral(
+            SCOTTIBYTE_ASSIST_VERSION));
+
     const QIcon applicationIcon(
         QStringLiteral(
             ":/assets/scottibyte-assist.png"));
@@ -1288,9 +1293,41 @@ QLabel#brandTitle {
 }
 
 QLabel#brandSubtitle {
-    font-size: 15px;
-    font-weight: 700;
     color: #4edcff;
+    font-size: 19px;
+    font-weight: 900;
+}
+
+QLabel#versionLabel {
+    color: #8fe8ff;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 1px 0 0 0;
+}
+
+QLabel#donateLink {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 900;
+    padding: 3px 10px;
+    border: 1px solid #ff6b86;
+    border-radius: 10px;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 rgba(197, 62, 91, 210),
+        stop: 1 rgba(122, 27, 57, 210)
+    );
+}
+
+QLabel#donateLink:hover {
+    border: 1px solid #ff9fb1;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 rgba(224, 83, 115, 230),
+        stop: 1 rgba(146, 35, 72, 230)
+    );
 }
 
 QPushButton#settingsButton,
@@ -1583,17 +1620,80 @@ QLabel#remotePlaceholder {
     auto *brandLayout =
         new QVBoxLayout;
 
-    brandLayout->setSpacing(0);
+    brandLayout->setSpacing(2);
 
     brandLayout->addWidget(
         makeLabel(
             QStringLiteral("ScottiBYTE"),
             QStringLiteral("brandTitle")));
 
-    brandLayout->addWidget(
+    auto *brandMetadataLayout =
+        new QHBoxLayout;
+
+    brandMetadataLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        0);
+
+    brandMetadataLayout->setSpacing(14);
+
+    auto *assistLabel =
         makeLabel(
             QStringLiteral("Assist"),
-            QStringLiteral("brandSubtitle")));
+            QStringLiteral("brandSubtitle"));
+
+    auto *versionLabel =
+        makeLabel(
+            QStringLiteral("v%1")
+                .arg(
+                    QCoreApplication::
+                        applicationVersion()),
+            QStringLiteral("versionLabel"));
+
+    auto *donateLink =
+        makeLabel(
+            QStringLiteral(
+                "<a "
+                "style=\"text-decoration:none;\" "
+                "href=\"https://www.paypal.com/paypalme/ScottiBYTE\">"
+                "<span style=\"color:#ff5d7a;\">♥</span> "
+                "<span style=\"color:#5de2ff;\">Donate</span>"
+                "</a>"),
+            QStringLiteral("donateLink"));
+
+    donateLink->setTextFormat(
+        Qt::RichText);
+
+    donateLink->setTextInteractionFlags(
+        Qt::LinksAccessibleByMouse);
+
+    donateLink->setOpenExternalLinks(
+        true);
+
+    donateLink->setFocusPolicy(
+        Qt::NoFocus);
+
+    donateLink->setCursor(
+        Qt::PointingHandCursor);
+
+    donateLink->setToolTip(
+        QStringLiteral(
+            "Open the ScottiBYTE PayPal donation page"));
+
+    brandMetadataLayout->addWidget(
+        assistLabel);
+
+    brandMetadataLayout->addWidget(
+        versionLabel);
+
+    brandMetadataLayout->addWidget(
+        donateLink);
+
+    brandMetadataLayout->addStretch();
+
+    brandLayout->addLayout(
+        brandMetadataLayout);
 
     auto *detailsButton =
         makeButton(

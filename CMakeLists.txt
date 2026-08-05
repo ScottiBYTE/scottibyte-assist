@@ -9,6 +9,10 @@ project(
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+
+add_compile_definitions(
+  SCOTTIBYTE_ASSIST_VERSION="${PROJECT_VERSION}"
+)
 set(CMAKE_AUTORCC ON)
 
 find_package(
