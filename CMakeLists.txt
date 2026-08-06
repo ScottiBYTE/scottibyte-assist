@@ -36,6 +36,8 @@ set(
   src/lan_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/vp8_video_codec.cpp
+  src/vp8_video_codec.h
   src/wan_signaling_client.cpp
   src/wan_signaling_client.h
 )
@@ -208,4 +210,20 @@ if(NOT WIN32)
     PRIVATE
       Qt6::Core
   )
+
 endif()
+
+qt_add_executable(
+  vp8-video-codec-test
+  src/vp8_video_codec_test.cpp
+  src/vp8_video_codec.cpp
+  src/vp8_video_codec.h
+)
+
+target_link_libraries(
+  vp8-video-codec-test
+  PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    PkgConfig::GSTREAMER
+)
