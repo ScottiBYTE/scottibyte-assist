@@ -624,6 +624,36 @@ function handleRelayBinary(
   }
 
   for (const peer of peers) {
+    if (
+      peer.socket.bufferedAmount >
+        1024 * 1024
+    ) {
+      const now = Date.now();
+
+      if (
+        !peer.lastRelayBacklogLogAt ||
+        now - peer.lastRelayBacklogLogAt >=
+          5000
+      ) {
+        console.warn(
+          `Relay destination backlog for WebSocket client ${peer.id}`,
+          {
+            role:
+              peer.role,
+            sessionCode:
+              peer.sessionCode,
+            deviceId:
+              peer.deviceId,
+            bufferedAmount:
+              peer.socket.bufferedAmount
+          }
+        );
+
+        peer.lastRelayBacklogLogAt =
+          now;
+      }
+    }
+
     peer.socket.send(
       payload,
       {
@@ -744,6 +774,7 @@ export function createWebSocketServer(
         deviceId: null,
         relayReady: false,
         alive: true,
+        lastActivityAt: Date.now(),
         remoteAddress:
           websocketSourceIp(request)
       };
@@ -761,11 +792,15 @@ export function createWebSocketServer(
 
       socket.on('pong', () => {
         client.alive = true;
+        client.lastActivityAt = Date.now();
       });
 
       socket.on(
         'message',
         (data, isBinary) => {
+          client.alive = true;
+          client.lastActivityAt = Date.now();
+
           if (isBinary) {
             handleRelayBinary(
               client,
@@ -833,8 +868,17 @@ export function createWebSocketServer(
 
   const heartbeatInterval =
     setInterval(() => {
+      const now = Date.now();
+      const inactivityLimitMs = 90_000;
+
       for (const client of clients) {
-        if (!client.alive) {
+        const inactiveForMs =
+          now - client.lastActivityAt;
+
+        if (
+          !client.alive &&
+          inactiveForMs >= inactivityLimitMs
+        ) {
           console.warn(
             `Terminating unresponsive WebSocket client ${client.id}`,
             {
@@ -846,6 +890,7 @@ export function createWebSocketServer(
                 client.deviceId,
               relayReady:
                 client.relayReady,
+              inactiveForMs,
               remoteAddress:
                 client.remoteAddress
             }
