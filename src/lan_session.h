@@ -168,7 +168,9 @@ private:
         RemoteControlStart = 16,
         RemoteControlStop = 17,
         RemoteControlDisplaysRequest = 18,
-        RemoteControlDisplaysResponse = 19
+        RemoteControlDisplaysResponse = 19,
+        FrameAcknowledged = 20,
+        ProviderFrameAcknowledged = 21
     };
 
     void startAdvertising();
@@ -209,6 +211,8 @@ private:
 
     bool providerShareActive_ = false;
     bool relayActive_ = false;
+    bool waitingForRelayFrameAcknowledgement_ =
+        false;
 
     qint64 relayBytesQueued_ = 0;
 

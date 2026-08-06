@@ -1099,18 +1099,53 @@ QDialog#sessionDetailsDialog QPushButton:hover {
                     scrollPosition);
         };
 
-    const QString previousSummary =
-        previousSessionDiagnostics != nullptr &&
-        !previousSessionDiagnostics->
-            trimmed().
-            isEmpty()
-            ? *previousSessionDiagnostics
-            : QStringLiteral(
-                  "No previous session diagnostics "
-                  "have been captured yet.");
+    const auto refreshPrevious =
+        [
+            previousText,
+            previousSessionDiagnostics
+        ]()
+        {
+            if (
+                previousText->
+                    textCursor().
+                    hasSelection()
+            ) {
+                return;
+            }
 
-    previousText->setPlainText(
-        previousSummary);
+            const QString summary =
+                previousSessionDiagnostics != nullptr &&
+                !previousSessionDiagnostics->
+                    trimmed().
+                    isEmpty()
+                    ? *previousSessionDiagnostics
+                    : QStringLiteral(
+                          "No previous session "
+                          "diagnostics have been "
+                          "captured yet.");
+
+            if (
+                previousText->toPlainText() ==
+                summary
+            ) {
+                return;
+            }
+
+            const int scrollPosition =
+                previousText->
+                    verticalScrollBar()->
+                    value();
+
+            previousText->setPlainText(
+                summary);
+
+            previousText->
+                verticalScrollBar()->
+                setValue(
+                    scrollPosition);
+        };
+
+    refreshPrevious();
 
     QObject::connect(
         copyCurrentButton,
@@ -1156,9 +1191,17 @@ QDialog#sessionDetailsDialog QPushButton:hover {
         refreshTimer,
         &QTimer::timeout,
         &dialog,
-        refreshCurrent);
+        [
+            refreshCurrent,
+            refreshPrevious
+        ]()
+        {
+            refreshCurrent();
+            refreshPrevious();
+        });
 
     refreshCurrent();
+    refreshPrevious();
     refreshTimer->start();
 
     dialog.exec();
@@ -2668,6 +2711,9 @@ QLabel#remotePlaceholder {
 
     QString previousSessionDiagnostics;
 
+    bool customerDisconnectCaptured = false;
+    bool providerDisconnectCaptured = false;
+
     const auto capturePreviousSession =
         [
             customerSignaling,
@@ -2714,13 +2760,38 @@ QLabel#remotePlaceholder {
 
     QObject::connect(
         customerSignaling,
+        &WanSignalingClient::sessionSubscribed,
+        window,
+        [
+            &customerDisconnectCaptured
+        ]()
+        {
+            customerDisconnectCaptured = false;
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::sessionSubscribed,
+        window,
+        [
+            &providerDisconnectCaptured
+        ]()
+        {
+            providerDisconnectCaptured = false;
+        });
+
+    QObject::connect(
+        customerSignaling,
         &WanSignalingClient::errorOccurred,
         window,
         [
-            capturePreviousSession
+            capturePreviousSession,
+            &customerDisconnectCaptured
         ](
             const QString &message)
         {
+            customerDisconnectCaptured = true;
+
             capturePreviousSession(
                 QStringLiteral(
                     "Customer signaling error: ") +
@@ -2732,13 +2803,60 @@ QLabel#remotePlaceholder {
         &WanSignalingClient::errorOccurred,
         window,
         [
-            capturePreviousSession
+            capturePreviousSession,
+            &providerDisconnectCaptured
         ](
             const QString &message)
         {
+            providerDisconnectCaptured = true;
+
             capturePreviousSession(
                 QStringLiteral(
                     "Provider signaling error: ") +
+                message);
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::disconnecting,
+        window,
+        [
+            capturePreviousSession,
+            &customerDisconnectCaptured
+        ](
+            const QString &message)
+        {
+            if (customerDisconnectCaptured) {
+                return;
+            }
+
+            customerDisconnectCaptured = true;
+
+            capturePreviousSession(
+                QStringLiteral(
+                    "Customer signaling disconnected: ") +
+                message);
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::disconnecting,
+        window,
+        [
+            capturePreviousSession,
+            &providerDisconnectCaptured
+        ](
+            const QString &message)
+        {
+            if (providerDisconnectCaptured) {
+                return;
+            }
+
+            providerDisconnectCaptured = true;
+
+            capturePreviousSession(
+                QStringLiteral(
+                    "Provider signaling disconnected: ") +
                 message);
         });
 

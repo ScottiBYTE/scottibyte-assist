@@ -729,6 +729,9 @@ void LanSession::activateRelayTransport()
     lastDesktopFrameSubmittedMs_ = 0;
     lastDesktopFrameReceivedMs_ = 0;
 
+    waitingForRelayFrameAcknowledgement_ =
+        false;
+
     relayActive_ = true;
 
     emit statusChanged(
@@ -811,6 +814,8 @@ void LanSession::attachSocket(
     QTcpSocket *socket)
 {
     relayActive_ = false;
+    waitingForRelayFrameAcknowledgement_ =
+        false;
     socket_ = socket;
 
     connect(
@@ -901,6 +906,8 @@ void LanSession::disconnectSession()
     receiveBuffer_.clear();
     expectedPayloadSize_ = 0;
     relayActive_ = false;
+    waitingForRelayFrameAcknowledgement_ =
+        false;
     relayBytesQueued_ = 0;
 
     if (socket_ != nullptr) {
@@ -1002,6 +1009,14 @@ void LanSession::sendDesktopFrame(
         return;
     }
 
+    if (
+        relayActive_ &&
+        waitingForRelayFrameAcknowledgement_
+    ) {
+        ++desktopFramesDropped_;
+        return;
+    }
+
     const qint64 nowMs =
         QDateTime::currentMSecsSinceEpoch();
 
@@ -1056,6 +1071,11 @@ void LanSession::sendDesktopFrame(
     sendMessage(
         messageType,
         encoded);
+
+    if (relayActive_) {
+        waitingForRelayFrameAcknowledgement_ =
+            true;
+    }
 
     lastDesktopFrameSubmittedMs_ =
         nowMs;
@@ -1389,10 +1409,53 @@ void LanSession::processIncomingBytes(
                     MessageType::ProviderFrame) {
                     emit providerFrameReceived(
                         image);
+
+                    if (relayActive_) {
+                        sendMessage(
+                            MessageType::
+                                ProviderFrameAcknowledged,
+                            QByteArray());
+                    }
                 } else {
                     emit frameReceived(
                         image);
+
+                    if (relayActive_) {
+                        sendMessage(
+                            MessageType::
+                                FrameAcknowledged,
+                            QByteArray());
+                    }
                 }
+            }
+
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::FrameAcknowledged ||
+            expectedMessageType_ ==
+                MessageType::
+                    ProviderFrameAcknowledged
+        ) {
+            const bool validAcknowledgement =
+                (
+                    role_ == Role::Customer &&
+                    expectedMessageType_ ==
+                        MessageType::
+                            FrameAcknowledged
+                ) ||
+                (
+                    role_ == Role::Provider &&
+                    expectedMessageType_ ==
+                        MessageType::
+                            ProviderFrameAcknowledged
+                );
+
+            if (validAcknowledgement) {
+                waitingForRelayFrameAcknowledgement_ =
+                    false;
             }
 
             continue;
