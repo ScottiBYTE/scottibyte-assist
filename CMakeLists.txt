@@ -25,10 +25,21 @@ find_package(
     Widgets
 )
 
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(
+  WEBRTC_APM
+  REQUIRED
+  IMPORTED_TARGET
+  webrtc-audio-processing-1
+)
+
 set(
   ASSIST_COMMON_SOURCES
   assets.qrc
   src/main.cpp
+  src/assist_audio_processor.cpp
+  src/assist_audio_processor.h
   src/audio_devices.h
   src/customer_voice_audio.h
   src/desktop_backend.h
@@ -136,6 +147,7 @@ target_link_libraries(
     Qt6::Network
     Qt6::WebSockets
     Qt6::Widgets
+    PkgConfig::WEBRTC_APM
 )
 
 if(WIN32)
@@ -226,4 +238,18 @@ target_link_libraries(
     Qt6::Core
     Qt6::Gui
     PkgConfig::GSTREAMER
+)
+
+qt_add_executable(
+  assist-aec-test
+  src/assist_aec_test.cpp
+  src/assist_audio_processor.cpp
+  src/assist_audio_processor.h
+)
+
+target_link_libraries(
+  assist-aec-test
+  PRIVATE
+    Qt6::Core
+    PkgConfig::WEBRTC_APM
 )
