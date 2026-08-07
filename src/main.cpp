@@ -4577,16 +4577,32 @@ QLabel#remotePlaceholder {
         lanSession,
         &LanSession::sendKeyRelease);
 
+    QRect remoteWindowNormalGeometry;
+    QScreen *remoteWindowScreen = nullptr;
+
     const auto exitRemoteFullScreen =
         [
             remoteWindow,
             remoteWindowView,
-            fullScreenWindow
+            fullScreenWindow,
+            &remoteWindowNormalGeometry,
+            &remoteWindowScreen
         ]()
         {
             fullScreenWindow->hide();
 
+            if (remoteWindowScreen) {
+                remoteWindow->setScreen(
+                    remoteWindowScreen);
+            }
+
             remoteWindow->showNormal();
+
+            if (remoteWindowNormalGeometry.isValid()) {
+                remoteWindow->setGeometry(
+                    remoteWindowNormalGeometry);
+            }
+
             remoteWindow->raise();
             remoteWindow->activateWindow();
 
@@ -4611,9 +4627,25 @@ QLabel#remotePlaceholder {
             remoteWindow,
             fullScreenWindow,
             fullScreenRemoteView,
-            exitFullScreenBubble
+            exitFullScreenBubble,
+            &remoteWindowNormalGeometry,
+            &remoteWindowScreen
         ]()
         {
+            remoteWindowNormalGeometry =
+                remoteWindow->geometry();
+
+            remoteWindowScreen =
+                remoteWindow->screen();
+
+            if (remoteWindowScreen) {
+                fullScreenWindow->setScreen(
+                    remoteWindowScreen);
+
+                fullScreenWindow->setGeometry(
+                    remoteWindowScreen->geometry());
+            }
+
             remoteWindow->hide();
 
             fullScreenWindow->showFullScreen();

@@ -1,10 +1,10 @@
 Package: scottibyte-assist
-Version: 0.2.4
+Version: 0.3.0
 Section: net
 Priority: optional
 Architecture: amd64
 Maintainer: ScottiBYTE
-Depends: libqt6core6, libqt6gui6, libqt6widgets6, libqt6network6, libqt6dbus6, libpipewire-0.3-0, libei1, libgstreamer1.0-0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, libx11-6, libxtst6, xdg-desktop-portal, libqt6websockets6
+Depends: libqt6core6, libqt6gui6, libqt6widgets6, libqt6network6, libqt6dbus6, libpipewire-0.3-0, libei1, libgstreamer1.0-0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, libx11-6, libxtst6, xdg-desktop-portal, libqt6websockets6, libabsl20220623t64
 Description: ScottiBYTE Assist remote support client
  A cross-platform remote assistance client with desktop sharing,
  remote control, clipboard support, and full-duplex voice.
