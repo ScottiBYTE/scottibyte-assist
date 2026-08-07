@@ -50,6 +50,7 @@
 #include <QStandardPaths>
 #include <QStackedWidget>
 #include <QTimer>
+#include <QThread>
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -1339,10 +1340,8 @@ protected:
 
             if (movedDuringDrag_) {
                 userPositioned_ = true;
-            } else if (
-                fullScreenWindow_ !=
-                    nullptr) {
-                fullScreenWindow_->close();
+            } else {
+                click();
             }
 
             event->accept();
@@ -2568,11 +2567,10 @@ QLabel#remotePlaceholder {
                 Qt::Key_Escape),
             fullScreenWindow);
 
-    QObject::connect(
-        exitFullScreenShortcut,
-        &QShortcut::activated,
-        fullScreenWindow,
-        &QWidget::close);
+    /*
+     * Full-screen exit is wired later so the normal
+     * Remote Assistance window can be restored.
+     */
 
     auto *disconnectButton =
         makeButton(
@@ -2884,8 +2882,43 @@ QLabel#remotePlaceholder {
     providerCandidateFallbackTimer->
         setInterval(3000);
 
+    auto *voiceAudioThread =
+        new QThread(window);
+
+    voiceAudioThread->setObjectName(
+        QStringLiteral(
+            "ScottiBYTE Assist Voice Audio"));
+
     auto *customerVoiceAudio =
-        new CustomerVoiceAudio(window);
+        new CustomerVoiceAudio();
+
+    customerVoiceAudio->moveToThread(
+        voiceAudioThread);
+
+    QObject::connect(
+        voiceAudioThread,
+        &QThread::finished,
+        customerVoiceAudio,
+        &QObject::deleteLater);
+
+    voiceAudioThread->start(
+        QThread::HighPriority);
+
+    QObject::connect(
+        QCoreApplication::instance(),
+        &QCoreApplication::aboutToQuit,
+        window,
+        [
+            customerVoiceAudio,
+            voiceAudioThread
+        ]()
+        {
+            customerVoiceAudio->stop();
+
+            voiceAudioThread->quit();
+            voiceAudioThread->wait();
+        },
+        Qt::DirectConnection);
 
     providerScreenDismissFilter->
         setUserDismissedCallback(
@@ -4544,15 +4577,51 @@ QLabel#remotePlaceholder {
         lanSession,
         &LanSession::sendKeyRelease);
 
+    const auto exitRemoteFullScreen =
+        [
+            remoteWindow,
+            remoteWindowView,
+            fullScreenWindow
+        ]()
+        {
+            fullScreenWindow->hide();
+
+            remoteWindow->showNormal();
+            remoteWindow->raise();
+            remoteWindow->activateWindow();
+
+            remoteWindowView->setFocus(
+                Qt::OtherFocusReason);
+        };
+
+    QObject::connect(
+        exitFullScreenShortcut,
+        &QShortcut::activated,
+        fullScreenWindow,
+        exitRemoteFullScreen);
+
+    QObject::connect(
+        exitFullScreenBubble,
+        &QPushButton::clicked,
+        fullScreenWindow,
+        exitRemoteFullScreen);
+
     const auto showRemoteFullScreen =
         [
+            remoteWindow,
             fullScreenWindow,
+            fullScreenRemoteView,
             exitFullScreenBubble
         ]()
         {
+            remoteWindow->hide();
+
             fullScreenWindow->showFullScreen();
             fullScreenWindow->raise();
             fullScreenWindow->activateWindow();
+
+            fullScreenRemoteView->setFocus(
+                Qt::OtherFocusReason);
 
             exitFullScreenBubble->
                 prepareForFullScreen();

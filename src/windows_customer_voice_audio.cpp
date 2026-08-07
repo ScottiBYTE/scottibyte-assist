@@ -4,6 +4,8 @@
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 
+#include <array>
+#include <cstring>
 #include <mutex>
 
 namespace
@@ -119,8 +121,27 @@ bool CustomerVoiceAudio::startPacketSender(
         return false;
     }
 
+    {
+        std::lock_guard<std::mutex> lock(
+            audioProcessorMutex_);
+
+        if (
+            !audioProcessor_.isInitialized() &&
+            !audioProcessor_.initialize()
+        ) {
+            emit errorOccurred(
+                QStringLiteral(
+                    "WebRTC AEC3 could not be initialized."));
+            return false;
+        }
+    }
+
+    capturePcmBuffer_.clear();
+    capturePcmTimestampNs_ = 0;
+
     QString source =
-        QStringLiteral("wasapi2src low-latency=true");
+        QStringLiteral(
+            "wasapi2src low-latency=true");
 
     if (!inputNode.trimmed().isEmpty()) {
         source +=
@@ -142,7 +163,28 @@ bool CustomerVoiceAudio::startPacketSender(
             "! audio/x-raw,"
             "format=S16LE,"
             "rate=48000,"
-            "channels=1 "
+            "channels=1,"
+            "layout=interleaved "
+            "! appsink "
+            "name=voice-capture-pcm-sink "
+            "emit-signals=true "
+            "sync=false "
+            "max-buffers=8 "
+            "drop=false "
+            "appsrc "
+            "name=voice-capture-pcm-source "
+            "is-live=true "
+            "format=time "
+            "do-timestamp=false "
+            "block=false "
+            "caps=\"audio/x-raw,"
+            "format=S16LE,"
+            "rate=48000,"
+            "channels=1,"
+            "layout=interleaved\" "
+            "! queue "
+            "max-size-time=200000000 "
+            "leaky=downstream "
             "! volume "
             "name=voice-volume "
             "volume=%2 "
@@ -195,21 +237,208 @@ bool CustomerVoiceAudio::startPacketSender(
         return false;
     }
 
+    GstElement *captureSink =
+        gst_bin_get_by_name(
+            GST_BIN(senderPipeline_),
+            "voice-capture-pcm-sink");
+
+    capturePcmAppSource_ =
+        gst_bin_get_by_name(
+            GST_BIN(senderPipeline_),
+            "voice-capture-pcm-source");
+
     GstElement *packetSink =
         gst_bin_get_by_name(
             GST_BIN(senderPipeline_),
             "voice-packet-sink");
 
-    if (packetSink == nullptr) {
+    if (
+        captureSink == nullptr ||
+        capturePcmAppSource_ == nullptr ||
+        packetSink == nullptr
+    ) {
+        if (captureSink != nullptr) {
+            gst_object_unref(captureSink);
+        }
+
+        if (packetSink != nullptr) {
+            gst_object_unref(packetSink);
+        }
+
         emit errorOccurred(
             QStringLiteral(
-                "The voice packet sink was not created."));
+                "The WAN voice PCM bridge "
+                "could not be created."));
 
-        stopPipeline(
-            senderPipeline_);
+        stopSender();
 
         return false;
     }
+
+    g_signal_connect(
+        captureSink,
+        "new-sample",
+        G_CALLBACK((
+            +[](
+                GstAppSink *sink,
+                gpointer userData)
+                -> GstFlowReturn
+            {
+                auto *self =
+                    static_cast<CustomerVoiceAudio *>(
+                        userData);
+
+                GstSample *sample =
+                    gst_app_sink_pull_sample(
+                        sink);
+
+                if (sample == nullptr) {
+                    return GST_FLOW_EOS;
+                }
+
+                GstBuffer *buffer =
+                    gst_sample_get_buffer(
+                        sample);
+
+                GstMapInfo map{};
+
+                if (
+                    buffer != nullptr &&
+                    gst_buffer_map(
+                        buffer,
+                        &map,
+                        GST_MAP_READ)
+                ) {
+                    self->capturePcmBuffer_.append(
+                        reinterpret_cast<
+                            const char *>(
+                                map.data),
+                        static_cast<int>(
+                            map.size));
+
+                    gst_buffer_unmap(
+                        buffer,
+                        &map);
+                }
+
+                gst_sample_unref(sample);
+
+                constexpr int pcmBlockBytes =
+                    AssistAudioProcessor::
+                        samplesPerBlock *
+                    static_cast<int>(
+                        sizeof(int16_t));
+
+                while (
+                    self->capturePcmBuffer_.size() >=
+                    pcmBlockBytes
+                ) {
+                    std::array<
+                        int16_t,
+                        AssistAudioProcessor::
+                            samplesPerBlock>
+                        input{};
+
+                    std::array<
+                        int16_t,
+                        AssistAudioProcessor::
+                            samplesPerBlock>
+                        output{};
+
+                    std::memcpy(
+                        input.data(),
+                        self->
+                            capturePcmBuffer_.
+                            constData(),
+                        pcmBlockBytes);
+
+                    self->capturePcmBuffer_.remove(
+                        0,
+                        pcmBlockBytes);
+
+                    bool processed = false;
+
+                    {
+                        std::lock_guard<std::mutex>
+                            lock(
+                                self->
+                                    audioProcessorMutex_);
+
+                        processed =
+                            self->
+                                audioProcessor_.
+                                processCapture(
+                                    input.data(),
+                                    output.data());
+                    }
+
+                    if (!processed) {
+                        emit self->errorOccurred(
+                            QStringLiteral(
+                                "AEC3 microphone "
+                                "processing failed."));
+
+                        return GST_FLOW_ERROR;
+                    }
+
+                    GstBuffer *processedBuffer =
+                        gst_buffer_new_allocate(
+                            nullptr,
+                            pcmBlockBytes,
+                            nullptr);
+
+                    if (processedBuffer == nullptr) {
+                        return GST_FLOW_ERROR;
+                    }
+
+                    gst_buffer_fill(
+                        processedBuffer,
+                        0,
+                        output.data(),
+                        pcmBlockBytes);
+
+                    GST_BUFFER_PTS(
+                        processedBuffer) =
+                            self->
+                                capturePcmTimestampNs_;
+
+                    GST_BUFFER_DURATION(
+                        processedBuffer) =
+                            10 * GST_MSECOND;
+
+                    self->capturePcmTimestampNs_ +=
+                        10 * GST_MSECOND;
+
+                    const GstFlowReturn result =
+                        gst_app_src_push_buffer(
+                            GST_APP_SRC(
+                                self->
+                                    capturePcmAppSource_),
+                            processedBuffer);
+
+                    if (
+                        result != GST_FLOW_OK &&
+                        result != GST_FLOW_FLUSHING
+                    ) {
+                        emit self->errorOccurred(
+                            QStringLiteral(
+                                "AEC3 microphone PCM "
+                                "output stopped."));
+
+                        return result;
+                    }
+
+                    if (
+                        result ==
+                        GST_FLOW_FLUSHING
+                    ) {
+                        return result;
+                    }
+                }
+
+                return GST_FLOW_OK;
+            })),
+        this);
 
     g_signal_connect(
         packetSink,
@@ -269,21 +498,22 @@ bool CustomerVoiceAudio::startPacketSender(
             }),
         this);
 
+    gst_object_unref(captureSink);
     gst_object_unref(packetSink);
 
     if (!startPipeline(
             senderPipeline_,
             QStringLiteral(
                 "Voice packet sender"))) {
-        stopPipeline(
-            senderPipeline_);
+        stopSender();
 
         return false;
     }
 
     emit statusChanged(
         QStringLiteral(
-            "Microphone packet transmission is active."));
+            "AEC3 microphone packet "
+            "transmission is active."));
 
     return true;
 }
@@ -300,8 +530,27 @@ bool CustomerVoiceAudio::startPacketReceiver(
         return false;
     }
 
+    {
+        std::lock_guard<std::mutex> lock(
+            audioProcessorMutex_);
+
+        if (
+            !audioProcessor_.isInitialized() &&
+            !audioProcessor_.initialize()
+        ) {
+            emit errorOccurred(
+                QStringLiteral(
+                    "WebRTC AEC3 could not be initialized."));
+            return false;
+        }
+    }
+
+    renderPcmBuffer_.clear();
+    renderPcmTimestampNs_ = 0;
+
     QString sink =
-        QStringLiteral("wasapi2sink low-latency=true");
+        QStringLiteral(
+            "wasapi2sink low-latency=true");
 
     if (!outputNode.trimmed().isEmpty()) {
         sink +=
@@ -337,8 +586,33 @@ bool CustomerVoiceAudio::startPacketReceiver(
             "use-inband-fec=true "
             "! audioconvert "
             "! audioresample "
+            "! audio/x-raw,"
+            "format=S16LE,"
+            "rate=48000,"
+            "channels=1,"
+            "layout=interleaved "
+            "! appsink "
+            "name=voice-render-pcm-sink "
+            "emit-signals=true "
+            "sync=false "
+            "max-buffers=8 "
+            "drop=false "
+            "appsrc "
+            "name=voice-render-pcm-source "
+            "is-live=true "
+            "format=time "
+            "do-timestamp=false "
+            "block=false "
+            "caps=\"audio/x-raw,"
+            "format=S16LE,"
+            "rate=48000,"
+            "channels=1,"
+            "layout=interleaved\" "
+            "! queue "
+            "max-size-time=200000000 "
+            "leaky=downstream "
             "! %1 "
-            "sync=false")
+            "sync=true")
             .arg(sink);
 
     GError *error = nullptr;
@@ -374,28 +648,214 @@ bool CustomerVoiceAudio::startPacketReceiver(
             GST_BIN(receiverPipeline_),
             "voice-packet-source");
 
-    if (receiverAppSource_ == nullptr) {
+    GstElement *renderSink =
+        gst_bin_get_by_name(
+            GST_BIN(receiverPipeline_),
+            "voice-render-pcm-sink");
+
+    renderPcmAppSource_ =
+        gst_bin_get_by_name(
+            GST_BIN(receiverPipeline_),
+            "voice-render-pcm-source");
+
+    if (
+        receiverAppSource_ == nullptr ||
+        renderSink == nullptr ||
+        renderPcmAppSource_ == nullptr
+    ) {
+        if (renderSink != nullptr) {
+            gst_object_unref(renderSink);
+        }
+
         emit errorOccurred(
             QStringLiteral(
-                "The voice packet source was not created."));
+                "The WAN voice render PCM bridge "
+                "could not be created."));
 
-        stopPipeline(
-            receiverPipeline_);
+        stopReceiver();
 
         return false;
     }
+
+    g_signal_connect(
+        renderSink,
+        "new-sample",
+        G_CALLBACK((
+            +[](
+                GstAppSink *sink,
+                gpointer userData)
+                -> GstFlowReturn
+            {
+                auto *self =
+                    static_cast<CustomerVoiceAudio *>(
+                        userData);
+
+                GstSample *sample =
+                    gst_app_sink_pull_sample(
+                        sink);
+
+                if (sample == nullptr) {
+                    return GST_FLOW_EOS;
+                }
+
+                GstBuffer *buffer =
+                    gst_sample_get_buffer(
+                        sample);
+
+                GstMapInfo map{};
+
+                if (
+                    buffer != nullptr &&
+                    gst_buffer_map(
+                        buffer,
+                        &map,
+                        GST_MAP_READ)
+                ) {
+                    self->renderPcmBuffer_.append(
+                        reinterpret_cast<
+                            const char *>(
+                                map.data),
+                        static_cast<int>(
+                            map.size));
+
+                    gst_buffer_unmap(
+                        buffer,
+                        &map);
+                }
+
+                gst_sample_unref(sample);
+
+                constexpr int pcmBlockBytes =
+                    AssistAudioProcessor::
+                        samplesPerBlock *
+                    static_cast<int>(
+                        sizeof(int16_t));
+
+                while (
+                    self->renderPcmBuffer_.size() >=
+                    pcmBlockBytes
+                ) {
+                    std::array<
+                        int16_t,
+                        AssistAudioProcessor::
+                            samplesPerBlock>
+                        input{};
+
+                    std::array<
+                        int16_t,
+                        AssistAudioProcessor::
+                            samplesPerBlock>
+                        output{};
+
+                    std::memcpy(
+                        input.data(),
+                        self->
+                            renderPcmBuffer_.
+                            constData(),
+                        pcmBlockBytes);
+
+                    self->renderPcmBuffer_.remove(
+                        0,
+                        pcmBlockBytes);
+
+                    bool processed = false;
+
+                    {
+                        std::lock_guard<std::mutex>
+                            lock(
+                                self->
+                                    audioProcessorMutex_);
+
+                        processed =
+                            self->
+                                audioProcessor_.
+                                processRender(
+                                    input.data(),
+                                    output.data());
+                    }
+
+                    if (!processed) {
+                        emit self->errorOccurred(
+                            QStringLiteral(
+                                "AEC3 render "
+                                "processing failed."));
+
+                        return GST_FLOW_ERROR;
+                    }
+
+                    GstBuffer *processedBuffer =
+                        gst_buffer_new_allocate(
+                            nullptr,
+                            pcmBlockBytes,
+                            nullptr);
+
+                    if (processedBuffer == nullptr) {
+                        return GST_FLOW_ERROR;
+                    }
+
+                    gst_buffer_fill(
+                        processedBuffer,
+                        0,
+                        output.data(),
+                        pcmBlockBytes);
+
+                    GST_BUFFER_PTS(
+                        processedBuffer) =
+                            self->
+                                renderPcmTimestampNs_;
+
+                    GST_BUFFER_DURATION(
+                        processedBuffer) =
+                            10 * GST_MSECOND;
+
+                    self->renderPcmTimestampNs_ +=
+                        10 * GST_MSECOND;
+
+                    const GstFlowReturn result =
+                        gst_app_src_push_buffer(
+                            GST_APP_SRC(
+                                self->
+                                    renderPcmAppSource_),
+                            processedBuffer);
+
+                    if (
+                        result != GST_FLOW_OK &&
+                        result != GST_FLOW_FLUSHING
+                    ) {
+                        emit self->errorOccurred(
+                            QStringLiteral(
+                                "AEC3 render PCM "
+                                "output stopped."));
+
+                        return result;
+                    }
+
+                    if (
+                        result ==
+                        GST_FLOW_FLUSHING
+                    ) {
+                        return result;
+                    }
+                }
+
+                return GST_FLOW_OK;
+            })),
+        this);
+
+    gst_object_unref(renderSink);
 
     if (!startPipeline(
             receiverPipeline_,
             QStringLiteral(
                 "Voice packet receiver"))) {
         stopReceiver();
+
         return false;
     }
 
     emit statusChanged(
         QStringLiteral(
-            "Voice packet playback is active."));
+            "AEC3 voice packet playback is active."));
 
     return true;
 }
@@ -684,6 +1144,16 @@ void CustomerVoiceAudio::stopSender()
 {
     stopPipeline(
         senderPipeline_);
+
+    if (capturePcmAppSource_ != nullptr) {
+        gst_object_unref(
+            capturePcmAppSource_);
+
+        capturePcmAppSource_ = nullptr;
+    }
+
+    capturePcmBuffer_.clear();
+    capturePcmTimestampNs_ = 0;
 }
 
 void CustomerVoiceAudio::stopReceiver()
@@ -697,6 +1167,16 @@ void CustomerVoiceAudio::stopReceiver()
 
     stopPipeline(
         receiverPipeline_);
+
+    if (renderPcmAppSource_ != nullptr) {
+        gst_object_unref(
+            renderPcmAppSource_);
+
+        renderPcmAppSource_ = nullptr;
+    }
+
+    renderPcmBuffer_.clear();
+    renderPcmTimestampNs_ = 0;
 }
 
 void CustomerVoiceAudio::stop()
@@ -706,6 +1186,16 @@ void CustomerVoiceAudio::stop()
 
     stopSender();
     stopReceiver();
+
+    {
+        std::lock_guard<std::mutex> lock(
+            audioProcessorMutex_);
+
+        audioProcessor_.reset();
+    }
+
+    capturePcmTimestampNs_ = 0;
+    renderPcmTimestampNs_ = 0;
 
     if (wasRunning) {
         emit statusChanged(
