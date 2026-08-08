@@ -227,8 +227,16 @@ private:
     quint64 desktopFramesRateLimited_ = 0;
     quint64 desktopFramesReceived_ = 0;
 
+    quint64 voicePacketsSent_ = 0;
+    quint64 voiceBytesSent_ = 0;
+    quint64 voicePacketsReceived_ = 0;
+    quint64 voiceBytesReceived_ = 0;
+
     qint64 lastDesktopFrameSubmittedMs_ = 0;
     qint64 lastDesktopFrameReceivedMs_ = 0;
+
+    qint64 lastVoicePacketSentMs_ = 0;
+    qint64 lastVoicePacketReceivedMs_ = 0;
 
     QByteArray receiveBuffer_;
 

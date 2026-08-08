@@ -3629,6 +3629,29 @@ QLabel#remotePlaceholder {
         });
 
     QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::
+            relayRequestReceived,
+        window,
+        [
+            providerSignaling,
+            providerCandidateFallbackTimer,
+            provideStatus
+        ]()
+        {
+            providerCandidateFallbackTimer->
+                stop();
+
+            provideStatus->setText(
+                QStringLiteral(
+                    "Customer requested the Assist "
+                    "relay. Starting relay..."));
+
+            providerSignaling->
+                startRelay();
+        });
+
+    QObject::connect(
         customerSignaling,
         &WanSignalingClient::relayReady,
         window,

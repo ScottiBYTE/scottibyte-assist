@@ -638,6 +638,40 @@ QString LanSession::diagnosticSummary() const
     QString lastFrameText =
         QStringLiteral("Never");
 
+    QString lastVoiceSentText =
+        QStringLiteral("Never");
+
+    if (lastVoicePacketSentMs_ > 0) {
+        const qint64 elapsed =
+            QDateTime::currentMSecsSinceEpoch() -
+            lastVoicePacketSentMs_;
+
+        lastVoiceSentText =
+            QStringLiteral("%1 seconds ago")
+                .arg(
+                    static_cast<double>(elapsed) / 1000.0,
+                    0,
+                    'f',
+                    1);
+    }
+
+    QString lastVoiceReceivedText =
+        QStringLiteral("Never");
+
+    if (lastVoicePacketReceivedMs_ > 0) {
+        const qint64 elapsed =
+            QDateTime::currentMSecsSinceEpoch() -
+            lastVoicePacketReceivedMs_;
+
+        lastVoiceReceivedText =
+            QStringLiteral("%1 seconds ago")
+                .arg(
+                    static_cast<double>(elapsed) / 1000.0,
+                    0,
+                    'f',
+                    1);
+    }
+
     if (lastDesktopFrameReceivedMs_ > 0) {
         const qint64 elapsed =
             QDateTime::
@@ -667,7 +701,15 @@ QString LanSession::diagnosticSummary() const
         "Frames dropped for backlog: %8\n"
         "Frames skipped for relay rate limit: %9\n"
         "Remote frames received: %10\n"
-        "Last remote frame received: %11")
+        "Last remote frame received: %11\n"
+        "\n"
+        "Voice transport\n"
+        "Packets sent: %12\n"
+        "Bytes sent: %13\n"
+        "Packets received: %14\n"
+        "Bytes received: %15\n"
+        "Last packet sent: %16\n"
+        "Last packet received: %17")
         .arg(
             roleText,
             transport,
@@ -688,7 +730,17 @@ QString LanSession::diagnosticSummary() const
                 desktopFramesRateLimited_),
             QString::number(
                 desktopFramesReceived_),
-            lastFrameText);
+            lastFrameText,
+            QString::number(
+                voicePacketsSent_),
+            QString::number(
+                voiceBytesSent_),
+            QString::number(
+                voicePacketsReceived_),
+            QString::number(
+                voiceBytesReceived_),
+            lastVoiceSentText,
+            lastVoiceReceivedText);
 }
 
 
@@ -1217,6 +1269,15 @@ void LanSession::sendVoicePacket(
         return;
     }
 
+    ++voicePacketsSent_;
+
+    voiceBytesSent_ +=
+        static_cast<quint64>(
+            packet.size());
+
+    lastVoicePacketSentMs_ =
+        QDateTime::currentMSecsSinceEpoch();
+
     sendMessage(
         MessageType::VoicePacket,
         packet);
@@ -1679,6 +1740,15 @@ void LanSession::processIncomingBytes(
         if (expectedMessageType_ ==
             MessageType::VoicePacket) {
             if (!payload.isEmpty()) {
+                ++voicePacketsReceived_;
+
+                voiceBytesReceived_ +=
+                    static_cast<quint64>(
+                        payload.size());
+
+                lastVoicePacketReceivedMs_ =
+                    QDateTime::currentMSecsSinceEpoch();
+
                 emit voicePacketReceived(
                     payload);
             }

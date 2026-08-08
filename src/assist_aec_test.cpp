@@ -37,6 +37,56 @@ double rms(
             samples.size()));
 }
 
+double toneMagnitude(
+    const std::array<
+        int16_t,
+        AssistAudioProcessor::samplesPerBlock>
+        &samples,
+    double frequency,
+    std::int64_t blockStartSample)
+{
+    double sinSum = 0.0;
+    double cosSum = 0.0;
+
+    for (int i = 0;
+         i <
+             AssistAudioProcessor::
+                 samplesPerBlock;
+         ++i) {
+
+        const std::int64_t absoluteSample =
+            blockStartSample + i;
+
+        const double phase =
+            2.0 *
+            3.14159265358979323846 *
+            frequency *
+            static_cast<double>(
+                absoluteSample) /
+            AssistAudioProcessor::sampleRate;
+
+        const double value =
+            static_cast<double>(
+                samples[i]);
+
+        sinSum +=
+            value *
+            std::sin(phase);
+
+        cosSum +=
+            value *
+            std::cos(phase);
+    }
+
+    return
+        2.0 *
+        std::sqrt(
+            sinSum * sinSum +
+            cosSum * cosSum) /
+        AssistAudioProcessor::
+            samplesPerBlock;
+}
+
 int16_t clampSample(
     double value)
 {
@@ -47,6 +97,24 @@ int16_t clampSample(
 
     return static_cast<int16_t>(
         std::lround(value));
+}
+
+double changeDb(
+    double before,
+    double after)
+{
+    if (
+        before <= 0.0 ||
+        after <= 0.0
+    ) {
+        return 0.0;
+    }
+
+    return
+        20.0 *
+        std::log10(
+            after /
+            before);
 }
 
 }
@@ -92,6 +160,12 @@ int main()
 
     double inputRmsTotal = 0.0;
     double outputRmsTotal = 0.0;
+
+    double inputEchoTotal = 0.0;
+    double outputEchoTotal = 0.0;
+
+    double inputNearTotal = 0.0;
+    double outputNearTotal = 0.0;
 
     constexpr int totalBlocks = 500;
     constexpr int measurementStartBlock = 200;
@@ -193,6 +267,35 @@ int main()
 
             outputRmsTotal +=
                 rms(captureProcessed);
+
+            const std::int64_t blockStartSample =
+                static_cast<std::int64_t>(block) *
+                AssistAudioProcessor::
+                    samplesPerBlock;
+
+            inputEchoTotal +=
+                toneMagnitude(
+                    capture,
+                    440.0,
+                    blockStartSample);
+
+            outputEchoTotal +=
+                toneMagnitude(
+                    captureProcessed,
+                    440.0,
+                    blockStartSample);
+
+            inputNearTotal +=
+                toneMagnitude(
+                    capture,
+                    880.0,
+                    blockStartSample);
+
+            outputNearTotal +=
+                toneMagnitude(
+                    captureProcessed,
+                    880.0,
+                    blockStartSample);
         }
     }
 
@@ -206,6 +309,22 @@ int main()
 
     const double outputAverage =
         outputRmsTotal /
+        measuredBlocks;
+
+    const double inputEchoAverage =
+        inputEchoTotal /
+        measuredBlocks;
+
+    const double outputEchoAverage =
+        outputEchoTotal /
+        measuredBlocks;
+
+    const double inputNearAverage =
+        inputNearTotal /
+        measuredBlocks;
+
+    const double outputNearAverage =
+        outputNearTotal /
         measuredBlocks;
 
     std::cout
@@ -224,7 +343,29 @@ int main()
         << '\n'
         << "Measured output RMS: "
         << outputAverage
-        << '\n';
+        << '\n'
+        << "440 Hz echo input magnitude: "
+        << inputEchoAverage
+        << '\n'
+        << "440 Hz echo output magnitude: "
+        << outputEchoAverage
+        << '\n'
+        << "440 Hz echo change: "
+        << changeDb(
+            inputEchoAverage,
+            outputEchoAverage)
+        << " dB\n"
+        << "880 Hz near-end input magnitude: "
+        << inputNearAverage
+        << '\n'
+        << "880 Hz near-end output magnitude: "
+        << outputNearAverage
+        << '\n'
+        << "880 Hz near-end change: "
+        << changeDb(
+            inputNearAverage,
+            outputNearAverage)
+        << " dB\n";
 
     return 0;
 }

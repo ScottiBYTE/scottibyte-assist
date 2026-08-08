@@ -242,6 +242,7 @@ bool CustomerVoiceAudio::startPacketSender(
             "name=voice-packet-sink "
             "emit-signals=true "
             "sync=false "
+            "async=false "
             "max-buffers=8 "
             "drop=true")
             .arg(source)
@@ -421,6 +422,20 @@ bool CustomerVoiceAudio::startPacketSender(
 
                         return GST_FLOW_ERROR;
                     }
+                    static bool capturePeakReported = false;
+                    if (!capturePeakReported) {
+                        int inputPeak = 0;
+                        int outputPeak = 0;
+                        for (size_t i = 0; i < input.size(); ++i) {
+                            int a = input[i] < 0 ? -static_cast<int>(input[i]) : static_cast<int>(input[i]);
+                            int b = output[i] < 0 ? -static_cast<int>(output[i]) : static_cast<int>(output[i]);
+                            if (a > inputPeak) inputPeak = a;
+                            if (b > outputPeak) outputPeak = b;
+                        }
+                        g_printerr("VOICE DEBUG: capture input peak=%d output peak=%d\n", inputPeak, outputPeak);
+                        capturePeakReported = true;
+                    }
+
 
                     GstBuffer *processedBuffer =
                         gst_buffer_new_allocate(
@@ -682,7 +697,8 @@ bool CustomerVoiceAudio::startPacketReceiver(
             "max-size-time=200000000 "
             "leaky=downstream "
             "! %1 "
-            "sync=true")
+            "sync=false "
+            "async=false")
             .arg(sink);
 
     GError *error = nullptr;
@@ -759,6 +775,16 @@ bool CustomerVoiceAudio::startPacketReceiver(
                 auto *self =
                     static_cast<CustomerVoiceAudio *>(
                         userData);
+
+                static std::once_flag renderReported;
+
+                std::call_once(
+                    renderReported,
+                    []()
+                    {
+                        g_printerr(
+                            "VOICE DEBUG: decoded PCM callback reached\n");
+                    });
 
                 GstSample *sample =
                     gst_app_sink_pull_sample(
@@ -853,7 +879,17 @@ bool CustomerVoiceAudio::startPacketReceiver(
                         return GST_FLOW_ERROR;
                     }
 
-                    GstBuffer *processedBuffer =
+                    static std::once_flag aecRenderReported;
+
+                std::call_once(
+                    aecRenderReported,
+                    []()
+                    {
+                        g_printerr(
+                            "VOICE DEBUG: AEC3 render succeeded\n");
+                    });
+
+                GstBuffer *processedBuffer =
                         gst_buffer_new_allocate(
                             nullptr,
                             pcmBlockBytes,
@@ -866,7 +902,7 @@ bool CustomerVoiceAudio::startPacketReceiver(
                     gst_buffer_fill(
                         processedBuffer,
                         0,
-                        output.data(),
+                        input.data(),
                         pcmBlockBytes);
 
                     GST_BUFFER_PTS(
@@ -894,6 +930,7 @@ bool CustomerVoiceAudio::startPacketReceiver(
                     ) {
                         emit self->errorOccurred(
                             QStringLiteral(
+
                                 "AEC3 render PCM "
                                 "output stopped."));
 
@@ -906,6 +943,12 @@ bool CustomerVoiceAudio::startPacketReceiver(
                     ) {
                         return result;
                     }
+                    static bool outputPushReported = false;
+                    if (!outputPushReported) {
+                        outputPushReported = true;
+                        g_printerr("VOICE DEBUG: render PCM pushed to output\n");
+                    }
+
                 }
 
                 return GST_FLOW_OK;
@@ -938,6 +981,16 @@ void CustomerVoiceAudio::pushVoicePacket(
     ) {
         return;
     }
+
+    static std::once_flag receiveReported;
+
+    std::call_once(
+        receiveReported,
+        []()
+        {
+            g_printerr(
+                "VOICE DEBUG: pushVoicePacket reached\n");
+        });
 
     GstBuffer *buffer =
         gst_buffer_new_allocate(
