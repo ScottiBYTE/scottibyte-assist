@@ -395,6 +395,46 @@ void WindowsDesktopBackend::captureFrame()
     frameWidth_ = frame.width();
     frameHeight_ = frame.height();
 
+    const QRect geometry =
+        screen->geometry();
+
+    POINT cursorPoint{};
+
+    if (GetCursorPos(&cursorPoint) &&
+        geometry.contains(
+            cursorPoint.x,
+            cursorPoint.y) &&
+        geometry.width() > 0 &&
+        geometry.height() > 0) {
+        const int relativeX =
+            cursorPoint.x -
+            geometry.left();
+
+        const int relativeY =
+            cursorPoint.y -
+            geometry.top();
+
+        const int frameX =
+            std::clamp(
+                relativeX *
+                    frameWidth_ /
+                    geometry.width(),
+                0,
+                frameWidth_ - 1);
+
+        const int frameY =
+            std::clamp(
+                relativeY *
+                    frameHeight_ /
+                    geometry.height(),
+                0,
+                frameHeight_ - 1);
+
+        emit cursorPositionChanged(
+            frameX,
+            frameY);
+    }
+
     emit frameReady(frame);
 }
 

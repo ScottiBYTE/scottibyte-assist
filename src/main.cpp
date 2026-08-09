@@ -4638,6 +4638,28 @@ QLabel#remotePlaceholder {
         });
 
     QObject::connect(
+        lanSession,
+        &LanSession::remoteCursorPositionReceived,
+        window,
+        [
+            remoteWindowView,
+            fullScreenRemoteView
+        ](
+            int x,
+            int y)
+        {
+            remoteWindowView->
+                setRemoteCursorPosition(
+                    x,
+                    y);
+
+            fullScreenRemoteView->
+                setRemoteCursorPosition(
+                    x,
+                    y);
+        });
+
+    QObject::connect(
         fullScreenRemoteView,
         &RemoteView::pointerMoveRequested,
         lanSession,

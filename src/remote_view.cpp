@@ -37,6 +37,17 @@ void RemoteView::setFrame(
 void RemoteView::clearFrame()
 {
     frame_ = {};
+    remoteCursorPosition_ = QPoint(-1, -1);
+    update();
+}
+
+void RemoteView::setRemoteCursorPosition(
+    int x,
+    int y)
+{
+    remoteCursorPosition_ =
+        QPoint(x, y);
+
     update();
 }
 
@@ -146,9 +157,50 @@ void RemoteView::paintEvent(
         QPainter::SmoothPixmapTransform,
         true);
 
+    const QRect target =
+        imageRect();
+
     painter.drawImage(
-        imageRect(),
+        target,
         frame_);
+
+    if (remoteCursorPosition_.x() >= 0 &&
+        remoteCursorPosition_.y() >= 0 &&
+        frame_.width() > 0 &&
+        frame_.height() > 0) {
+        const int cursorX =
+            target.left() +
+            remoteCursorPosition_.x() *
+                target.width() /
+                frame_.width();
+
+        const int cursorY =
+            target.top() +
+            remoteCursorPosition_.y() *
+                target.height() /
+                frame_.height();
+
+        const QPoint tip(
+            cursorX,
+            cursorY);
+
+        QPolygon arrow;
+        arrow
+            << tip
+            << QPoint(cursorX + 5, cursorY + 18)
+            << QPoint(cursorX + 9, cursorY + 12)
+            << QPoint(cursorX + 15, cursorY + 18)
+            << QPoint(cursorX + 18, cursorY + 15)
+            << QPoint(cursorX + 12, cursorY + 9)
+            << QPoint(cursorX + 18, cursorY + 5);
+
+        painter.setPen(
+            QPen(Qt::black, 3));
+        painter.setBrush(
+            Qt::white);
+        painter.drawPolygon(
+            arrow);
+    }
 }
 
 void RemoteView::mouseMoveEvent(

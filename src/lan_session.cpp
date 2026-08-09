@@ -266,6 +266,12 @@ void LanSession::setDesktopBackend(
 
     connect(
         desktopBackend_,
+        &DesktopBackend::cursorPositionChanged,
+        this,
+        &LanSession::sendRemoteCursorPosition);
+
+    connect(
+        desktopBackend_,
         &DesktopBackend::statusChanged,
         this,
         &LanSession::statusChanged);
@@ -1380,6 +1386,19 @@ void LanSession::sendPointerMove(
         pointPayload(x, y));
 }
 
+void LanSession::sendRemoteCursorPosition(
+    int x,
+    int y)
+{
+    if (role_ != Role::Customer) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::RemoteCursorPosition,
+        pointPayload(x, y));
+}
+
 void LanSession::sendLeftClick(
     int x,
     int y)
@@ -1839,6 +1858,23 @@ void LanSession::processIncomingBytes(
 
                 emit voicePacketReceived(
                     payload);
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::RemoteCursorPosition) {
+            int x = 0;
+            int y = 0;
+
+            if (decodePoint(
+                    payload,
+                    x,
+                    y)) {
+                emit remoteCursorPositionReceived(
+                    x,
+                    y);
             }
 
             continue;

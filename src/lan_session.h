@@ -85,6 +85,10 @@ public:
         int x,
         int y);
 
+    void sendRemoteCursorPosition(
+        int x,
+        int y);
+
     void sendLeftClick(
         int x,
         int y);
@@ -119,6 +123,10 @@ signals:
 
     void frameReceived(
         const QImage &image);
+
+    void remoteCursorPositionReceived(
+        int x,
+        int y);
 
     void providerFrameReceived(
         const QImage &image);
@@ -180,7 +188,8 @@ private:
         FrameAcknowledged = 20,
         ProviderFrameAcknowledged = 21,
         Vp8Frame = 22,
-        ProviderVp8Frame = 23
+        ProviderVp8Frame = 23,
+        RemoteCursorPosition = 24
     };
 
     void startAdvertising();

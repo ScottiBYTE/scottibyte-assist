@@ -19,6 +19,10 @@ public slots:
 
     void clearFrame();
 
+    void setRemoteCursorPosition(
+        int x,
+        int y);
+
 signals:
     void pointerMoveRequested(
         int x,
@@ -72,4 +76,5 @@ private:
         const QPoint &widgetPosition) const;
 
     QImage frame_;
+    QPoint remoteCursorPosition_{-1, -1};
 };
