@@ -8,6 +8,9 @@
 #include <QHostAddress>
 #include <QNetworkDatagram>
 #include <QNetworkInterface>
+#include <QMetaObject>
+#include <QPointer>
+#include <QThreadPool>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
@@ -1103,9 +1106,9 @@ void LanSession::sendDesktopFrame(
         return;
     }
 
-    QByteArray encoded;
-
     if (relayActive_) {
+        QByteArray encoded;
+
         if (
             vp8VideoCodec_ == nullptr ||
             !vp8VideoCodec_->encodeFrame(
@@ -1123,49 +1126,106 @@ void LanSession::sendDesktopFrame(
 
             return;
         }
-    } else {
-        QBuffer buffer(&encoded);
-        buffer.open(QIODevice::WriteOnly);
 
-        if (
-            !sourceImage.save(
-                &buffer,
-                "JPG",
-                directJpegQuality_)
-        ) {
-            return;
-        }
+        sendMessage(
+            messageType,
+            encoded);
+
+        lastDesktopFrameSubmittedMs_ =
+            nowMs;
+
+        ++desktopFramesSent_;
+        return;
     }
 
-    sendMessage(
-        messageType,
-        encoded);
+    bool expected = false;
 
-    /*
-     * VP8 relay frames are intentionally not
-     * stop-and-wait acknowledged. Their encoded
-     * size is small enough for the existing bounded
-     * WebSocket queue, and waiting for a round trip
-     * would recreate the visible latency of the
-     * JPEG fallback.
-     */
     if (
-        relayActive_ &&
-        (
-            messageType ==
-                MessageType::Frame ||
-            messageType ==
-                MessageType::ProviderFrame
-        )
+        !desktopEncodeInFlight_
+             .compare_exchange_strong(
+                 expected,
+                 true)
     ) {
-        waitingForRelayFrameAcknowledgement_ =
-            true;
+        ++desktopFramesDropped_;
+        return;
     }
 
-    lastDesktopFrameSubmittedMs_ =
-        nowMs;
+    const QImage image = sourceImage;
+    const QPointer<LanSession> self(this);
 
-    ++desktopFramesSent_;
+    QThreadPool::globalInstance()->start(
+        [
+            self,
+            image,
+            messageType
+        ]()
+        {
+            QByteArray encoded;
+            QBuffer buffer(&encoded);
+
+            buffer.open(
+                QIODevice::WriteOnly);
+
+            const bool encodedOk =
+                image.save(
+                    &buffer,
+                    "JPG",
+                    directJpegQuality_);
+
+            if (!self) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(
+                self,
+                [
+                    self,
+                    encoded = std::move(encoded),
+                    messageType,
+                    encodedOk
+                ]()
+                mutable
+                {
+                    if (!self) {
+                        return;
+                    }
+
+                    self->
+                        desktopEncodeInFlight_
+                            .store(false);
+
+                    if (
+                        !encodedOk ||
+                        !self->isConnected()
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        self->socket_ != nullptr &&
+                        self->socket_->
+                                bytesToWrite() >
+                            directFrameBacklogLimit_
+                    ) {
+                        ++self->
+                            desktopFramesDropped_;
+                        return;
+                    }
+
+                    self->sendMessage(
+                        messageType,
+                        encoded);
+
+                    self->
+                        lastDesktopFrameSubmittedMs_ =
+                            QDateTime::
+                                currentMSecsSinceEpoch();
+
+                    ++self->
+                        desktopFramesSent_;
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void LanSession::notifyProviderScreenClosed()
@@ -1278,8 +1338,36 @@ void LanSession::sendVoicePacket(
     lastVoicePacketSentMs_ =
         QDateTime::currentMSecsSinceEpoch();
 
+    if (relayActive_) {
+        return;
+    }
+
     sendMessage(
         MessageType::VoicePacket,
+        packet);
+}
+
+void LanSession::receiveVoiceRelayPacket(
+    const QByteArray &packet)
+{
+    if (
+        !relayActive_ ||
+        packet.isEmpty() ||
+        packet.size() > 64 * 1024
+    ) {
+        return;
+    }
+
+    ++voicePacketsReceived_;
+
+    voiceBytesReceived_ +=
+        static_cast<quint64>(
+            packet.size());
+
+    lastVoicePacketReceivedMs_ =
+        QDateTime::currentMSecsSinceEpoch();
+
+    emit voicePacketReceived(
         packet);
 }
 

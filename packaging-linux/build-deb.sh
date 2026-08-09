@@ -57,6 +57,10 @@ mkdir -p \
 cp "$control" \
   "$stage/DEBIAN/control"
 
+sed -i \
+  "s/^Version: .*/Version: $version/" \
+  "$stage/DEBIAN/control"
+
 cp "$binary" \
   "$stage/usr/bin/scottibyte-assist"
 

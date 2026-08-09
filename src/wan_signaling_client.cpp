@@ -294,6 +294,270 @@ WanSignalingClient::WanSignalingClient(
         });
 }
 
+
+void WanSignalingClient::startVoiceRelay()
+{
+    if (
+        state_ != State::Subscribed ||
+        !relayReady_ ||
+        webSocketUrl_.isEmpty()
+    ) {
+        return;
+    }
+
+    if (voiceSocket_ != nullptr) {
+        voiceSocket_->abort();
+        voiceSocket_->deleteLater();
+        voiceSocket_ = nullptr;
+    }
+
+    voiceRelayReady_ = false;
+
+    voiceSocket_ =
+        new QWebSocket(
+            QString(),
+            QWebSocketProtocol::VersionLatest,
+            this);
+
+    connect(
+        voiceSocket_,
+        &QWebSocket::connected,
+        this,
+        [this]()
+        {
+            if (role_ == Role::Supporter) {
+                QJsonObject fields;
+
+                fields.insert(
+                    QStringLiteral("token"),
+                    supporterToken_);
+
+                sendVoiceJson(
+                    QStringLiteral(
+                        "auth.supporter"),
+                    fields);
+
+                return;
+            }
+
+            QJsonObject fields;
+
+            fields.insert(
+                QStringLiteral("code"),
+                code_);
+
+            fields.insert(
+                QStringLiteral("role"),
+                QStringLiteral("customer"));
+
+            if (!deviceId_.isEmpty()) {
+                fields.insert(
+                    QStringLiteral("deviceId"),
+                    deviceId_);
+            }
+
+            fields.insert(
+                QStringLiteral("customerToken"),
+                customerToken_);
+
+            sendVoiceJson(
+                QStringLiteral(
+                    "session.subscribe"),
+                fields);
+        });
+
+    connect(
+        voiceSocket_,
+        &QWebSocket::textMessageReceived,
+        this,
+        &WanSignalingClient::
+            processVoiceTextMessage);
+
+    connect(
+        voiceSocket_,
+        &QWebSocket::binaryMessageReceived,
+        this,
+        [this](
+            const QByteArray &packet)
+        {
+            if (
+                !voiceRelayReady_ ||
+                packet.isEmpty()
+            ) {
+                return;
+            }
+
+            emit voiceRelayPacketReceived(
+                packet);
+        });
+
+    connect(
+        voiceSocket_,
+        &QWebSocket::disconnected,
+        this,
+        [this]()
+        {
+            voiceRelayReady_ = false;
+        });
+
+    voiceSocket_->open(
+        webSocketUrl_);
+}
+
+void WanSignalingClient::processVoiceTextMessage(
+    const QString &message)
+{
+    QJsonParseError error;
+
+    const QJsonDocument document =
+        QJsonDocument::fromJson(
+            message.toUtf8(),
+            &error);
+
+    if (
+        error.error !=
+            QJsonParseError::NoError ||
+        !document.isObject()
+    ) {
+        return;
+    }
+
+    const QJsonObject object =
+        document.object();
+
+    const QString type =
+        object.value(
+            QStringLiteral("type"))
+            .toString();
+
+    if (
+        type ==
+        QStringLiteral(
+            "auth.supporter.accepted")
+    ) {
+        QJsonObject fields;
+
+        fields.insert(
+            QStringLiteral("code"),
+            code_);
+
+        fields.insert(
+            QStringLiteral("role"),
+            QStringLiteral("supporter"));
+
+        if (!deviceId_.isEmpty()) {
+            fields.insert(
+                QStringLiteral("deviceId"),
+                deviceId_);
+        }
+
+        sendVoiceJson(
+            QStringLiteral(
+                "session.subscribe"),
+            fields);
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
+            "session.subscribed")
+    ) {
+        QJsonObject fields;
+
+        fields.insert(
+            QStringLiteral("channel"),
+            QStringLiteral("voice"));
+
+        sendVoiceJson(
+            QStringLiteral(
+                "session.relay.start"),
+            fields);
+
+        return;
+    }
+
+    if (
+        type ==
+            QStringLiteral(
+                "session.relay.accepted") ||
+        type ==
+            QStringLiteral(
+                "session.relay.ready")
+    ) {
+        if (
+            type ==
+                QStringLiteral(
+                    "session.relay.ready") ||
+            object.value(
+                QStringLiteral("ready"))
+                .toBool()
+        ) {
+            voiceRelayReady_ = true;
+        }
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
+            "session.relay.peer_disconnected")
+    ) {
+        voiceRelayReady_ = false;
+    }
+}
+
+void WanSignalingClient::sendVoiceJson(
+    const QString &type,
+    const QJsonObject &additionalFields)
+{
+    if (
+        voiceSocket_ == nullptr ||
+        voiceSocket_->state() !=
+            QAbstractSocket::ConnectedState
+    ) {
+        return;
+    }
+
+    QJsonObject object =
+        additionalFields;
+
+    object.insert(
+        QStringLiteral("type"),
+        type);
+
+    object.insert(
+        QStringLiteral("requestId"),
+        QString::number(
+            nextRequestId_++));
+
+    voiceSocket_->sendTextMessage(
+        QString::fromUtf8(
+            QJsonDocument(object)
+                .toJson(
+                    QJsonDocument::Compact)));
+}
+
+void WanSignalingClient::sendVoiceRelayPacket(
+    const QByteArray &packet)
+{
+    if (
+        !voiceRelayReady_ ||
+        voiceSocket_ == nullptr ||
+        voiceSocket_->state() !=
+            QAbstractSocket::ConnectedState ||
+        packet.isEmpty() ||
+        packet.size() > 64 * 1024
+    ) {
+        return;
+    }
+
+    voiceSocket_->sendBinaryMessage(
+        packet);
+}
+
 WanSignalingClient::~WanSignalingClient()
 {
     disconnectFromServer();
@@ -1048,6 +1312,13 @@ void WanSignalingClient::handleUnexpectedDisconnect(
 
     state_ = State::Idle;
     relayReady_ = false;
+    voiceRelayReady_ = false;
+
+    if (voiceSocket_ != nullptr) {
+        voiceSocket_->abort();
+        voiceSocket_->deleteLater();
+        voiceSocket_ = nullptr;
+    }
 
     stopRelayHeartbeat();
 
@@ -1106,6 +1377,13 @@ void WanSignalingClient::disconnectFromServer()
     supporterToken_.clear();
     deviceId_.clear();
     relayReady_ = false;
+    voiceRelayReady_ = false;
+
+    if (voiceSocket_ != nullptr) {
+        voiceSocket_->abort();
+        voiceSocket_->deleteLater();
+        voiceSocket_ = nullptr;
+    }
 
     stopRelayHeartbeat();
 
@@ -1126,6 +1404,42 @@ bool WanSignalingClient::isSubscribed() const
 QString WanSignalingClient::sessionCode() const
 {
     return code_;
+}
+
+QUrl WanSignalingClient::webSocketUrl() const
+{
+    return webSocketUrl_;
+}
+
+QString WanSignalingClient::deviceId() const
+{
+    return deviceId_;
+}
+
+QString WanSignalingClient::voiceRole() const
+{
+    if (role_ == Role::Supporter) {
+        return QStringLiteral("supporter");
+    }
+
+    if (role_ == Role::Customer) {
+        return QStringLiteral("customer");
+    }
+
+    return {};
+}
+
+QString WanSignalingClient::voiceToken() const
+{
+    if (role_ == Role::Supporter) {
+        return supporterToken_;
+    }
+
+    if (role_ == Role::Customer) {
+        return customerToken_;
+    }
+
+    return {};
 }
 
 QString WanSignalingClient::diagnosticSummary(

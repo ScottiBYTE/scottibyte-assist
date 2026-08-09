@@ -45,11 +45,21 @@ public:
     void sendRelayBytes(
         const QByteArray &bytes);
 
+    void startVoiceRelay();
+
+    void sendVoiceRelayPacket(
+        const QByteArray &packet);
+
     void disconnectFromServer();
 
     bool isSubscribed() const;
 
     QString sessionCode() const;
+
+    QUrl webSocketUrl() const;
+    QString deviceId() const;
+    QString voiceRole() const;
+    QString voiceToken() const;
 
     QString diagnosticSummary(
         const QString &label) const;
@@ -75,6 +85,9 @@ signals:
 
     void relayBytesReceived(
         const QByteArray &bytes);
+
+    void voiceRelayPacketReceived(
+        const QByteArray &packet);
 
     void relayBytesQueuedChanged(
         qint64 bytes);
@@ -124,6 +137,13 @@ private:
         const QString &type,
         const QJsonObject &additionalFields = {});
 
+    void sendVoiceJson(
+        const QString &type,
+        const QJsonObject &additionalFields = {});
+
+    void processVoiceTextMessage(
+        const QString &message);
+
     void startRelayHeartbeat();
     void stopRelayHeartbeat();
     void handleUnexpectedDisconnect(
@@ -134,6 +154,7 @@ private:
 
     QNetworkAccessManager *network_ = nullptr;
     QWebSocket *socket_ = nullptr;
+    QWebSocket *voiceSocket_ = nullptr;
 
     QTimer *relayHeartbeatTimer_ = nullptr;
     QTimer *relayPongDeadlineTimer_ = nullptr;
@@ -150,6 +171,7 @@ private:
     QString deviceId_;
 
     bool relayReady_ = false;
+    bool voiceRelayReady_ = false;
 
     int serverClientId_ = -1;
 

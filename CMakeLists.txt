@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   scottibyte-assist
-  VERSION 0.3.0
+  VERSION 0.3.5
   LANGUAGES CXX
 )
 
@@ -137,6 +137,8 @@ qt_add_executable(
   scottibyte-assist
   ${ASSIST_COMMON_SOURCES}
   ${ASSIST_PLATFORM_SOURCES}
+  src/wan_voice_relay.cpp
+  src/wan_voice_relay.h
 )
 
 target_link_libraries(

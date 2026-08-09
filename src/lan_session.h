@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 
 #include <QByteArray>
 #include <QImage>
@@ -77,6 +78,9 @@ public:
     void sendVoicePacket(
         const QByteArray &packet);
 
+    void receiveVoiceRelayPacket(
+        const QByteArray &packet);
+
     void sendPointerMove(
         int x,
         int y);
@@ -130,6 +134,9 @@ signals:
     void voiceStopRequested();
 
     void voicePacketReceived(
+        const QByteArray &packet);
+
+    void voiceRelayPacketReady(
         const QByteArray &packet);
 
     void clipboardTextReceived(
@@ -226,6 +233,8 @@ private:
     quint64 desktopFramesDropped_ = 0;
     quint64 desktopFramesRateLimited_ = 0;
     quint64 desktopFramesReceived_ = 0;
+
+    std::atomic_bool desktopEncodeInFlight_{false};
 
     quint64 voicePacketsSent_ = 0;
     quint64 voiceBytesSent_ = 0;
