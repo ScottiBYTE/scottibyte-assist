@@ -608,76 +608,7 @@ export function verifyAuditChain(
 }
 
 export function expireOldSessions() {
-  const now = new Date().toISOString();
-
-  database.exec('BEGIN IMMEDIATE;');
-
-  try {
-    const sessionsToExpire =
-      database.prepare(`
-        SELECT
-          id,
-          status,
-          expires_at
-        FROM sessions
-        WHERE status IN (
-          'WAITING',
-          'SUPPORTER_JOINED'
-        )
-          AND expires_at <= ?
-        ORDER BY expires_at ASC
-      `).all(now);
-
-    const updateSession =
-      database.prepare(`
-        UPDATE sessions
-        SET
-          status = 'EXPIRED',
-          customer_token_hash = NULL,
-          ended_at = ?
-        WHERE id = ?
-          AND status = ?
-      `);
-
-    for (
-      const session of
-      sessionsToExpire
-    ) {
-      const result =
-        updateSession.run(
-          now,
-          session.id,
-          session.status
-        );
-
-      if (result.changes !== 1) {
-        throw new Error(
-          `Unable to expire session: ${session.id}`
-        );
-      }
-
-      appendAuditEventInTransaction({
-        sessionId: session.id,
-        eventType: 'session.expired',
-        actorRole: 'server',
-        actorId: 'assist-server',
-        metadata: {
-          expiredAt: now,
-          expiresAt:
-            session.expires_at,
-          previousStatus:
-            session.status
-        }
-      });
-    }
-
-    database.exec('COMMIT;');
-
-    return sessionsToExpire.length;
-  } catch (error) {
-    database.exec('ROLLBACK;');
-    throw error;
-  }
+  return 0;
 }
 
 export function normalizeSession(session) {

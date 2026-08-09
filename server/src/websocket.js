@@ -458,6 +458,8 @@ function relayPeers(
       peer.role === recipientRole &&
       peer.authenticated &&
       peer.relayReady &&
+      peer.relayChannel ===
+        client.relayChannel &&
       peer.socket.readyState ===
         WebSocket.OPEN
   );
@@ -526,6 +528,27 @@ function handleRelayStart(
       message.requestId
     );
   }
+
+  const requestedChannel =
+    typeof message.channel === 'string'
+      ? message.channel.trim().toLowerCase()
+      : 'main';
+
+  if (
+    requestedChannel !== 'main' &&
+    requestedChannel !== 'voice'
+  ) {
+    return sendError(
+      client.socket,
+      'invalid_relay_channel',
+      'The requested relay channel is not supported.',
+      message.requestId
+    );
+  }
+
+  client.relayChannel =
+    requestedChannel;
+  console.log("Relay channel selected", { clientId: client.id, role: client.role, sessionCode: client.sessionCode, deviceId: client.deviceId, channel: client.relayChannel });
 
   client.relayReady = true;
 
@@ -773,6 +796,7 @@ export function createWebSocketServer(
         sessionCode: null,
         deviceId: null,
         relayReady: false,
+        relayChannel: 'main',
         alive: true,
         lastActivityAt: Date.now(),
         remoteAddress:
