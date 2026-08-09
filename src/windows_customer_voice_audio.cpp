@@ -1,5 +1,7 @@
 #include "customer_voice_audio.h"
 
+#include <atomic>
+
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
@@ -13,6 +15,9 @@ namespace
 
 std::once_flag initializationFlag;
 bool gstreamerInitialized = false;
+
+std::atomic<std::uint64_t> voicePacketsReceived{0};
+std::atomic<std::uint64_t> decodedPcmBuffers{0};
 
 QString errorText(
     GError *error)
@@ -524,6 +529,14 @@ bool CustomerVoiceAudio::startPacketReceiver(
 {
     stopReceiver();
 
+    voicePacketsReceived.store(
+        0,
+        std::memory_order_relaxed);
+
+    decodedPcmBuffers.store(
+        0,
+        std::memory_order_relaxed);
+
     if (!initializeGStreamer()) {
         emit errorOccurred(
             QStringLiteral(
@@ -592,28 +605,28 @@ bool CustomerVoiceAudio::startPacketReceiver(
             "rate=48000,"
             "channels=1,"
             "layout=interleaved "
+            "! tee name=voice-render-tee "
+
+            "voice-render-tee. "
+            "! queue "
+            "max-size-time=200000000 "
+            "leaky=downstream "
+            "! audioconvert "
+            "! audioresample "
+            "! %1 "
+            "sync=false "
+            "async=false "
+
+            "voice-render-tee. "
+            "! queue "
+            "max-size-buffers=8 "
+            "leaky=downstream "
             "! appsink "
             "name=voice-render-pcm-sink "
             "emit-signals=true "
             "sync=false "
             "max-buffers=8 "
-            "drop=false "
-            "appsrc "
-            "name=voice-render-pcm-source "
-            "is-live=true "
-            "format=time "
-            "do-timestamp=false "
-            "block=false "
-            "caps=\"audio/x-raw,"
-            "format=S16LE,"
-            "rate=48000,"
-            "channels=1,"
-            "layout=interleaved\" "
-            "! queue "
-            "max-size-time=200000000 "
-            "leaky=downstream "
-            "! %1 "
-            "sync=false async=false")
+            "drop=true")
             .arg(sink);
 
     GError *error = nullptr;
@@ -654,15 +667,11 @@ bool CustomerVoiceAudio::startPacketReceiver(
             GST_BIN(receiverPipeline_),
             "voice-render-pcm-sink");
 
-    renderPcmAppSource_ =
-        gst_bin_get_by_name(
-            GST_BIN(receiverPipeline_),
-            "voice-render-pcm-source");
+
 
     if (
         receiverAppSource_ == nullptr ||
-        renderSink == nullptr ||
-        renderPcmAppSource_ == nullptr
+        renderSink == nullptr
     ) {
         if (renderSink != nullptr) {
             gst_object_unref(renderSink);
@@ -698,6 +707,10 @@ bool CustomerVoiceAudio::startPacketReceiver(
                 if (sample == nullptr) {
                     return GST_FLOW_EOS;
                 }
+
+                decodedPcmBuffers.fetch_add(
+                    1,
+                    std::memory_order_relaxed);
 
                 GstBuffer *buffer =
                     gst_sample_get_buffer(
@@ -784,59 +797,6 @@ bool CustomerVoiceAudio::startPacketReceiver(
                         return GST_FLOW_ERROR;
                     }
 
-                    GstBuffer *processedBuffer =
-                        gst_buffer_new_allocate(
-                            nullptr,
-                            pcmBlockBytes,
-                            nullptr);
-
-                    if (processedBuffer == nullptr) {
-                        return GST_FLOW_ERROR;
-                    }
-
-                    gst_buffer_fill(
-                        processedBuffer,
-                        0,
-                        input.data(),
-                        pcmBlockBytes);
-
-                    GST_BUFFER_PTS(
-                        processedBuffer) =
-                            self->
-                                renderPcmTimestampNs_;
-
-                    GST_BUFFER_DURATION(
-                        processedBuffer) =
-                            10 * GST_MSECOND;
-
-                    self->renderPcmTimestampNs_ +=
-                        10 * GST_MSECOND;
-
-                    const GstFlowReturn result =
-                        gst_app_src_push_buffer(
-                            GST_APP_SRC(
-                                self->
-                                    renderPcmAppSource_),
-                            processedBuffer);
-
-                    if (
-                        result != GST_FLOW_OK &&
-                        result != GST_FLOW_FLUSHING
-                    ) {
-                        emit self->errorOccurred(
-                            QStringLiteral(
-                                "AEC3 render PCM "
-                                "output stopped."));
-
-                        return result;
-                    }
-
-                    if (
-                        result ==
-                        GST_FLOW_FLUSHING
-                    ) {
-                        return result;
-                    }
                 }
 
                 return GST_FLOW_OK;
@@ -870,6 +830,10 @@ void CustomerVoiceAudio::pushVoicePacket(
     ) {
         return;
     }
+
+    voicePacketsReceived.fetch_add(
+        1,
+        std::memory_order_relaxed);
 
     GstBuffer *buffer =
         gst_buffer_new_allocate(
@@ -1239,6 +1203,22 @@ bool CustomerVoiceAudio::isRunning() const
     return
         senderPipeline_ != nullptr ||
         receiverPipeline_ != nullptr;
+}
+
+QString CustomerVoiceAudio::diagnosticSummary()
+{
+    return QStringLiteral(
+        "Voice diagnostics\n"
+        "Packets delivered to audio receiver: %1\n"
+        "Decoded PCM buffers produced: %2")
+        .arg(
+            static_cast<qulonglong>(
+                voicePacketsReceived.load(
+                    std::memory_order_relaxed)))
+        .arg(
+            static_cast<qulonglong>(
+                decodedPcmBuffers.load(
+                    std::memory_order_relaxed)));
 }
 
 bool CustomerVoiceAudio::isMuted() const

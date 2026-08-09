@@ -122,7 +122,7 @@ bool Vp8VideoCodec::ensureEncoder(
             "deadline=1 "
             "cpu-used=8 "
             "threads=4 "
-            "target-bitrate=2000000 "
+            "target-bitrate=6000000 "
             "keyframe-max-dist=30 "
             "error-resilient=partitions "
             "! appsink name=assist_sink "

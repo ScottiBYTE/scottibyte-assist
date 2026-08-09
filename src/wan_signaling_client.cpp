@@ -1128,6 +1128,42 @@ QString WanSignalingClient::sessionCode() const
     return code_;
 }
 
+QUrl WanSignalingClient::webSocketUrl() const
+{
+    return webSocketUrl_;
+}
+
+QString WanSignalingClient::deviceId() const
+{
+    return deviceId_;
+}
+
+QString WanSignalingClient::voiceRole() const
+{
+    if (role_ == Role::Supporter) {
+        return QStringLiteral("supporter");
+    }
+
+    if (role_ == Role::Customer) {
+        return QStringLiteral("customer");
+    }
+
+    return {};
+}
+
+QString WanSignalingClient::voiceToken() const
+{
+    if (role_ == Role::Supporter) {
+        return supporterToken_;
+    }
+
+    if (role_ == Role::Customer) {
+        return customerToken_;
+    }
+
+    return {};
+}
+
 QString WanSignalingClient::diagnosticSummary(
     const QString &label) const
 {

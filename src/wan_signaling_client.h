@@ -51,6 +51,11 @@ public:
 
     QString sessionCode() const;
 
+    QUrl webSocketUrl() const;
+    QString deviceId() const;
+    QString voiceRole() const;
+    QString voiceToken() const;
+
     QString diagnosticSummary(
         const QString &label) const;
 

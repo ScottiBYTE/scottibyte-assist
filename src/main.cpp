@@ -4,6 +4,7 @@
 #include "lan_session.h"
 #include "remote_view.h"
 #include "wan_signaling_client.h"
+#include "wan_voice_relay.h"
 #include <QScrollArea>
 
 #if defined(Q_OS_WIN)
@@ -1055,7 +1056,13 @@ QDialog#sessionDetailsDialog QPushButton:hover {
                     "----------------------------------------"
                     "\n\n") +
                 lanSession->
-                    diagnosticSummary();
+                diagnosticSummary() +
+            QStringLiteral(
+                "\n\n"
+                "----------------------------------------"
+                "\n\n") +
+            CustomerVoiceAudio::
+                diagnosticSummary();
         };
 
     const auto refreshCurrent =
@@ -2920,6 +2927,48 @@ QLabel#remotePlaceholder {
         },
         Qt::DirectConnection);
 
+    auto *voiceTransportThread =
+        new QThread(window);
+
+    voiceTransportThread->setObjectName(
+        QStringLiteral(
+            "ScottiBYTE Assist Voice Transport"));
+
+    auto *voiceRelay =
+        new WanVoiceRelay();
+
+    voiceRelay->moveToThread(
+        voiceTransportThread);
+
+    QObject::connect(
+        voiceTransportThread,
+        &QThread::finished,
+        voiceRelay,
+        &QObject::deleteLater);
+
+    voiceTransportThread->start(
+        QThread::HighPriority);
+
+    QObject::connect(
+        QCoreApplication::instance(),
+        &QCoreApplication::aboutToQuit,
+        window,
+        [
+            voiceRelay,
+            voiceTransportThread
+        ]()
+        {
+            QMetaObject::invokeMethod(
+                voiceRelay,
+                &WanVoiceRelay::
+                    disconnectFromServer,
+                Qt::BlockingQueuedConnection);
+
+            voiceTransportThread->quit();
+            voiceTransportThread->wait();
+        },
+        Qt::DirectConnection);
+
     providerScreenDismissFilter->
         setUserDismissedCallback(
             [lanSession]()
@@ -3656,6 +3705,59 @@ QLabel#remotePlaceholder {
             }
         });
 
+    const auto connectVoiceRelay =
+        [
+            voiceRelay
+        ](
+            WanSignalingClient *signaling)
+        {
+            QMetaObject::invokeMethod(
+                voiceRelay,
+                "connectForSession",
+                Qt::QueuedConnection,
+                Q_ARG(
+                    QUrl,
+                    signaling->webSocketUrl()),
+                Q_ARG(
+                    QString,
+                    signaling->sessionCode()),
+                Q_ARG(
+                    QString,
+                    signaling->voiceRole()),
+                Q_ARG(
+                    QString,
+                    signaling->voiceToken()),
+                Q_ARG(
+                    QString,
+                    signaling->deviceId()));
+        };
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::relayReady,
+        window,
+        [
+            customerSignaling,
+            connectVoiceRelay
+        ]()
+        {
+            connectVoiceRelay(
+                customerSignaling);
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::relayReady,
+        window,
+        [
+            providerSignaling,
+            connectVoiceRelay
+        ]()
+        {
+            connectVoiceRelay(
+                providerSignaling);
+        });
+
     QObject::connect(
         customerSignaling,
         &WanSignalingClient::disconnected,
@@ -3836,6 +3938,23 @@ QLabel#remotePlaceholder {
             providerStopVoiceButton->setEnabled(false);
             providerMuteButton->setEnabled(false);
         });
+
+    QObject::connect(
+        customerVoiceAudio,
+        &CustomerVoiceAudio::
+            voicePacketReady,
+        voiceRelay,
+        &WanVoiceRelay::sendVoicePacket,
+        Qt::QueuedConnection);
+
+    QObject::connect(
+        voiceRelay,
+        &WanVoiceRelay::
+            voicePacketReceived,
+        customerVoiceAudio,
+        &CustomerVoiceAudio::
+            pushVoicePacket,
+        Qt::QueuedConnection);
 
     QObject::connect(
         customerVoiceAudio,

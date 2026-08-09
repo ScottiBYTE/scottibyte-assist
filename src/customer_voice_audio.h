@@ -49,6 +49,8 @@ public:
     bool isRunning() const;
     bool isMuted() const;
 
+    static QString diagnosticSummary();
+
 signals:
     void statusChanged(
         const QString &status);

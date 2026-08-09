@@ -1217,6 +1217,10 @@ void LanSession::sendVoicePacket(
         return;
     }
 
+    if (relayActive_) {
+        return;
+    }
+
     sendMessage(
         MessageType::VoicePacket,
         packet);
