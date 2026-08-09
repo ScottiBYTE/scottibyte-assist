@@ -1,5 +1,5 @@
 #define MyAppName "ScottiBYTE Assist"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.3.1"
 #define MyAppPublisher "ScottiBYTE"
 #define MyAppExeName "scottibyte-assist.exe"
 
@@ -8,18 +8,29 @@ AppId={{B54E1178-2B50-4C55-90B1-5D291F76F665}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+
 DefaultDirName={localappdata}\Programs\ScottiBYTE Assist
+DisableDirPage=no
+
 DefaultGroupName=ScottiBYTE Assist
 DisableProgramGroupPage=yes
+
 PrivilegesRequired=lowest
+
+SetupIconFile=..\assets\scottibyte-assist.ico
+WizardSmallImageFile=C:\Users\scott\scottibyte-assist\assets\scottibyte-assist.png
+UninstallDisplayIcon={app}\{#MyAppExeName}
+
 OutputDir=output
 OutputBaseFilename=ScottiBYTE-Assist-Setup-{#MyAppVersion}
+
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\{#MyAppExeName}
+
 CloseApplications=yes
 RestartApplications=no
 

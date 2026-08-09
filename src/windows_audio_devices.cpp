@@ -1,122 +1,121 @@
 #include "audio_devices.h"
 
-#include <gst/gst.h>
-
 #include <algorithm>
-#include <mutex>
+
+#include <windows.h>
+#include <mmdeviceapi.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propvarutil.h>
+
+#include <QString>
 
 namespace
 {
 
-std::once_flag initializationFlag;
-bool gstreamerInitialized = false;
-
-bool initializeGStreamer()
+QString wideToQString(
+    const wchar_t *value)
 {
-    std::call_once(
-        initializationFlag,
-        []()
-        {
-            GError *error = nullptr;
+    if (value == nullptr) {
+        return QString();
+    }
 
-            gstreamerInitialized =
-                gst_init_check(
-                    nullptr,
-                    nullptr,
-                    &error);
-
-            if (error != nullptr) {
-                g_error_free(error);
-            }
-        });
-
-    return gstreamerInitialized;
+    return QString::fromWCharArray(value);
 }
 
 void appendDevices(
     QList<AudioDevice> &destination,
-    const char *deviceClass)
+    IMMDeviceEnumerator *enumerator,
+    EDataFlow dataFlow)
 {
-    GstDeviceMonitor *monitor =
-        gst_device_monitor_new();
+    IMMDeviceCollection *collection = nullptr;
 
-    if (monitor == nullptr) {
+    const HRESULT collectionResult =
+        enumerator->EnumAudioEndpoints(
+            dataFlow,
+            DEVICE_STATE_ACTIVE,
+            &collection);
+
+    if (
+        FAILED(collectionResult) ||
+        collection == nullptr
+    ) {
         return;
     }
 
-    gst_device_monitor_add_filter(
-        monitor,
-        deviceClass,
-        nullptr);
+    UINT count = 0;
 
-    if (!gst_device_monitor_start(
-            monitor)) {
-        gst_object_unref(monitor);
+    if (FAILED(collection->GetCount(&count))) {
+        collection->Release();
         return;
     }
 
-    GList *devices =
-        gst_device_monitor_get_devices(
-            monitor);
+    for (UINT index = 0; index < count; ++index) {
+        IMMDevice *device = nullptr;
 
-    for (
-        GList *entry = devices;
-        entry != nullptr;
-        entry = entry->next) {
-        auto *device =
-            GST_DEVICE(entry->data);
-
-        gchar *displayName =
-            gst_device_get_display_name(
-                device);
-
-        GstElement *element =
-            gst_device_create_element(
-                device,
-                nullptr);
-
-        gchar *deviceId = nullptr;
-
-        if (element != nullptr) {
-            GParamSpec *deviceProperty =
-                g_object_class_find_property(
-                    G_OBJECT_GET_CLASS(element),
-                    "device");
-
-            if (deviceProperty != nullptr) {
-                g_object_get(
-                    element,
-                    "device",
-                    &deviceId,
-                    nullptr);
-            }
-
-            gst_object_unref(element);
+        if (
+            FAILED(
+                collection->Item(
+                    index,
+                    &device)) ||
+            device == nullptr
+        ) {
+            continue;
         }
 
-        const QString nodeName =
-            deviceId != nullptr
-                ? QString::fromUtf8(
-                      deviceId)
-                      .trimmed()
-                : QString();
+        LPWSTR deviceId = nullptr;
 
-        const QString description =
-            displayName != nullptr
-                ? QString::fromUtf8(
-                      displayName)
-                      .trimmed()
-                : QString();
+        QString nodeName;
+        QString description;
+
+        if (SUCCEEDED(device->GetId(&deviceId))) {
+            nodeName =
+                wideToQString(deviceId)
+                    .trimmed();
+
+            CoTaskMemFree(deviceId);
+        }
+
+        IPropertyStore *properties = nullptr;
+
+        if (
+            SUCCEEDED(
+                device->OpenPropertyStore(
+                    STGM_READ,
+                    &properties)) &&
+            properties != nullptr
+        ) {
+            PROPVARIANT value;
+            PropVariantInit(&value);
+
+            if (
+                SUCCEEDED(
+                    properties->GetValue(
+                        PKEY_Device_FriendlyName,
+                        &value)) &&
+                value.vt == VT_LPWSTR &&
+                value.pwszVal != nullptr
+            ) {
+                description =
+                    wideToQString(
+                        value.pwszVal)
+                        .trimmed();
+            }
+
+            PropVariantClear(&value);
+            properties->Release();
+        }
 
         if (!nodeName.isEmpty()) {
             bool duplicate = false;
 
             for (
                 const AudioDevice &existing :
-                destination) {
+                destination
+            ) {
                 if (
                     existing.nodeName ==
-                    nodeName) {
+                    nodeName
+                ) {
                     duplicate = true;
                     break;
                 }
@@ -133,17 +132,10 @@ void appendDevices(
             }
         }
 
-        g_free(deviceId);
-        g_free(displayName);
+        device->Release();
     }
 
-    g_list_free_full(
-        devices,
-        reinterpret_cast<GDestroyNotify>(
-            gst_object_unref));
-
-    gst_device_monitor_stop(monitor);
-    gst_object_unref(monitor);
+    collection->Release();
 }
 
 }
@@ -152,20 +144,69 @@ AudioDeviceInventory queryAudioDevices()
 {
     AudioDeviceInventory inventory;
 
-    if (!initializeGStreamer()) {
+    const HRESULT initializeResult =
+        CoInitializeEx(
+            nullptr,
+            COINIT_APARTMENTTHREADED);
+
+    const bool uninitializeCom =
+        SUCCEEDED(initializeResult);
+
+    if (
+        FAILED(initializeResult) &&
+        initializeResult !=
+            RPC_E_CHANGED_MODE
+    ) {
         inventory.error =
             QStringLiteral(
-                "GStreamer could not be initialized.");
+                "Windows Core Audio could not "
+                "be initialized.");
+
+        return inventory;
+    }
+
+    IMMDeviceEnumerator *enumerator = nullptr;
+
+    const HRESULT enumeratorResult =
+        CoCreateInstance(
+            __uuidof(MMDeviceEnumerator),
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            __uuidof(IMMDeviceEnumerator),
+            reinterpret_cast<void **>(
+                &enumerator));
+
+    if (
+        FAILED(enumeratorResult) ||
+        enumerator == nullptr
+    ) {
+        inventory.error =
+            QStringLiteral(
+                "Windows audio devices could "
+                "not be enumerated.");
+
+        if (uninitializeCom) {
+            CoUninitialize();
+        }
+
         return inventory;
     }
 
     appendDevices(
         inventory.inputs,
-        "Audio/Source");
+        enumerator,
+        eCapture);
 
     appendDevices(
         inventory.outputs,
-        "Audio/Sink");
+        enumerator,
+        eRender);
+
+    enumerator->Release();
+
+    if (uninitializeCom) {
+        CoUninitialize();
+    }
 
     const auto byDescription =
         [](

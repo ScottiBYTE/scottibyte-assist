@@ -79,6 +79,9 @@ signals:
     void relayBytesQueuedChanged(
         qint64 bytes);
 
+    void disconnecting(
+        const QString &reason);
+
     void disconnected();
 
     void errorOccurred(

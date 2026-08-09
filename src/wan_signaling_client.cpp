@@ -192,15 +192,25 @@ WanSignalingClient::WanSignalingClient(
         {
             if (
                 state_ != State::Subscribed ||
-                !relayReady_
+                !relayReady_ ||
+                socket_->state() !=
+                    QAbstractSocket::ConnectedState
             ) {
                 return;
             }
 
-            handleUnexpectedDisconnect(
-                QStringLiteral(
-                    "The Assist relay heartbeat "
-                    "timed out."));
+            /*
+             * A pong can be delayed while a large
+             * desktop frame is moving through the
+             * shared WebSocket queue. Do not abort
+             * an otherwise connected relay here.
+             *
+             * The Assist server performs its own
+             * native WebSocket heartbeat and will
+             * terminate a genuinely dead client.
+             * The next client heartbeat interval
+             * will attempt another diagnostic ping.
+             */
         });
 
     connect(
@@ -222,6 +232,33 @@ WanSignalingClient::WanSignalingClient(
         {
             const bool wasActive =
                 state_ != State::Idle;
+
+            if (wasActive) {
+                QString reason =
+                    lastError_.trimmed();
+
+                if (reason.isEmpty()) {
+                    reason =
+                        socket_->
+                            errorString().
+                            trimmed();
+                }
+
+                if (
+                    reason.isEmpty() ||
+                    reason ==
+                        QStringLiteral(
+                            "Unknown error")
+                ) {
+                    reason =
+                        QStringLiteral(
+                            "The WebSocket connection "
+                            "closed unexpectedly.");
+                }
+
+                emit disconnecting(
+                    reason);
+            }
 
             state_ = State::Idle;
             relayReady_ = false;

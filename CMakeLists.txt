@@ -2,13 +2,17 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   scottibyte-assist
-  VERSION 0.1.0
+  VERSION 0.3.1
   LANGUAGES CXX
 )
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+
+add_compile_definitions(
+  SCOTTIBYTE_ASSIST_VERSION="${PROJECT_VERSION}"
+)
 set(CMAKE_AUTORCC ON)
 
 find_package(
@@ -21,10 +25,21 @@ find_package(
     Widgets
 )
 
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(
+  WEBRTC_APM
+  REQUIRED
+  IMPORTED_TARGET
+  webrtc-audio-processing-1
+)
+
 set(
   ASSIST_COMMON_SOURCES
   assets.qrc
   src/main.cpp
+  src/assist_audio_processor.cpp
+  src/assist_audio_processor.h
   src/audio_devices.h
   src/customer_voice_audio.h
   src/desktop_backend.h
@@ -32,6 +47,8 @@ set(
   src/lan_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/vp8_video_codec.cpp
+  src/vp8_video_codec.h
   src/wan_signaling_client.cpp
   src/wan_signaling_client.h
 )
@@ -130,6 +147,7 @@ target_link_libraries(
     Qt6::Network
     Qt6::WebSockets
     Qt6::Widgets
+    PkgConfig::WEBRTC_APM
 )
 
 if(WIN32)
@@ -143,6 +161,8 @@ if(WIN32)
     scottibyte-assist
     PRIVATE
       PkgConfig::GSTREAMER
+      ole32
+      uuid
   )
 else()
   target_link_libraries(
@@ -152,6 +172,8 @@ else()
       PkgConfig::PIPEWIRE
       PkgConfig::LIBEI
       PkgConfig::GSTREAMER
+      ole32
+      uuid
       X11::X11
       ${XTST_LIBRARY}
   )
@@ -190,6 +212,8 @@ if(NOT WIN32)
     PRIVATE
       Qt6::Core
       PkgConfig::GSTREAMER
+      ole32
+      uuid
   )
 
   qt_add_executable(
@@ -204,4 +228,34 @@ if(NOT WIN32)
     PRIVATE
       Qt6::Core
   )
+
 endif()
+
+qt_add_executable(
+  vp8-video-codec-test
+  src/vp8_video_codec_test.cpp
+  src/vp8_video_codec.cpp
+  src/vp8_video_codec.h
+)
+
+target_link_libraries(
+  vp8-video-codec-test
+  PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    PkgConfig::GSTREAMER
+)
+
+qt_add_executable(
+  assist-aec-test
+  src/assist_aec_test.cpp
+  src/assist_audio_processor.cpp
+  src/assist_audio_processor.h
+)
+
+target_link_libraries(
+  assist-aec-test
+  PRIVATE
+    Qt6::Core
+    PkgConfig::WEBRTC_APM
+)

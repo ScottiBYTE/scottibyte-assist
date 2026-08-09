@@ -1,5 +1,6 @@
 #include "lan_session.h"
 #include "desktop_backend.h"
+#include "vp8_video_codec.h"
 
 #include <QBuffer>
 #include <QDateTime>
@@ -202,7 +203,9 @@ LanSession::LanSession(
       tcpServer_(
           new QTcpServer(this)),
       advertiseTimer_(
-          new QTimer(this))
+          new QTimer(this)),
+      vp8VideoCodec_(
+          new Vp8VideoCodec(this))
 {
     advertiseTimer_->setInterval(
         750);
@@ -729,6 +732,9 @@ void LanSession::activateRelayTransport()
     lastDesktopFrameSubmittedMs_ = 0;
     lastDesktopFrameReceivedMs_ = 0;
 
+    waitingForRelayFrameAcknowledgement_ =
+        false;
+
     relayActive_ = true;
 
     emit statusChanged(
@@ -811,6 +817,8 @@ void LanSession::attachSocket(
     QTcpSocket *socket)
 {
     relayActive_ = false;
+    waitingForRelayFrameAcknowledgement_ =
+        false;
     socket_ = socket;
 
     connect(
@@ -901,6 +909,8 @@ void LanSession::disconnectSession()
     receiveBuffer_.clear();
     expectedPayloadSize_ = 0;
     relayActive_ = false;
+    waitingForRelayFrameAcknowledgement_ =
+        false;
     relayBytesQueued_ = 0;
 
     if (socket_ != nullptr) {
@@ -992,12 +1002,19 @@ void LanSession::sendDesktopFrame(
 
     if (role_ == Role::Customer) {
         messageType =
-            MessageType::Frame;
+            relayActive_
+                ? MessageType::Vp8Frame
+                : MessageType::Frame;
     } else if (
         role_ == Role::Provider &&
-        providerShareActive_) {
+        providerShareActive_
+    ) {
         messageType =
-            MessageType::ProviderFrame;
+            relayActive_
+                ? MessageType::
+                      ProviderVp8Frame
+                : MessageType::
+                      ProviderFrame;
     } else {
         return;
     }
@@ -1036,26 +1053,62 @@ void LanSession::sendDesktopFrame(
 
     QByteArray encoded;
 
-    QBuffer buffer(&encoded);
-    buffer.open(QIODevice::WriteOnly);
+    if (relayActive_) {
+        if (
+            vp8VideoCodec_ == nullptr ||
+            !vp8VideoCodec_->encodeFrame(
+                sourceImage,
+                encoded)
+        ) {
+            emit errorOccurred(
+                vp8VideoCodec_ == nullptr
+                    ? QStringLiteral(
+                          "The VP8 video codec is unavailable.")
+                    : QStringLiteral(
+                          "VP8 encoding failed: ") +
+                          vp8VideoCodec_->
+                              lastError());
 
-    const int jpegQuality =
-        relayActive_
-            ? relayJpegQuality_
-            : directJpegQuality_;
+            return;
+        }
+    } else {
+        QBuffer buffer(&encoded);
+        buffer.open(QIODevice::WriteOnly);
 
-    if (
-        !sourceImage.save(
-            &buffer,
-            "JPG",
-            jpegQuality)
-    ) {
-        return;
+        if (
+            !sourceImage.save(
+                &buffer,
+                "JPG",
+                directJpegQuality_)
+        ) {
+            return;
+        }
     }
 
     sendMessage(
         messageType,
         encoded);
+
+    /*
+     * VP8 relay frames are intentionally not
+     * stop-and-wait acknowledged. Their encoded
+     * size is small enough for the existing bounded
+     * WebSocket queue, and waiting for a round trip
+     * would recreate the visible latency of the
+     * JPEG fallback.
+     */
+    if (
+        relayActive_ &&
+        (
+            messageType ==
+                MessageType::Frame ||
+            messageType ==
+                MessageType::ProviderFrame
+        )
+    ) {
+        waitingForRelayFrameAcknowledgement_ =
+            true;
+    }
 
     lastDesktopFrameSubmittedMs_ =
         nowMs;
@@ -1370,29 +1423,118 @@ void LanSession::processIncomingBytes(
             expectedMessageType_ ==
                 MessageType::Frame ||
             expectedMessageType_ ==
-                MessageType::ProviderFrame) {
+                MessageType::ProviderFrame ||
+            expectedMessageType_ ==
+                MessageType::Vp8Frame ||
+            expectedMessageType_ ==
+                MessageType::ProviderVp8Frame
+        ) {
+            const bool vp8Frame =
+                expectedMessageType_ ==
+                    MessageType::Vp8Frame ||
+                expectedMessageType_ ==
+                    MessageType::
+                        ProviderVp8Frame;
+
+            const bool providerFrame =
+                expectedMessageType_ ==
+                    MessageType::ProviderFrame ||
+                expectedMessageType_ ==
+                    MessageType::
+                        ProviderVp8Frame;
+
             QImage image;
 
-            image.loadFromData(
-                payload,
-                "JPG");
+            bool decoded = false;
 
-            if (!image.isNull()) {
+            if (vp8Frame) {
+                decoded =
+                    vp8VideoCodec_ != nullptr &&
+                    vp8VideoCodec_->decodeFrame(
+                        payload,
+                        image);
+
+                if (
+                    !decoded &&
+                    vp8VideoCodec_ != nullptr
+                ) {
+                    emit errorOccurred(
+                        QStringLiteral(
+                            "VP8 decoding failed: ") +
+                        vp8VideoCodec_->
+                            lastError());
+                }
+            } else {
+                decoded =
+                    image.loadFromData(
+                        payload,
+                        "JPG");
+            }
+
+            if (
+                decoded &&
+                !image.isNull()
+            ) {
                 ++desktopFramesReceived_;
 
                 lastDesktopFrameReceivedMs_ =
                     QDateTime::
                         currentMSecsSinceEpoch();
 
-                if (
-                    expectedMessageType_ ==
-                    MessageType::ProviderFrame) {
+                if (providerFrame) {
                     emit providerFrameReceived(
                         image);
                 } else {
                     emit frameReceived(
                         image);
                 }
+
+                /*
+                 * Only the legacy relay JPEG frames use
+                 * stop-and-wait acknowledgement. VP8
+                 * frames remain continuously pipelined.
+                 */
+                if (
+                    relayActive_ &&
+                    !vp8Frame
+                ) {
+                    sendMessage(
+                        providerFrame
+                            ? MessageType::
+                                  ProviderFrameAcknowledged
+                            : MessageType::
+                                  FrameAcknowledged,
+                        QByteArray());
+                }
+            }
+
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::FrameAcknowledged ||
+            expectedMessageType_ ==
+                MessageType::
+                    ProviderFrameAcknowledged
+        ) {
+            const bool validAcknowledgement =
+                (
+                    role_ == Role::Customer &&
+                    expectedMessageType_ ==
+                        MessageType::
+                            FrameAcknowledged
+                ) ||
+                (
+                    role_ == Role::Provider &&
+                    expectedMessageType_ ==
+                        MessageType::
+                            ProviderFrameAcknowledged
+                );
+
+            if (validAcknowledgement) {
+                waitingForRelayFrameAcknowledgement_ =
+                    false;
             }
 
             continue;

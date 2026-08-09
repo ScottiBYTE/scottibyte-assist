@@ -1,10 +1,13 @@
 #pragma once
 
+#include "assist_audio_processor.h"
+
 #include <QByteArray>
 #include <QObject>
 #include <QString>
 
 #include <cstdint>
+#include <mutex>
 
 typedef struct _GstElement GstElement;
 
@@ -72,6 +75,33 @@ private:
     GstElement *senderPipeline_ = nullptr;
     GstElement *receiverPipeline_ = nullptr;
     GstElement *receiverAppSource_ = nullptr;
+
+    /*
+     * Raw PCM bridge endpoints used by the WAN AEC3
+     * packet path.
+     */
+    GstElement *capturePcmAppSource_ = nullptr;
+    GstElement *renderPcmAppSource_ = nullptr;
+
+    /*
+     * GStreamer appsink buffers are not guaranteed to
+     * arrive in WebRTC APM's required 10 ms size.
+     * These accumulators let us extract exact
+     * 480-sample / 960-byte blocks.
+     */
+    QByteArray capturePcmBuffer_;
+    QByteArray renderPcmBuffer_;
+
+    std::uint64_t capturePcmTimestampNs_ = 0;
+    std::uint64_t renderPcmTimestampNs_ = 0;
+
+    /*
+     * Capture and render callbacks execute on separate
+     * GStreamer streaming threads. Serialize all
+     * access to the single WebRTC APM instance.
+     */
+    std::mutex audioProcessorMutex_;
+    AssistAudioProcessor audioProcessor_;
 
     bool muted_ = false;
 };

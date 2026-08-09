@@ -7,6 +7,7 @@
 #include <QStringList>
 
 class DesktopBackend;
+class Vp8VideoCodec;
 class QTcpServer;
 class QTcpSocket;
 class QTimer;
@@ -168,7 +169,11 @@ private:
         RemoteControlStart = 16,
         RemoteControlStop = 17,
         RemoteControlDisplaysRequest = 18,
-        RemoteControlDisplaysResponse = 19
+        RemoteControlDisplaysResponse = 19,
+        FrameAcknowledged = 20,
+        ProviderFrameAcknowledged = 21,
+        Vp8Frame = 22,
+        ProviderVp8Frame = 23
     };
 
     void startAdvertising();
@@ -206,9 +211,12 @@ private:
     QTimer *advertiseTimer_ = nullptr;
 
     DesktopBackend *desktopBackend_ = nullptr;
+    Vp8VideoCodec *vp8VideoCodec_ = nullptr;
 
     bool providerShareActive_ = false;
     bool relayActive_ = false;
+    bool waitingForRelayFrameAcknowledgement_ =
+        false;
 
     qint64 relayBytesQueued_ = 0;
 
