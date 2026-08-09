@@ -8,6 +8,9 @@
 #include <QHostAddress>
 #include <QNetworkDatagram>
 #include <QNetworkInterface>
+#include <QMetaObject>
+#include <QPointer>
+#include <QThreadPool>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
@@ -260,6 +263,12 @@ void LanSession::setDesktopBackend(
         &DesktopBackend::frameReady,
         this,
         &LanSession::sendDesktopFrame);
+
+    connect(
+        desktopBackend_,
+        &DesktopBackend::cursorPositionChanged,
+        this,
+        &LanSession::sendRemoteCursorPosition);
 
     connect(
         desktopBackend_,
@@ -638,6 +647,40 @@ QString LanSession::diagnosticSummary() const
     QString lastFrameText =
         QStringLiteral("Never");
 
+    QString lastVoiceSentText =
+        QStringLiteral("Never");
+
+    if (lastVoicePacketSentMs_ > 0) {
+        const qint64 elapsed =
+            QDateTime::currentMSecsSinceEpoch() -
+            lastVoicePacketSentMs_;
+
+        lastVoiceSentText =
+            QStringLiteral("%1 seconds ago")
+                .arg(
+                    static_cast<double>(elapsed) / 1000.0,
+                    0,
+                    'f',
+                    1);
+    }
+
+    QString lastVoiceReceivedText =
+        QStringLiteral("Never");
+
+    if (lastVoicePacketReceivedMs_ > 0) {
+        const qint64 elapsed =
+            QDateTime::currentMSecsSinceEpoch() -
+            lastVoicePacketReceivedMs_;
+
+        lastVoiceReceivedText =
+            QStringLiteral("%1 seconds ago")
+                .arg(
+                    static_cast<double>(elapsed) / 1000.0,
+                    0,
+                    'f',
+                    1);
+    }
+
     if (lastDesktopFrameReceivedMs_ > 0) {
         const qint64 elapsed =
             QDateTime::
@@ -667,7 +710,15 @@ QString LanSession::diagnosticSummary() const
         "Frames dropped for backlog: %8\n"
         "Frames skipped for relay rate limit: %9\n"
         "Remote frames received: %10\n"
-        "Last remote frame received: %11")
+        "Last remote frame received: %11\n"
+        "\n"
+        "Voice transport\n"
+        "Packets sent: %12\n"
+        "Bytes sent: %13\n"
+        "Packets received: %14\n"
+        "Bytes received: %15\n"
+        "Last packet sent: %16\n"
+        "Last packet received: %17")
         .arg(
             roleText,
             transport,
@@ -688,7 +739,17 @@ QString LanSession::diagnosticSummary() const
                 desktopFramesRateLimited_),
             QString::number(
                 desktopFramesReceived_),
-            lastFrameText);
+            lastFrameText,
+            QString::number(
+                voicePacketsSent_),
+            QString::number(
+                voiceBytesSent_),
+            QString::number(
+                voicePacketsReceived_),
+            QString::number(
+                voiceBytesReceived_),
+            lastVoiceSentText,
+            lastVoiceReceivedText);
 }
 
 
@@ -1051,9 +1112,9 @@ void LanSession::sendDesktopFrame(
         return;
     }
 
-    QByteArray encoded;
-
     if (relayActive_) {
+        QByteArray encoded;
+
         if (
             vp8VideoCodec_ == nullptr ||
             !vp8VideoCodec_->encodeFrame(
@@ -1071,49 +1132,106 @@ void LanSession::sendDesktopFrame(
 
             return;
         }
-    } else {
-        QBuffer buffer(&encoded);
-        buffer.open(QIODevice::WriteOnly);
 
-        if (
-            !sourceImage.save(
-                &buffer,
-                "JPG",
-                directJpegQuality_)
-        ) {
-            return;
-        }
+        sendMessage(
+            messageType,
+            encoded);
+
+        lastDesktopFrameSubmittedMs_ =
+            nowMs;
+
+        ++desktopFramesSent_;
+        return;
     }
 
-    sendMessage(
-        messageType,
-        encoded);
+    bool expected = false;
 
-    /*
-     * VP8 relay frames are intentionally not
-     * stop-and-wait acknowledged. Their encoded
-     * size is small enough for the existing bounded
-     * WebSocket queue, and waiting for a round trip
-     * would recreate the visible latency of the
-     * JPEG fallback.
-     */
     if (
-        relayActive_ &&
-        (
-            messageType ==
-                MessageType::Frame ||
-            messageType ==
-                MessageType::ProviderFrame
-        )
+        !desktopEncodeInFlight_
+             .compare_exchange_strong(
+                 expected,
+                 true)
     ) {
-        waitingForRelayFrameAcknowledgement_ =
-            true;
+        ++desktopFramesDropped_;
+        return;
     }
 
-    lastDesktopFrameSubmittedMs_ =
-        nowMs;
+    const QImage image = sourceImage;
+    const QPointer<LanSession> self(this);
 
-    ++desktopFramesSent_;
+    QThreadPool::globalInstance()->start(
+        [
+            self,
+            image,
+            messageType
+        ]()
+        {
+            QByteArray encoded;
+            QBuffer buffer(&encoded);
+
+            buffer.open(
+                QIODevice::WriteOnly);
+
+            const bool encodedOk =
+                image.save(
+                    &buffer,
+                    "JPG",
+                    directJpegQuality_);
+
+            if (!self) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(
+                self,
+                [
+                    self,
+                    encoded = std::move(encoded),
+                    messageType,
+                    encodedOk
+                ]()
+                mutable
+                {
+                    if (!self) {
+                        return;
+                    }
+
+                    self->
+                        desktopEncodeInFlight_
+                            .store(false);
+
+                    if (
+                        !encodedOk ||
+                        !self->isConnected()
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        self->socket_ != nullptr &&
+                        self->socket_->
+                                bytesToWrite() >
+                            directFrameBacklogLimit_
+                    ) {
+                        ++self->
+                            desktopFramesDropped_;
+                        return;
+                    }
+
+                    self->sendMessage(
+                        messageType,
+                        encoded);
+
+                    self->
+                        lastDesktopFrameSubmittedMs_ =
+                            QDateTime::
+                                currentMSecsSinceEpoch();
+
+                    ++self->
+                        desktopFramesSent_;
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void LanSession::notifyProviderScreenClosed()
@@ -1217,6 +1335,15 @@ void LanSession::sendVoicePacket(
         return;
     }
 
+    ++voicePacketsSent_;
+
+    voiceBytesSent_ +=
+        static_cast<quint64>(
+            packet.size());
+
+    lastVoicePacketSentMs_ =
+        QDateTime::currentMSecsSinceEpoch();
+
     if (relayActive_) {
         return;
     }
@@ -1226,12 +1353,49 @@ void LanSession::sendVoicePacket(
         packet);
 }
 
+void LanSession::receiveVoiceRelayPacket(
+    const QByteArray &packet)
+{
+    if (
+        !relayActive_ ||
+        packet.isEmpty() ||
+        packet.size() > 64 * 1024
+    ) {
+        return;
+    }
+
+    ++voicePacketsReceived_;
+
+    voiceBytesReceived_ +=
+        static_cast<quint64>(
+            packet.size());
+
+    lastVoicePacketReceivedMs_ =
+        QDateTime::currentMSecsSinceEpoch();
+
+    emit voicePacketReceived(
+        packet);
+}
+
 void LanSession::sendPointerMove(
     int x,
     int y)
 {
     sendMessage(
         MessageType::PointerMove,
+        pointPayload(x, y));
+}
+
+void LanSession::sendRemoteCursorPosition(
+    int x,
+    int y)
+{
+    if (role_ != Role::Customer) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::RemoteCursorPosition,
         pointPayload(x, y));
 }
 
@@ -1683,8 +1847,34 @@ void LanSession::processIncomingBytes(
         if (expectedMessageType_ ==
             MessageType::VoicePacket) {
             if (!payload.isEmpty()) {
+                ++voicePacketsReceived_;
+
+                voiceBytesReceived_ +=
+                    static_cast<quint64>(
+                        payload.size());
+
+                lastVoicePacketReceivedMs_ =
+                    QDateTime::currentMSecsSinceEpoch();
+
                 emit voicePacketReceived(
                     payload);
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::RemoteCursorPosition) {
+            int x = 0;
+            int y = 0;
+
+            if (decodePoint(
+                    payload,
+                    x,
+                    y)) {
+                emit remoteCursorPositionReceived(
+                    x,
+                    y);
             }
 
             continue;

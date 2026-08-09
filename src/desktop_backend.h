@@ -66,6 +66,10 @@ signals:
     void frameReady(
         const QImage &frame);
 
+    void cursorPositionChanged(
+        int x,
+        int y);
+
     void statusChanged(
         const QString &status);
 

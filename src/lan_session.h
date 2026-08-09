@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 
 #include <QByteArray>
 #include <QImage>
@@ -77,7 +78,14 @@ public:
     void sendVoicePacket(
         const QByteArray &packet);
 
+    void receiveVoiceRelayPacket(
+        const QByteArray &packet);
+
     void sendPointerMove(
+        int x,
+        int y);
+
+    void sendRemoteCursorPosition(
         int x,
         int y);
 
@@ -116,6 +124,10 @@ signals:
     void frameReceived(
         const QImage &image);
 
+    void remoteCursorPositionReceived(
+        int x,
+        int y);
+
     void providerFrameReceived(
         const QImage &image);
 
@@ -130,6 +142,9 @@ signals:
     void voiceStopRequested();
 
     void voicePacketReceived(
+        const QByteArray &packet);
+
+    void voiceRelayPacketReady(
         const QByteArray &packet);
 
     void clipboardTextReceived(
@@ -173,7 +188,8 @@ private:
         FrameAcknowledged = 20,
         ProviderFrameAcknowledged = 21,
         Vp8Frame = 22,
-        ProviderVp8Frame = 23
+        ProviderVp8Frame = 23,
+        RemoteCursorPosition = 24
     };
 
     void startAdvertising();
@@ -227,8 +243,18 @@ private:
     quint64 desktopFramesRateLimited_ = 0;
     quint64 desktopFramesReceived_ = 0;
 
+    std::atomic_bool desktopEncodeInFlight_{false};
+
+    quint64 voicePacketsSent_ = 0;
+    quint64 voiceBytesSent_ = 0;
+    quint64 voicePacketsReceived_ = 0;
+    quint64 voiceBytesReceived_ = 0;
+
     qint64 lastDesktopFrameSubmittedMs_ = 0;
     qint64 lastDesktopFrameReceivedMs_ = 0;
+
+    qint64 lastVoicePacketSentMs_ = 0;
+    qint64 lastVoicePacketReceivedMs_ = 0;
 
     QByteArray receiveBuffer_;
 
