@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1">
+  <title>ScottiBYTE Assist Provider Administration</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family:
+        Ubuntu,
+        "Segoe UI",
+        sans-serif;
+      color: #c8d8e7;
+      background:
+        linear-gradient(
+          135deg,
+          #09294c 0%,
+          #071d39 55%,
+          #151043 100%
+        );
+    }
+
+    .page {
+      width: min(1100px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 36px 0 60px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .logo {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      color: #ffffff;
+    }
+
+    h1 {
+      font-size: 28px;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: #8eb6cf;
+    }
+
+    .card {
+      padding: 22px;
+      margin-bottom: 20px;
+      background: rgba(7, 26, 52, 0.92);
+      border: 1px solid #2d789b;
+      border-radius: 16px;
+      box-shadow:
+        0 18px 40px rgba(0, 0, 0, 0.25);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    input {
+      width: 100%;
+      min-height: 42px;
+      padding: 0 12px;
+      color: #ffffff;
+      background: #071a34;
+      border: 1px solid #39dfff;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #87ecff;
+      box-shadow: 0 0 0 2px rgba(57, 223, 255, 0.15);
+    }
+
+    button {
+      min-height: 40px;
+      padding: 0 18px;
+      color: #ffffff;
+      font-weight: 700;
+      background:
+        linear-gradient(
+          180deg,
+          #245f96,
+          #07284b
+        );
+      border: 1px solid #28c7f7;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #176da0;
+    }
+
+    button.danger {
+      border-color: #ff6b86;
+      background:
+        linear-gradient(
+          180deg,
+          #a93650,
+          #671227
+        );
+    }
+
+    button.small {
+      min-height: 34px;
+      padding: 0 12px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .status {
+      margin-top: 14px;
+      padding: 11px 13px;
+      color: #5ee4ff;
+      font-weight: 700;
+      background: rgba(7, 37, 67, 0.9);
+      border: 1px solid #2d789b;
+      border-radius: 10px;
+    }
+
+    .credential-box {
+      margin-top: 16px;
+      padding: 16px;
+      background: #071a34;
+      border: 1px solid #39dfff;
+      border-radius: 12px;
+    }
+
+    .credential {
+      margin-top: 8px;
+      padding: 10px;
+      overflow-wrap: anywhere;
+      font-family: monospace;
+      color: #ffffff;
+      background: #041325;
+      border-radius: 8px;
+    }
+
+    .provider-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .provider {
+      display: grid;
+      grid-template-columns:
+        minmax(180px, 1.4fr)
+        minmax(100px, 0.7fr)
+        minmax(100px, 0.7fr)
+        minmax(180px, 1fr)
+        auto;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: #071a34;
+      border: 1px solid #244e72;
+      border-radius: 12px;
+    }
+
+    .provider-name {
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    .role {
+      text-transform: capitalize;
+    }
+
+    .active {
+      color: #76efaf;
+      font-weight: 700;
+    }
+
+    .revoked {
+      color: #ff8299;
+      font-weight: 700;
+    }
+
+    .provider-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    @media (max-width: 820px) {
+      .provider {
+        grid-template-columns: 1fr;
+      }
+
+      .provider-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <header class="header">
+      <img
+        class="logo"
+        src="/scottibyte-assist.png"
+        alt="ScottiBYTE Assist">
+
+      <div>
+        <h1>Provider Administration</h1>
+        <div class="subtitle">
+          ScottiBYTE Assist superuser management
+        </div>
+      </div>
+    </header>
+
+    <section
+      id="loginCard"
+      class="card">
+      <h2>Administrator Login</h2>
+
+      <p>
+        Enter the ScottiBYTE Assist administrator
+        password to manage authorized providers.
+      </p>
+
+      <label for="credential">
+        Administrator Password
+      </label>
+
+      <input
+        id="credential"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Administrator password">
+
+      <div class="actions">
+        <button id="loginButton">
+          Sign In
+        </button>
+      </div>
+
+      <div
+        id="loginStatus"
+        class="status hidden">
+      </div>
+    </section>
+
+    <section
+      id="dashboard"
+      class="hidden">
+
+      <section class="card">
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            flex-wrap:wrap;
+          ">
+          <div>
+            <h2>Authorized Providers</h2>
+            <div class="subtitle">
+              Add, rename, and revoke support providers.
+            </div>
+          </div>
+
+          <button id="logoutButton">
+            Sign Out
+          </button>
+        </div>
+
+        <div
+          id="providerStatus"
+          class="status hidden">
+        </div>
+
+        <div
+          id="providerGrid"
+          class="provider-grid">
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Add Provider</h2>
+
+        <p>
+          New providers receive a permanent credential.
+          The credential is shown only once.
+        </p>
+
+        <label for="newProviderName">
+          Provider Name
+        </label>
+
+        <input
+          id="newProviderName"
+          type="text"
+          maxlength="128"
+          placeholder="Example: Desktop-2404">
+
+        <div class="actions">
+          <button id="addProviderButton">
+            Create Provider
+          </button>
+        </div>
+
+        <div
+          id="newCredentialBox"
+          class="credential-box hidden">
+
+          <strong>
+            New Provider Credential
+          </strong>
+
+          <div>
+            Save this credential now. It cannot be
+            displayed again.
+          </div>
+
+          <div
+            id="newCredential"
+            class="credential">
+          </div>
+
+          <div class="actions">
+            <button
+              id="copyCredentialButton"
+              class="small">
+              Copy Credential
+            </button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const loginCard =
+      document.getElementById('loginCard');
+
+    const dashboard =
+      document.getElementById('dashboard');
+
+    const credentialInput =
+      document.getElementById('credential');
+
+    const loginStatus =
+      document.getElementById('loginStatus');
+
+    const providerStatus =
+      document.getElementById('providerStatus');
+
+    const providerGrid =
+      document.getElementById('providerGrid');
+
+    const newCredentialBox =
+      document.getElementById('newCredentialBox');
+
+    const newCredential =
+      document.getElementById('newCredential');
+
+    function showStatus(element, message) {
+      element.textContent = message;
+      element.classList.remove('hidden');
+    }
+
+    function clearStatus(element) {
+      element.textContent = '';
+      element.classList.add('hidden');
+    }
+
+    async function api(
+      path,
+      options = {}
+    ) {
+      const response =
+        await fetch(
+          path,
+          {
+            ...options,
+            credentials: 'same-origin'
+          }
+        );
+
+      let body = {};
+
+      try {
+        body = await response.json();
+      } catch {
+        body = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          body.message ||
+          body.error ||
+          `Request failed (${response.status})`
+        );
+      }
+
+      return body;
+    }
+
+    function providerRow(provider) {
+      const row =
+        document.createElement('div');
+
+      row.className = 'provider';
+
+      const name =
+        document.createElement('div');
+
+      name.className = 'provider-name';
+      name.textContent = provider.displayName;
+
+      const role =
+        document.createElement('div');
+
+      role.className = 'role';
+      role.textContent = provider.role;
+
+      const status =
+        document.createElement('div');
+
+      status.className =
+        provider.active
+          ? 'active'
+          : 'revoked';
+
+      status.textContent =
+        provider.active
+          ? 'Active'
+          : 'Revoked';
+
+      const created =
+        document.createElement('div');
+
+      created.textContent =
+        new Date(
+          provider.createdAt
+        ).toLocaleString();
+
+      const actions =
+        document.createElement('div');
+
+      actions.className =
+        'provider-actions';
+
+      if (provider.active) {
+        const rename =
+          document.createElement('button');
+
+        rename.className = 'small';
+        rename.textContent = 'Rename';
+
+        rename.addEventListener(
+          'click',
+          async () => {
+            const value =
+              window.prompt(
+                'New provider name:',
+                provider.displayName
+              );
+
+            if (
+              value === null ||
+              !value.trim()
+            ) {
+              return;
+            }
+
+            try {
+              await api(
+                `/api/providers/${provider.id}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type':
+                      'application/json'
+                  },
+                  body: JSON.stringify({
+                    displayName:
+                      value.trim()
+                  })
+                }
+              );
+
+              await loadProviders();
+            } catch (error) {
+              showStatus(
+                providerStatus,
+                error.message
+              );
+            }
+          }
+        );
+
+        const revoke =
+          document.createElement('button');
+
+        revoke.className =
+          'small danger';
+
+        revoke.textContent = 'Revoke';
+
+        revoke.addEventListener(
+          'click',
+          async () => {
+            if (
+              !window.confirm(
+                `Revoke ${provider.displayName}?`
+              )
+            ) {
+              return;
+            }
+
+            try {
+              await api(
+                `/api/providers/${provider.id}/revoke`,
+                {
+                  method: 'POST'
+                }
+              );
+
+              await loadProviders();
+            } catch (error) {
+              showStatus(
+                providerStatus,
+                error.message
+              );
+            }
+          }
+        );
+
+        actions.append(
+          rename,
+          revoke
+        );
+      }
+
+      row.append(
+        name,
+        role,
+        status,
+        created,
+        actions
+      );
+
+      return row;
+    }
+
+    async function loadProviders() {
+      clearStatus(providerStatus);
+
+      const result =
+        await api('/api/providers');
+
+      providerGrid.replaceChildren();
+
+      for (
+        const provider
+        of result.providers || []
+      ) {
+        providerGrid.append(
+          providerRow(provider)
+        );
+      }
+    }
+
+    document
+      .getElementById('loginButton')
+      .addEventListener(
+        'click',
+        async () => {
+          clearStatus(loginStatus);
+
+          const password =
+            credentialInput.value;
+
+          if (!password) {
+            showStatus(
+              loginStatus,
+              'Enter the administrator password.'
+            );
+
+            return;
+          }
+
+          try {
+            const response =
+              await fetch(
+                '/api/admin/login',
+                {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: {
+                    'Content-Type':
+                      'application/json'
+                  },
+                  body: JSON.stringify({
+                    password
+                  })
+                }
+              );
+
+            const result =
+              await response.json();
+
+            if (!response.ok) {
+              throw new Error(
+                result.message ||
+                result.error ||
+                'Administrator login failed.'
+              );
+            }
+
+            credentialInput.value = '';
+
+            await loadProviders();
+
+            loginCard.classList.add(
+              'hidden'
+            );
+
+            dashboard.classList.remove(
+              'hidden'
+            );
+          } catch (error) {
+            showStatus(
+              loginStatus,
+              error.message
+            );
+          }
+        }
+      );
+
+    document
+      .getElementById('logoutButton')
+      .addEventListener(
+        'click',
+        async () => {
+          try {
+            await fetch(
+              '/api/admin/logout',
+              {
+                method: 'POST',
+                credentials: 'same-origin'
+              }
+            );
+          } finally {
+            dashboard.classList.add(
+              'hidden'
+            );
+
+            loginCard.classList.remove(
+              'hidden'
+            );
+
+            providerGrid.replaceChildren();
+
+            newCredentialBox.classList.add(
+              'hidden'
+            );
+
+            credentialInput.focus();
+          }
+        }
+      );
+
+    document
+      .getElementById('addProviderButton')
+      .addEventListener(
+        'click',
+        async () => {
+          const nameInput =
+            document.getElementById(
+              'newProviderName'
+            );
+
+          const displayName =
+            nameInput.value.trim();
+
+          if (!displayName) {
+            showStatus(
+              providerStatus,
+              'Enter a provider name.'
+            );
+
+            return;
+          }
+
+          try {
+            const result =
+              await api(
+                '/api/providers',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type':
+                      'application/json'
+                  },
+                  body: JSON.stringify({
+                    displayName
+                  })
+                }
+              );
+
+            nameInput.value = '';
+
+            newCredential.textContent =
+              result.credential;
+
+            newCredentialBox.classList.remove(
+              'hidden'
+            );
+
+            await loadProviders();
+          } catch (error) {
+            showStatus(
+              providerStatus,
+              error.message
+            );
+          }
+        }
+      );
+
+    document
+      .getElementById('copyCredentialButton')
+      .addEventListener(
+        'click',
+        async () => {
+          try {
+            await navigator.clipboard.writeText(
+              newCredential.textContent
+            );
+          } catch {
+            window.alert(
+              'Could not copy automatically. '
+              + 'Select the credential manually.'
+            );
+          }
+        }
+      );
+
+    credentialInput.addEventListener(
+      'keydown',
+      event => {
+        if (event.key === 'Enter') {
+          document
+            .getElementById('loginButton')
+            .click();
+        }
+      }
+    );
+  </script>
+</body>
+</html>

@@ -23,6 +23,7 @@ function normalizeProvider(row) {
   return {
     id: row.id,
     displayName: row.display_name,
+    role: row.role,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
     revokedAt: row.revoked_at,
@@ -39,7 +40,8 @@ function generateCredential() {
 }
 
 export function createProviderCredential(
-  displayName
+  displayName,
+  role = 'provider'
 ) {
   const normalizedName =
     typeof displayName === 'string'
@@ -53,6 +55,11 @@ export function createProviderCredential(
         'A provider display name is required.'
     };
   }
+
+  const normalizedRole =
+    role === 'superuser'
+      ? 'superuser'
+      : 'provider';
 
   const id = randomUUID();
   const credential =
@@ -69,15 +76,17 @@ export function createProviderCredential(
       id,
       display_name,
       credential_hash,
+      role,
       created_at,
       last_used_at,
       revoked_at
     )
-    VALUES (?, ?, ?, ?, NULL, NULL)
+    VALUES (?, ?, ?, ?, ?, NULL, NULL)
   `).run(
     id,
     normalizedName,
     credentialHash,
+    normalizedRole,
     createdAt
   );
 
@@ -92,6 +101,7 @@ export function getProviderCredential(id) {
     SELECT
       id,
       display_name,
+      role,
       created_at,
       last_used_at,
       revoked_at
@@ -107,6 +117,7 @@ export function listProviderCredentials() {
     SELECT
       id,
       display_name,
+      role,
       created_at,
       last_used_at,
       revoked_at
@@ -133,6 +144,7 @@ export function validateProviderCredential(
       SELECT
         id,
         display_name,
+        role,
         created_at,
         last_used_at,
         revoked_at
@@ -165,7 +177,78 @@ export function validateProviderCredential(
   });
 }
 
+export function renameProviderCredential(
+  id,
+  displayName
+) {
+  const normalizedName =
+    typeof displayName === 'string'
+      ? displayName.trim().slice(0, 128)
+      : '';
+
+  if (!normalizedName) {
+    return {
+      error: 'display_name_required',
+      message:
+        'A provider display name is required.'
+    };
+  }
+
+  const result = database.prepare(`
+    UPDATE provider_credentials
+    SET display_name = ?
+    WHERE id = ?
+  `).run(
+    normalizedName,
+    id
+  );
+
+  if (result.changes !== 1) {
+    return {
+      error: 'provider_not_found',
+      message:
+        'The provider was not found.'
+    };
+  }
+
+  return {
+    provider:
+      getProviderCredential(id)
+  };
+}
+
 export function revokeProviderCredential(id) {
+  const provider =
+    getProviderCredential(id);
+
+  if (
+    provider == null ||
+    provider.revokedAt != null
+  ) {
+    return {
+      error: 'not_found_or_revoked',
+      message:
+        'The provider credential was not found or was already revoked.'
+    };
+  }
+
+  if (provider.role === 'superuser') {
+    const row = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM provider_credentials
+      WHERE role = 'superuser'
+        AND revoked_at IS NULL
+    `).get();
+
+    if (Number(row.count) <= 1) {
+      return {
+        error: 'last_superuser',
+        message:
+          'The last active superuser cannot be revoked.'
+      };
+    }
+  }
+
   const revokedAt =
     new Date().toISOString();
 

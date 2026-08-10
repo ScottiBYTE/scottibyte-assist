@@ -200,6 +200,12 @@ function createProviderCredentialsTable() {
       id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
       credential_hash TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'provider' CHECK (
+        role IN (
+          'superuser',
+          'provider'
+        )
+      ),
       created_at TEXT NOT NULL,
       last_used_at TEXT,
       revoked_at TEXT
@@ -216,6 +222,75 @@ function createProviderCredentialsTable() {
       ON provider_credentials(
         created_at
       );
+  `);
+}
+
+function ensureProviderRoleColumn() {
+  if (
+    !columnExists(
+      'provider_credentials',
+      'role'
+    )
+  ) {
+    database.exec(`
+      ALTER TABLE provider_credentials
+      ADD COLUMN role TEXT NOT NULL
+        DEFAULT 'provider'
+        CHECK (
+          role IN (
+            'superuser',
+            'provider'
+          )
+        );
+    `);
+  }
+
+  const existingSuperuser =
+    database.prepare(`
+      SELECT id
+      FROM provider_credentials
+      WHERE role = 'superuser'
+        AND revoked_at IS NULL
+      LIMIT 1
+    `).get();
+
+  if (existingSuperuser) {
+    return;
+  }
+
+  const oldestActiveProvider =
+    database.prepare(`
+      SELECT id
+      FROM provider_credentials
+      WHERE revoked_at IS NULL
+      ORDER BY created_at ASC
+      LIMIT 1
+    `).get();
+
+  if (!oldestActiveProvider) {
+    return;
+  }
+
+  database.prepare(`
+    UPDATE provider_credentials
+    SET role = 'superuser'
+    WHERE id = ?
+  `).run(
+    oldestActiveProvider.id
+  );
+}
+
+function createAdminAuthTable() {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS admin_auth (
+      id INTEGER PRIMARY KEY CHECK (
+        id = 1
+      ),
+      password_salt TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    ) STRICT;
   `);
 }
 
@@ -267,6 +342,8 @@ function createAuditTable() {
 migrateLegacySessionsTable();
 ensureReceiptTokenColumn();
 createProviderCredentialsTable();
+ensureProviderRoleColumn();
+createAdminAuthTable();
 createAuditTable();
 
 function canonicalize(value) {

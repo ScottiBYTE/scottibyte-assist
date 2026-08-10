@@ -1,8 +1,23 @@
 import http from 'node:http';
+import {
+  randomBytes
+} from 'node:crypto';
 import express from 'express';
 
 import {
+  bootstrapStatus,
+  initializeBootstrap,
+  redeemBootstrap
+} from './bootstrap.js';
+
+import {
+  adminPasswordConfigured,
+  verifyAdminPassword
+} from './admin_auth.js';
+
+import {
   requireMasterSupporter,
+  requireSuperuser,
   requireSupporter,
   validateSupporterToken
 } from './auth.js';
@@ -19,6 +34,7 @@ import {
 import {
   createProviderCredential,
   listProviderCredentials,
+  renameProviderCredential,
   revokeProviderCredential
 } from './providers.js';
 
@@ -65,6 +81,141 @@ app.use(
     }
   )
 );
+
+const adminSessions = new Map();
+
+const adminSessionLifetimeMs =
+  4 * 60 * 60 * 1000;
+
+const adminCookieName =
+  'assist_admin_session';
+
+function parseCookies(request) {
+  const result = {};
+
+  for (
+    const part
+    of (request.headers.cookie ?? '')
+      .split(';')
+  ) {
+    const index = part.indexOf('=');
+
+    if (index < 0) {
+      continue;
+    }
+
+    const name =
+      part.slice(0, index).trim();
+
+    const value =
+      part.slice(index + 1).trim();
+
+    if (name) {
+      result[name] =
+        decodeURIComponent(value);
+    }
+  }
+
+  return result;
+}
+
+function createAdminSession() {
+  const token =
+    randomBytes(32)
+      .toString('base64url');
+
+  adminSessions.set(
+    token,
+    Date.now() +
+      adminSessionLifetimeMs
+  );
+
+  return token;
+}
+
+function validAdminSession(request) {
+  const token =
+    parseCookies(request)[
+      adminCookieName
+    ];
+
+  if (!token) {
+    return false;
+  }
+
+  const expiresAt =
+    adminSessions.get(token);
+
+  if (
+    !expiresAt ||
+    expiresAt <= Date.now()
+  ) {
+    adminSessions.delete(token);
+    return false;
+  }
+
+  return true;
+}
+
+function clearAdminSession(request) {
+  const token =
+    parseCookies(request)[
+      adminCookieName
+    ];
+
+  if (token) {
+    adminSessions.delete(token);
+  }
+}
+
+function adminCookie(
+  token,
+  secure
+) {
+  return (
+    `${adminCookieName}=${token}; ` +
+    'Path=/; HttpOnly; ' +
+    (secure ? 'Secure; ' : '') +
+    'SameSite=Strict; Max-Age=14400'
+  );
+}
+
+function expiredAdminCookie(
+  secure
+) {
+  return (
+    `${adminCookieName}=; ` +
+    'Path=/; HttpOnly; ' +
+    (secure ? 'Secure; ' : '') +
+    'SameSite=Strict; Max-Age=0'
+  );
+}
+
+function requireProviderAdministrator(
+  request,
+  response,
+  next
+) {
+  if (validAdminSession(request)) {
+    request.supporter = {
+      authenticated: true,
+      type: 'web-admin',
+      role: 'superuser',
+      providerId: null,
+      displayName:
+        'Assist Server Administrator'
+    };
+
+    next();
+    return;
+  }
+
+  requireSuperuser(
+    request,
+    response,
+    next
+  );
+}
 
 function validCode(code) {
   return /^\d{6}$/.test(code);
@@ -134,6 +285,53 @@ function sourceIp(request) {
   return request.ip ?? null;
 }
 
+let bootstrapFailureState = {
+  startedAt: 0,
+  failures: 0
+};
+
+const bootstrapFailureWindowMs =
+  10 * 60 * 1000;
+
+const bootstrapFailureLimit = 5;
+
+function currentBootstrapFailureState() {
+  const now = Date.now();
+
+  if (
+    bootstrapFailureState.startedAt === 0 ||
+    now - bootstrapFailureState.startedAt >=
+      bootstrapFailureWindowMs
+  ) {
+    bootstrapFailureState = {
+      startedAt: now,
+      failures: 0
+    };
+  }
+
+  return bootstrapFailureState;
+}
+
+function bootstrapRateLimited() {
+  return (
+    currentBootstrapFailureState()
+      .failures >=
+    bootstrapFailureLimit
+  );
+}
+
+function recordBootstrapFailure() {
+  currentBootstrapFailureState()
+    .failures += 1;
+}
+
+function clearBootstrapFailures() {
+  bootstrapFailureState = {
+    startedAt: 0,
+    failures: 0
+  };
+}
+
 function sendSessionError(
   response,
   result
@@ -170,8 +368,136 @@ app.get(
 );
 
 app.get(
+  '/api/admin/session',
+  (request, response) => {
+    response.status(200).json({
+      authenticated:
+        validAdminSession(request),
+      passwordConfigured:
+        adminPasswordConfigured()
+    });
+  }
+);
+
+app.post(
+  '/api/admin/login',
+  (request, response) => {
+    if (!adminPasswordConfigured()) {
+      return response.status(503).json({
+        error:
+          'admin_password_not_configured',
+        message:
+          'The administrator password has not been configured.'
+      });
+    }
+
+    if (
+      !verifyAdminPassword(
+        request.body?.password
+      )
+    ) {
+      return response.status(403).json({
+        error:
+          'invalid_admin_password',
+        message:
+          'The administrator password is not valid.'
+      });
+    }
+
+    const token =
+      createAdminSession();
+
+    response.setHeader(
+      'Set-Cookie',
+      adminCookie(
+        token,
+        request.secure
+      )
+    );
+
+    response.status(200).json({
+      authenticated: true
+    });
+  }
+);
+
+app.post(
+  '/api/admin/logout',
+  (request, response) => {
+    clearAdminSession(request);
+
+    response.setHeader(
+      'Set-Cookie',
+      expiredAdminCookie(
+        request.secure
+      )
+    );
+
+    response.status(200).json({
+      authenticated: false
+    });
+  }
+);
+
+app.get(
+  '/api/bootstrap/status',
+  (_request, response) => {
+    response.status(200).json(
+      bootstrapStatus()
+    );
+  }
+);
+
+app.post(
+  '/api/bootstrap/redeem',
+  (request, response) => {
+    if (bootstrapRateLimited()) {
+      return response
+        .status(429)
+        .json({
+          error:
+            'bootstrap_rate_limited',
+          message:
+            'Too many invalid setup attempts. '
+            + 'Try again later.'
+        });
+    }
+
+    const result =
+      redeemBootstrap(
+        request.body?.setupCode,
+        request.body?.displayName,
+        request.body?.adminPassword
+      );
+
+    if (result.error) {
+      if (
+        result.error ===
+        'invalid_setup_code'
+      ) {
+        recordBootstrapFailure();
+      }
+
+      const status =
+        result.error ===
+          'bootstrap_not_available'
+          ? 409
+          : 403;
+
+      return response
+        .status(status)
+        .json(result);
+    }
+
+    clearBootstrapFailures();
+
+    response.status(201).json(result);
+  }
+);
+
+app.get(
   '/api/providers',
-  requireMasterSupporter,
+  requireProviderAdministrator,
   (_request, response) => {
     response.status(200).json({
       providers:
@@ -182,7 +508,7 @@ app.get(
 
 app.post(
   '/api/providers',
-  requireMasterSupporter,
+  requireProviderAdministrator,
   (request, response) => {
     const result =
       createProviderCredential(
@@ -199,9 +525,34 @@ app.post(
   }
 );
 
+app.patch(
+  '/api/providers/:id',
+  requireProviderAdministrator,
+  (request, response) => {
+    const result =
+      renameProviderCredential(
+        request.params.id,
+        request.body?.displayName
+      );
+
+    if (result.error) {
+      const status =
+        result.error === 'provider_not_found'
+          ? 404
+          : 400;
+
+      return response
+        .status(status)
+        .json(result);
+    }
+
+    response.status(200).json(result);
+  }
+);
+
 app.post(
   '/api/providers/:id/revoke',
-  requireMasterSupporter,
+  requireProviderAdministrator,
   (request, response) => {
     const result =
       revokeProviderCredential(
@@ -512,6 +863,8 @@ app.use((
 const httpServer = http.createServer(app);
 
 createWebSocketServer(httpServer);
+
+initializeBootstrap();
 
 httpServer.listen(
   port,
