@@ -170,6 +170,22 @@
       border-radius: 8px;
     }
 
+    .provider-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      color: #c8d8e7;
+      font-weight: 700;
+    }
+
+    .provider-filter input {
+      width: auto;
+      min-height: auto;
+      margin: 0;
+      accent-color: #28c7f7;
+    }
+
     .provider-grid {
       display: grid;
       gap: 12px;
@@ -306,6 +322,13 @@
           class="status hidden">
         </div>
 
+        <label class="provider-filter">
+          <input
+            id="showRevokedProviders"
+            type="checkbox">
+          Show revoked providers
+        </label>
+
         <div
           id="providerGrid"
           class="provider-grid">
@@ -384,6 +407,11 @@
 
     const providerGrid =
       document.getElementById('providerGrid');
+
+    const showRevokedProviders =
+      document.getElementById(
+        'showRevokedProviders'
+      );
 
     const newCredentialBox =
       document.getElementById('newCredentialBox');
@@ -487,43 +515,100 @@
 
         rename.addEventListener(
           'click',
-          async () => {
-            const value =
-              window.prompt(
-                'New provider name:',
-                provider.displayName
-              );
+          () => {
+            const editor =
+              document.createElement('input');
 
-            if (
-              value === null ||
-              !value.trim()
-            ) {
-              return;
-            }
+            editor.type = 'text';
+            editor.maxLength = 128;
+            editor.value =
+              provider.displayName;
 
-            try {
-              await api(
-                `/api/providers/${provider.id}`,
-                {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type':
-                      'application/json'
-                  },
-                  body: JSON.stringify({
-                    displayName:
-                      value.trim()
-                  })
+            const save =
+              document.createElement('button');
+
+            save.className = 'small';
+            save.textContent = 'Save';
+
+            const cancel =
+              document.createElement('button');
+
+            cancel.className = 'small';
+            cancel.textContent = 'Cancel';
+
+            name.replaceChildren(editor);
+
+            actions.replaceChildren(
+              save,
+              cancel,
+              revoke
+            );
+
+            editor.focus();
+            editor.select();
+
+            const finishRename =
+              async () => {
+                const value =
+                  editor.value.trim();
+
+                if (!value) {
+                  showStatus(
+                    providerStatus,
+                    'Enter a provider name.'
+                  );
+
+                  return;
                 }
-              );
 
-              await loadProviders();
-            } catch (error) {
-              showStatus(
-                providerStatus,
-                error.message
-              );
-            }
+                try {
+                  await api(
+                    `/api/providers/${provider.id}`,
+                    {
+                      method: 'PATCH',
+                      headers: {
+                        'Content-Type':
+                          'application/json'
+                      },
+                      body: JSON.stringify({
+                        displayName: value
+                      })
+                    }
+                  );
+
+                  await loadProviders();
+                } catch (error) {
+                  showStatus(
+                    providerStatus,
+                    error.message
+                  );
+                }
+              };
+
+            save.addEventListener(
+              'click',
+              finishRename
+            );
+
+            cancel.addEventListener(
+              'click',
+              () => {
+                loadProviders();
+              }
+            );
+
+            editor.addEventListener(
+              'keydown',
+              event => {
+                if (event.key === 'Enter') {
+                  finishRename();
+                }
+
+                if (event.key === 'Escape') {
+                  loadProviders();
+                }
+              }
+            );
           }
         );
 
@@ -537,30 +622,59 @@
 
         revoke.addEventListener(
           'click',
-          async () => {
-            if (
-              !window.confirm(
-                `Revoke ${provider.displayName}?`
-              )
-            ) {
-              return;
-            }
+          () => {
+            const confirmRevoke =
+              document.createElement('button');
 
-            try {
-              await api(
-                `/api/providers/${provider.id}/revoke`,
-                {
-                  method: 'POST'
+            confirmRevoke.className =
+              'small danger';
+
+            confirmRevoke.textContent =
+              'Confirm Revoke';
+
+            const cancelRevoke =
+              document.createElement('button');
+
+            cancelRevoke.className =
+              'small';
+
+            cancelRevoke.textContent =
+              'Cancel';
+
+            actions.replaceChildren(
+              confirmRevoke,
+              cancelRevoke
+            );
+
+            confirmRevoke.addEventListener(
+              'click',
+              async () => {
+                try {
+                  await api(
+                    `/api/providers/${provider.id}/revoke`,
+                    {
+                      method: 'POST'
+                    }
+                  );
+
+                  await loadProviders();
+                } catch (error) {
+                  showStatus(
+                    providerStatus,
+                    error.message
+                  );
+
+                  await loadProviders();
                 }
-              );
+              }
+            );
 
-              await loadProviders();
-            } catch (error) {
-              showStatus(
-                providerStatus,
-                error.message
-              );
-            }
+            cancelRevoke.addEventListener(
+              'click',
+              () => {
+                loadProviders();
+              }
+            );
           }
         );
 
@@ -593,6 +707,13 @@
         const provider
         of result.providers || []
       ) {
+        if (
+          !showRevokedProviders.checked &&
+          !provider.active
+        ) {
+          continue;
+        }
+
         providerGrid.append(
           providerRow(provider)
         );
@@ -773,6 +894,13 @@
           }
         }
       );
+
+    showRevokedProviders.addEventListener(
+      'change',
+      () => {
+        loadProviders();
+      }
+    );
 
     credentialInput.addEventListener(
       'keydown',
