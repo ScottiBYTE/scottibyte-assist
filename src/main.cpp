@@ -5057,6 +5057,33 @@ providerScreenDismissFilter->
             }
         });
 
+    const auto connectDesktopAudioRelay =
+        [
+            desktopAudioRelay
+        ](
+            WanSignalingClient *signaling)
+        {
+            QMetaObject::invokeMethod(
+                desktopAudioRelay,
+                "connectForSession",
+                Qt::QueuedConnection,
+                Q_ARG(
+                    QUrl,
+                    signaling->webSocketUrl()),
+                Q_ARG(
+                    QString,
+                    signaling->sessionCode()),
+                Q_ARG(
+                    QString,
+                    signaling->voiceRole()),
+                Q_ARG(
+                    QString,
+                    signaling->voiceToken()),
+                Q_ARG(
+                    QString,
+                    signaling->deviceId()));
+        };
+
     const auto connectVoiceRelay =
         [
             voiceRelay
@@ -5107,6 +5134,32 @@ providerScreenDismissFilter->
         ]()
         {
             connectVoiceRelay(
+                providerSignaling);
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::relayReady,
+        window,
+        [
+            customerSignaling,
+            connectDesktopAudioRelay
+        ]()
+        {
+            connectDesktopAudioRelay(
+                customerSignaling);
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::relayReady,
+        window,
+        [
+            providerSignaling,
+            connectDesktopAudioRelay
+        ]()
+        {
+            connectDesktopAudioRelay(
                 providerSignaling);
         });
 
@@ -5352,6 +5405,82 @@ QObject::connect(
     Qt::QueuedConnection);
 
 QObject::connect(
+        lanSession,
+        &LanSession::desktopAudioStartRequested,
+        window,
+        [
+            remoteDesktopAudio,
+            receiveButton,
+            receiveStatus,
+            provideStatus
+        ]()
+        {
+            if (receiveButton->isChecked()) {
+                if (!remoteDesktopAudio->startSender()) {
+                    receiveStatus->setText(
+                        QStringLiteral(
+                            "Remote desktop audio could not start."));
+                    return;
+                }
+
+                receiveStatus->setText(
+                    QStringLiteral(
+                        "Desktop audio is being shared."));
+                return;
+            }
+
+            QSettings settings(
+                QStringLiteral("ScottiBYTE"),
+                QStringLiteral("ScottiBYTE Assist"));
+
+            const QString outputNode =
+                settings.value(
+                    QStringLiteral(
+                        "voice/outputNode"))
+                    .toString();
+
+            if (
+                !remoteDesktopAudio->
+                    startReceiver(
+                        outputNode)
+            ) {
+                provideStatus->setText(
+                    QStringLiteral(
+                        "Remote desktop audio playback "
+                        "could not start."));
+                return;
+            }
+
+            provideStatus->setText(
+                QStringLiteral(
+                    "Listening to remote desktop audio."));
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::desktopAudioStopRequested,
+        window,
+        [
+            remoteDesktopAudio,
+            receiveButton,
+            receiveStatus,
+            provideStatus
+        ]()
+        {
+            remoteDesktopAudio->stop();
+
+            if (receiveButton->isChecked()) {
+                receiveStatus->setText(
+                    QStringLiteral(
+                        "Desktop audio sharing stopped."));
+            } else {
+                provideStatus->setText(
+                    QStringLiteral(
+                        "Remote desktop audio stopped."));
+            }
+        });
+
+    QObject::connect(
         customerStartVoiceButton,
         &QPushButton::clicked,
         lanSession,
