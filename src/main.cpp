@@ -5,6 +5,12 @@
 #include "remote_view.h"
 #include "wan_signaling_client.h"
 #include "wan_voice_relay.h"
+
+#include <QEventLoop>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QTimer>
 #include <QScrollArea>
 
 #if defined(Q_OS_WIN)
@@ -128,14 +134,119 @@ QUrl assistWebSocketUrl(
     return result;
 }
 
-QString loadProviderCredential(
-    QString *errorMessage)
+QString providerCredentialPath()
 {
-    const QString path =
+    return
         QStandardPaths::writableLocation(
             QStandardPaths::ConfigLocation) +
         QStringLiteral(
             "/ScottiBYTE/Assist/provider.json");
+}
+
+bool saveProviderCredential(
+    const QString &credential,
+    QString *errorMessage)
+{
+    const QString normalized =
+        credential.trimmed();
+
+    if (normalized.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Enter a provider credential.");
+        }
+
+        return false;
+    }
+
+    const QString path =
+        providerCredentialPath();
+
+    const QFileInfo fileInfo(path);
+
+    if (!QDir().mkpath(
+            fileInfo.absolutePath())) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Could not create the provider "
+                    "credential directory.");
+        }
+
+        return false;
+    }
+
+    QFile file(path);
+
+    if (!file.open(
+            QIODevice::WriteOnly |
+            QIODevice::Truncate)) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Could not write the provider "
+                    "credential file.");
+        }
+
+        return false;
+    }
+
+    QJsonObject object;
+    object.insert(
+        QStringLiteral("credential"),
+        normalized);
+
+    const QByteArray data =
+        QJsonDocument(object)
+            .toJson(
+                QJsonDocument::Indented);
+
+    if (file.write(data) != data.size()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Could not completely write the "
+                    "provider credential file.");
+        }
+
+        return false;
+    }
+
+    file.close();
+
+    return true;
+}
+
+bool removeProviderCredential(
+    QString *errorMessage)
+{
+    const QString path =
+        providerCredentialPath();
+
+    if (!QFileInfo::exists(path)) {
+        return true;
+    }
+
+    if (!QFile::remove(path)) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Could not remove the provider "
+                    "credential file.");
+        }
+
+        return false;
+    }
+
+    return true;
+}
+
+QString loadProviderCredential(
+    QString *errorMessage)
+{
+    const QString path =
+        providerCredentialPath();
 
     QFile file(path);
 
@@ -195,6 +306,330 @@ QString loadProviderCredential(
     }
 
     return credential;
+}
+
+QUrl assistApiUrl(
+    QUrl serverUrl,
+    const QString &endpoint)
+{
+    QString path =
+        serverUrl.path();
+
+    if (path.endsWith(QChar('/'))) {
+        path.chop(1);
+    }
+
+    QString normalizedEndpoint =
+        endpoint;
+
+    if (
+        !normalizedEndpoint.startsWith(
+            QChar('/'))
+    ) {
+        normalizedEndpoint.prepend(
+            QChar('/'));
+    }
+
+    serverUrl.setPath(
+        path + normalizedEndpoint);
+
+    return serverUrl;
+}
+
+bool bootstrapRequiredFromServer(
+    const QUrl &serverUrl,
+    bool *bootstrapRequired,
+    QString *errorMessage)
+{
+    if (
+        !serverUrl.isValid() ||
+        serverUrl.scheme().isEmpty() ||
+        serverUrl.host().isEmpty()
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Enter a valid Assist Server URL.");
+        }
+
+        return false;
+    }
+
+    QNetworkAccessManager manager;
+    QNetworkRequest request(
+        assistApiUrl(
+            serverUrl,
+            QStringLiteral(
+                "/api/bootstrap/status")));
+
+    QNetworkReply *reply =
+        manager.get(request);
+
+    QEventLoop loop;
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::finished,
+        &loop,
+        &QEventLoop::quit);
+
+    QTimer::singleShot(
+        5000,
+        reply,
+        [reply]()
+        {
+            if (!reply->isFinished()) {
+                reply->abort();
+            }
+        });
+
+    loop.exec();
+
+    const QByteArray body =
+        reply->readAll();
+
+    const QNetworkReply::NetworkError
+        networkError =
+            reply->error();
+
+    const QString networkErrorText =
+        reply->errorString();
+
+    reply->deleteLater();
+
+    if (
+        networkError !=
+            QNetworkReply::NoError
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Could not check initial provider "
+                    "setup: %1")
+                    .arg(networkErrorText);
+        }
+
+        return false;
+    }
+
+    QJsonParseError parseError;
+
+    const QJsonDocument document =
+        QJsonDocument::fromJson(
+            body,
+            &parseError);
+
+    if (
+        parseError.error !=
+            QJsonParseError::NoError ||
+        !document.isObject()
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The Assist server returned an "
+                    "invalid bootstrap status.");
+        }
+
+        return false;
+    }
+
+    if (bootstrapRequired != nullptr) {
+        *bootstrapRequired =
+            document.object()
+                .value(
+                    QStringLiteral(
+                        "bootstrapRequired"))
+                .toBool(false);
+    }
+
+    return true;
+}
+
+bool redeemInitialProvider(
+    const QUrl &serverUrl,
+    const QString &setupCode,
+    const QString &displayName,
+    const QString &adminPassword,
+    QString *credential,
+    QString *errorMessage)
+{
+    const QString normalizedCode =
+        setupCode.trimmed();
+
+    const QString normalizedName =
+        displayName.trimmed();
+
+    if (normalizedName.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Enter a provider name.");
+        }
+
+        return false;
+    }
+
+    if (normalizedCode.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Enter the 9-digit setup code.");
+        }
+
+        return false;
+    }
+
+    if (adminPassword.size() < 10) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The administrator password must "
+                    "be at least 10 characters.");
+        }
+
+        return false;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("setupCode"),
+        normalizedCode);
+
+    payload.insert(
+        QStringLiteral("displayName"),
+        normalizedName);
+
+    payload.insert(
+        QStringLiteral("adminPassword"),
+        adminPassword);
+
+    QNetworkAccessManager manager;
+
+    QNetworkRequest request(
+        assistApiUrl(
+            serverUrl,
+            QStringLiteral(
+                "/api/bootstrap/redeem")));
+
+    request.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        QStringLiteral(
+            "application/json"));
+
+    QNetworkReply *reply =
+        manager.post(
+            request,
+            QJsonDocument(payload)
+                .toJson(
+                    QJsonDocument::Compact));
+
+    QEventLoop loop;
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::finished,
+        &loop,
+        &QEventLoop::quit);
+
+    QTimer::singleShot(
+        5000,
+        reply,
+        [reply]()
+        {
+            if (!reply->isFinished()) {
+                reply->abort();
+            }
+        });
+
+    loop.exec();
+
+    const QByteArray body =
+        reply->readAll();
+
+    const QNetworkReply::NetworkError
+        networkError =
+            reply->error();
+
+    const QString networkErrorText =
+        reply->errorString();
+
+    reply->deleteLater();
+
+    QJsonParseError parseError;
+
+    const QJsonDocument document =
+        QJsonDocument::fromJson(
+            body,
+            &parseError);
+
+    const QJsonObject object =
+        document.isObject()
+            ? document.object()
+            : QJsonObject();
+
+    if (
+        networkError !=
+            QNetworkReply::NoError
+    ) {
+        QString message =
+            object.value(
+                QStringLiteral("message"))
+                .toString()
+                .trimmed();
+
+        if (message.isEmpty()) {
+            message =
+                networkErrorText;
+        }
+
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                message;
+        }
+
+        return false;
+    }
+
+    if (
+        parseError.error !=
+            QJsonParseError::NoError ||
+        !document.isObject()
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The Assist server returned an "
+                    "invalid setup response.");
+        }
+
+        return false;
+    }
+
+    const QString returnedCredential =
+        object.value(
+            QStringLiteral("credential"))
+            .toString()
+            .trimmed();
+
+    if (returnedCredential.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The Assist server did not return "
+                    "a provider credential.");
+        }
+
+        return false;
+    }
+
+    if (credential != nullptr) {
+        *credential =
+            returnedCredential;
+    }
+
+    return true;
 }
 
 QLabel *makeLabel(
@@ -670,7 +1105,434 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     layout->addLayout(form);
     layout->addWidget(refreshDevices);
     layout->addWidget(deviceStatus);
+
+    auto *providerTitle =
+        new QLabel(
+            QStringLiteral(
+                "Provider Authorization"));
+
+    providerTitle->setStyleSheet(
+        QStringLiteral(
+            "font-size: 16px; "
+            "font-weight: 800; "
+            "color: #ffffff; "
+            "margin-top: 8px;"));
+
+    auto *providerStatus =
+        new QLabel;
+
+    providerStatus->setObjectName(
+        QStringLiteral("settingsStatus"));
+
+    providerStatus->setWordWrap(true);
+
+    auto *bootstrapInstructions =
+        new QLabel(
+            QStringLiteral(
+                "Initial Provider Setup\n\n"
+                "This Assist server has not been "
+                "configured yet. Enter the provider "
+                "name for this computer, the "
+                "9-digit setup code shown in the "
+                "server console, and choose an "
+                "administrator password."));
+
+    bootstrapInstructions->setWordWrap(
+        true);
+
+    bootstrapInstructions->setStyleSheet(
+        QStringLiteral(
+            "font-weight: 700; "
+            "color: #ffffff;"));
+
+    auto *bootstrapProviderName =
+        new QLineEdit;
+
+    bootstrapProviderName->
+        setPlaceholderText(
+            QStringLiteral(
+                "Provider name, for example Mondo-2"));
+
+    auto *bootstrapSetupCode =
+        new QLineEdit;
+
+    bootstrapSetupCode->
+        setPlaceholderText(
+            QStringLiteral(
+                "Setup code: XXX-XXX-XXX"));
+
+    bootstrapSetupCode->setMaxLength(11);
+
+    auto *bootstrapAdminPassword =
+        new QLineEdit;
+
+    bootstrapAdminPassword->
+        setPlaceholderText(
+            QStringLiteral(
+                "Administrator password"));
+
+    bootstrapAdminPassword->setEchoMode(
+        QLineEdit::Password);
+
+    auto *bootstrapAdminPasswordConfirm =
+        new QLineEdit;
+
+    bootstrapAdminPasswordConfirm->
+        setPlaceholderText(
+            QStringLiteral(
+                "Confirm administrator password"));
+
+    bootstrapAdminPasswordConfirm->setEchoMode(
+        QLineEdit::Password);
+
+    auto *createFirstAdministrator =
+        new QPushButton(
+            QStringLiteral(
+                "Create First Administrator"));
+
+    auto *providerCredential =
+        new QLineEdit;
+
+    providerCredential->setPlaceholderText(
+        QStringLiteral(
+            "Paste provider credential"));
+
+    providerCredential->setClearButtonEnabled(
+        true);
+
+    auto *installProviderCredential =
+        new QPushButton(
+            QStringLiteral(
+                "Install Provider Credential"));
+
+    auto *removeProviderCredentialButton =
+        new QPushButton(
+            QStringLiteral(
+                "Remove Provider Credential"));
+
+    auto *providerButtons =
+        new QHBoxLayout;
+
+    providerButtons->addWidget(
+        installProviderCredential);
+
+    providerButtons->addWidget(
+        removeProviderCredentialButton);
+
+    const auto setBootstrapUi =
+        [
+            bootstrapInstructions,
+            bootstrapProviderName,
+            bootstrapSetupCode,
+            bootstrapAdminPassword,
+            bootstrapAdminPasswordConfirm,
+            createFirstAdministrator,
+            providerCredential,
+            installProviderCredential,
+            removeProviderCredentialButton
+        ](
+            bool required)
+        {
+            bootstrapInstructions->
+                setVisible(required);
+
+            bootstrapProviderName->
+                setVisible(required);
+
+            bootstrapSetupCode->
+                setVisible(required);
+
+            bootstrapAdminPassword->
+                setVisible(required);
+
+            bootstrapAdminPasswordConfirm->
+                setVisible(required);
+
+            createFirstAdministrator->
+                setVisible(required);
+
+            providerCredential->
+                setVisible(!required);
+
+            installProviderCredential->
+                setVisible(!required);
+
+            removeProviderCredentialButton->
+                setVisible(!required);
+        };
+
+    const auto refreshProviderStatus =
+        [
+            serverUrl,
+            providerStatus,
+            removeProviderCredentialButton,
+            setBootstrapUi
+        ]()
+        {
+            QString value =
+                serverUrl->text().trimmed();
+
+            while (
+                value.endsWith(
+                    QChar('/'))
+            ) {
+                value.chop(1);
+            }
+
+            bool bootstrapRequired =
+                false;
+
+            QString bootstrapError;
+
+            if (
+                bootstrapRequiredFromServer(
+                    QUrl(value),
+                    &bootstrapRequired,
+                    &bootstrapError) &&
+                bootstrapRequired
+            ) {
+                setBootstrapUi(true);
+
+                providerStatus->setText(
+                    QStringLiteral(
+                        "Initial provider setup is "
+                        "required. The first provider "
+                        "created will become the "
+                        "server administrator."));
+
+                return;
+            }
+
+            setBootstrapUi(false);
+
+            QString credentialError;
+
+            const QString credential =
+                loadProviderCredential(
+                    &credentialError);
+
+            if (credential.isEmpty()) {
+                removeProviderCredentialButton->
+                    setEnabled(false);
+
+                if (
+                    bootstrapError.isEmpty()
+                ) {
+                    providerStatus->setText(
+                        QStringLiteral(
+                            "This computer is not "
+                            "authorized to provide "
+                            "support."));
+                } else {
+                    providerStatus->setText(
+                        QStringLiteral(
+                            "This computer is not "
+                            "authorized to provide "
+                            "support. %1")
+                            .arg(
+                                bootstrapError));
+                }
+            } else {
+                providerStatus->setText(
+                    QStringLiteral(
+                        "A provider credential is "
+                        "installed on this computer."));
+
+                removeProviderCredentialButton->
+                    setEnabled(true);
+            }
+        };
+
+    QObject::connect(
+        createFirstAdministrator,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            serverUrl,
+            bootstrapProviderName,
+            bootstrapSetupCode,
+            bootstrapAdminPassword,
+            bootstrapAdminPasswordConfirm,
+            providerStatus,
+            refreshProviderStatus
+        ]()
+        {
+            QString value =
+                serverUrl->text().trimmed();
+
+            while (
+                value.endsWith(
+                    QChar('/'))
+            ) {
+                value.chop(1);
+            }
+
+            QString credential;
+            QString errorMessage;
+
+            if (
+                bootstrapAdminPassword->text() !=
+                bootstrapAdminPasswordConfirm->text()
+            ) {
+                providerStatus->setText(
+                    QStringLiteral(
+                        "The administrator passwords "
+                        "do not match."));
+                return;
+            }
+
+            if (
+                !redeemInitialProvider(
+                    QUrl(value),
+                    bootstrapSetupCode->text(),
+                    bootstrapProviderName->text(),
+                    bootstrapAdminPassword->text(),
+                    &credential,
+                    &errorMessage)
+            ) {
+                providerStatus->setText(
+                    errorMessage);
+
+                return;
+            }
+
+            if (
+                !saveProviderCredential(
+                    credential,
+                    &errorMessage)
+            ) {
+                providerStatus->setText(
+                    QStringLiteral(
+                        "The administrator was created "
+                        "on the server, but its "
+                        "credential could not be saved "
+                        "on this computer: %1")
+                        .arg(errorMessage));
+
+                return;
+            }
+
+            bootstrapSetupCode->clear();
+            bootstrapAdminPassword->clear();
+            bootstrapAdminPasswordConfirm->clear();
+
+            refreshProviderStatus();
+
+            providerStatus->setText(
+                QStringLiteral(
+                    "First administrator created. "
+                    "This computer is now authorized "
+                    "as the ScottiBYTE Assist "
+                    "superuser."));
+        });
+
+    QObject::connect(
+        installProviderCredential,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            providerCredential,
+            providerStatus,
+            refreshProviderStatus
+        ]()
+        {
+            QString errorMessage;
+
+            if (!saveProviderCredential(
+                    providerCredential->text(),
+                    &errorMessage)) {
+                providerStatus->setText(
+                    errorMessage);
+                return;
+            }
+
+            providerCredential->clear();
+
+            refreshProviderStatus();
+
+            providerStatus->setText(
+                QStringLiteral(
+                    "Provider credential installed. "
+                    "This computer can now provide "
+                    "authorized support."));
+        });
+
+    QObject::connect(
+        removeProviderCredentialButton,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            &dialog,
+            providerStatus,
+            refreshProviderStatus
+        ]()
+        {
+            const QMessageBox::StandardButton answer =
+                QMessageBox::question(
+                    &dialog,
+                    QStringLiteral(
+                        "Remove Provider Authorization"),
+                    QStringLiteral(
+                        "Remove the provider credential "
+                        "from this computer?"),
+                    QMessageBox::Yes |
+                        QMessageBox::No,
+                    QMessageBox::No);
+
+            if (answer != QMessageBox::Yes) {
+                return;
+            }
+
+            QString errorMessage;
+
+            if (!removeProviderCredential(
+                    &errorMessage)) {
+                providerStatus->setText(
+                    errorMessage);
+                return;
+            }
+
+            refreshProviderStatus();
+
+            providerStatus->setText(
+                QStringLiteral(
+                    "Provider authorization removed "
+                    "from this computer."));
+        });
+
+    QObject::connect(
+        serverUrl,
+        &QLineEdit::editingFinished,
+        &dialog,
+        refreshProviderStatus);
+
+    layout->addWidget(providerTitle);
+    layout->addWidget(providerStatus);
+
+    layout->addWidget(
+        bootstrapInstructions);
+
+    layout->addWidget(
+        bootstrapProviderName);
+
+    layout->addWidget(
+        bootstrapSetupCode);
+
+    layout->addWidget(
+        bootstrapAdminPassword);
+
+    layout->addWidget(
+        bootstrapAdminPasswordConfirm);
+
+    layout->addWidget(
+        createFirstAdministrator);
+
+    layout->addWidget(providerCredential);
+    layout->addLayout(providerButtons);
+
     layout->addStretch();
+
+    refreshProviderStatus();
 
     auto *buttons =
         new QDialogButtonBox(
