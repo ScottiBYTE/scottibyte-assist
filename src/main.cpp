@@ -3824,8 +3824,6 @@ QLabel#remotePlaceholder {
     provideStatus->setAlignment(
         Qt::AlignCenter);
 
-    provideStatus->setVisible(false);
-
     auto *providerWindowControls =
         new QHBoxLayout;
 
