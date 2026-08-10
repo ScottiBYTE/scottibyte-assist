@@ -536,7 +536,8 @@ function handleRelayStart(
 
   if (
     requestedChannel !== 'main' &&
-    requestedChannel !== 'voice'
+    requestedChannel !== 'voice' &&
+    requestedChannel !== 'desktop-audio'
   ) {
     return sendError(
       client.socket,
