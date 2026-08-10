@@ -632,6 +632,159 @@ bool redeemInitialProvider(
     return true;
 }
 
+bool redeemProviderEnrollment(
+    const QUrl &serverUrl,
+    const QString &enrollmentCode,
+    QString *credential,
+    QString *errorMessage)
+{
+    const QString normalizedCode =
+        enrollmentCode.trimmed();
+
+    if (normalizedCode.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "Enter the 9-digit enrollment code.");
+        }
+
+        return false;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("enrollmentCode"),
+        normalizedCode);
+
+    QNetworkAccessManager manager;
+
+    QNetworkRequest request(
+        assistApiUrl(
+            serverUrl,
+            QStringLiteral(
+                "/api/provider-enrollments/redeem")));
+
+    request.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        QStringLiteral(
+            "application/json"));
+
+    QNetworkReply *reply =
+        manager.post(
+            request,
+            QJsonDocument(payload)
+                .toJson(
+                    QJsonDocument::Compact));
+
+    QEventLoop loop;
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::finished,
+        &loop,
+        &QEventLoop::quit);
+
+    QTimer::singleShot(
+        5000,
+        reply,
+        [reply]()
+        {
+            if (!reply->isFinished()) {
+                reply->abort();
+            }
+        });
+
+    loop.exec();
+
+    const QByteArray body =
+        reply->readAll();
+
+    const QNetworkReply::NetworkError
+        networkError =
+            reply->error();
+
+    const QString networkErrorText =
+        reply->errorString();
+
+    reply->deleteLater();
+
+    QJsonParseError parseError;
+
+    const QJsonDocument document =
+        QJsonDocument::fromJson(
+            body,
+            &parseError);
+
+    const QJsonObject object =
+        document.isObject()
+            ? document.object()
+            : QJsonObject();
+
+    if (
+        networkError !=
+            QNetworkReply::NoError
+    ) {
+        QString message =
+            object.value(
+                QStringLiteral("message"))
+                .toString()
+                .trimmed();
+
+        if (message.isEmpty()) {
+            message =
+                networkErrorText;
+        }
+
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                message;
+        }
+
+        return false;
+    }
+
+    if (
+        parseError.error !=
+            QJsonParseError::NoError ||
+        !document.isObject()
+    ) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The Assist server returned an "
+                    "invalid enrollment response.");
+        }
+
+        return false;
+    }
+
+    const QString returnedCredential =
+        object.value(
+            QStringLiteral("credential"))
+            .toString()
+            .trimmed();
+
+    if (returnedCredential.isEmpty()) {
+        if (errorMessage != nullptr) {
+            *errorMessage =
+                QStringLiteral(
+                    "The Assist server did not return "
+                    "a provider credential.");
+        }
+
+        return false;
+    }
+
+    if (credential != nullptr) {
+        *credential =
+            returnedCredential;
+    }
+
+    return true;
+}
+
+
 QLabel *makeLabel(
     const QString &text,
     const QString &objectName = {})
@@ -1190,12 +1343,29 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             QStringLiteral(
                 "Create First Administrator"));
 
+    auto *providerEnrollmentCode =
+        new QLineEdit;
+
+    providerEnrollmentCode->setPlaceholderText(
+        QStringLiteral(
+            "Enrollment code: XXX-XXX-XXX"));
+
+    providerEnrollmentCode->setMaxLength(11);
+
+    providerEnrollmentCode->setClearButtonEnabled(
+        true);
+
+    auto *enrollProvider =
+        new QPushButton(
+            QStringLiteral(
+                "Enroll This Computer"));
+
     auto *providerCredential =
         new QLineEdit;
 
     providerCredential->setPlaceholderText(
         QStringLiteral(
-            "Paste provider credential"));
+            "Advanced: paste provider credential"));
 
     providerCredential->setClearButtonEnabled(
         true);
@@ -1208,7 +1378,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     auto *removeProviderCredentialButton =
         new QPushButton(
             QStringLiteral(
-                "Remove Provider Credential"));
+                "Remove Provider Authorization"));
 
     auto *providerButtons =
         new QHBoxLayout;
@@ -1227,6 +1397,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             bootstrapAdminPassword,
             bootstrapAdminPasswordConfirm,
             createFirstAdministrator,
+            providerEnrollmentCode,
+            enrollProvider,
             providerCredential,
             installProviderCredential,
             removeProviderCredentialButton
@@ -1251,11 +1423,17 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             createFirstAdministrator->
                 setVisible(required);
 
-            providerCredential->
+            providerEnrollmentCode->
                 setVisible(!required);
 
-            installProviderCredential->
+            enrollProvider->
                 setVisible(!required);
+
+            providerCredential->
+                setVisible(false);
+
+            installProviderCredential->
+                setVisible(false);
 
             removeProviderCredentialButton->
                 setVisible(!required);
@@ -1265,6 +1443,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         [
             serverUrl,
             providerStatus,
+            providerEnrollmentCode,
+            enrollProvider,
             removeProviderCredentialButton,
             setBootstrapUi
         ]()
@@ -1312,8 +1492,14 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
                     &credentialError);
 
             if (credential.isEmpty()) {
+                providerEnrollmentCode->
+                    setVisible(true);
+
+                enrollProvider->
+                    setVisible(true);
+
                 removeProviderCredentialButton->
-                    setEnabled(false);
+                    setVisible(false);
 
                 if (
                     bootstrapError.isEmpty()
@@ -1333,13 +1519,22 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
                                 bootstrapError));
                 }
             } else {
-                providerStatus->setText(
-                    QStringLiteral(
-                        "A provider credential is "
-                        "installed on this computer."));
+                providerEnrollmentCode->
+                    setVisible(false);
+
+                enrollProvider->
+                    setVisible(false);
+
+                removeProviderCredentialButton->
+                    setVisible(true);
 
                 removeProviderCredentialButton->
                     setEnabled(true);
+
+                providerStatus->setText(
+                    QStringLiteral(
+                        "This computer is authorized "
+                        "to provide support."));
             }
         };
 
@@ -1427,6 +1622,84 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         });
 
     QObject::connect(
+        enrollProvider,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            serverUrl,
+            providerEnrollmentCode,
+            providerStatus,
+            refreshProviderStatus
+        ]()
+        {
+            QString existingError;
+
+            const QString existingCredential =
+                loadProviderCredential(
+                    &existingError);
+
+            if (!existingCredential.isEmpty()) {
+                providerStatus->setText(
+                    QStringLiteral(
+                        "This computer is already "
+                        "authorized. Remove the existing "
+                        "provider authorization before "
+                        "enrolling another provider."));
+                return;
+            }
+
+            QString value =
+                serverUrl->text().trimmed();
+
+            while (
+                value.endsWith(
+                    QChar('/'))
+            ) {
+                value.chop(1);
+            }
+
+            QString credential;
+            QString errorMessage;
+
+            if (
+                !redeemProviderEnrollment(
+                    QUrl(value),
+                    providerEnrollmentCode->text(),
+                    &credential,
+                    &errorMessage)
+            ) {
+                providerStatus->setText(
+                    errorMessage);
+                return;
+            }
+
+            if (
+                !saveProviderCredential(
+                    credential,
+                    &errorMessage)
+            ) {
+                providerStatus->setText(
+                    QStringLiteral(
+                        "Provider enrollment succeeded "
+                        "on the server, but the "
+                        "credential could not be saved "
+                        "on this computer: %1")
+                        .arg(errorMessage));
+                return;
+            }
+
+            providerEnrollmentCode->clear();
+
+            refreshProviderStatus();
+
+            providerStatus->setText(
+                QStringLiteral(
+                    "Provider enrollment completed. "
+                    "This computer can now provide "
+                    "authorized support."));
+        });
+
+    QObject::connect(
         installProviderCredential,
         &QPushButton::clicked,
         &dialog,
@@ -1467,17 +1740,57 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             refreshProviderStatus
         ]()
         {
+            QMessageBox confirmation(
+                QMessageBox::Question,
+                QStringLiteral(
+                    "Remove Provider Authorization"),
+                QStringLiteral(
+                    "Remove provider authorization "
+                    "from this computer?"),
+                QMessageBox::Yes |
+                    QMessageBox::No,
+                &dialog);
+
+            confirmation.setDefaultButton(
+                QMessageBox::No);
+
+            confirmation.setStyleSheet(
+                QStringLiteral(
+                    R"CSS(
+QMessageBox {
+    background: #071d39;
+    color: #ffffff;
+}
+
+QMessageBox QLabel {
+    color: #dcecff;
+    font-size: 14px;
+}
+
+QMessageBox QPushButton {
+    min-width: 90px;
+    min-height: 34px;
+    padding: 4px 14px;
+    color: #ffffff;
+    font-weight: 700;
+    background: #0b5f91;
+    border: 1px solid #35d9ff;
+    border-radius: 9px;
+}
+
+QMessageBox QPushButton:hover {
+    background: #1175aa;
+}
+
+QMessageBox QPushButton:default {
+    background: #134f7c;
+    border: 1px solid #35d9ff;
+}
+)CSS"));
+
             const QMessageBox::StandardButton answer =
-                QMessageBox::question(
-                    &dialog,
-                    QStringLiteral(
-                        "Remove Provider Authorization"),
-                    QStringLiteral(
-                        "Remove the provider credential "
-                        "from this computer?"),
-                    QMessageBox::Yes |
-                        QMessageBox::No,
-                    QMessageBox::No);
+                static_cast<QMessageBox::StandardButton>(
+                    confirmation.exec());
 
             if (answer != QMessageBox::Yes) {
                 return;
@@ -1526,6 +1839,12 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
     layout->addWidget(
         createFirstAdministrator);
+
+    layout->addWidget(
+        providerEnrollmentCode);
+
+    layout->addWidget(
+        enrollProvider);
 
     layout->addWidget(providerCredential);
     layout->addLayout(providerButtons);
