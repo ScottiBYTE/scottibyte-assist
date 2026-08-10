@@ -280,6 +280,28 @@ function ensureProviderRoleColumn() {
   );
 }
 
+function createProviderEnrollmentsTable() {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS provider_enrollments (
+      id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      code_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      redeemed_at TEXT,
+      cancelled_at TEXT
+    ) STRICT;
+
+    CREATE INDEX IF NOT EXISTS
+      idx_provider_enrollments_status
+      ON provider_enrollments(
+        redeemed_at,
+        cancelled_at,
+        expires_at
+      );
+  `);
+}
+
 function createAdminAuthTable() {
   database.exec(`
     CREATE TABLE IF NOT EXISTS admin_auth (
@@ -343,6 +365,7 @@ migrateLegacySessionsTable();
 ensureReceiptTokenColumn();
 createProviderCredentialsTable();
 ensureProviderRoleColumn();
+createProviderEnrollmentsTable();
 createAdminAuthTable();
 createAuditTable();
 

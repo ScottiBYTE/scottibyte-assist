@@ -398,8 +398,8 @@
         <h2>Add Provider</h2>
 
         <p>
-          New providers receive a permanent credential.
-          The credential is shown only once.
+          Create a one-time enrollment code for the
+          provider. The code expires after 15 minutes.
         </p>
 
         <label for="newProviderName">
@@ -414,33 +414,33 @@
 
         <div class="actions">
           <button id="addProviderButton">
-            Create Provider
+            Create Enrollment
           </button>
         </div>
 
         <div
-          id="newCredentialBox"
+          id="newEnrollmentBox"
           class="credential-box hidden">
 
           <strong>
-            New Provider Credential
+            Provider Enrollment Code
           </strong>
 
           <div>
-            Save this credential now. It cannot be
-            displayed again.
+            Give this one-time code to the provider.
+            It expires after 15 minutes.
           </div>
 
           <div
-            id="newCredential"
+            id="newEnrollmentCode"
             class="credential">
           </div>
 
           <div class="actions">
             <button
-              id="copyCredentialButton"
+              id="copyEnrollmentButton"
               class="small">
-              Copy Credential
+              Copy Enrollment Code
             </button>
           </div>
         </div>
@@ -472,11 +472,11 @@
         'showRevokedProviders'
       );
 
-    const newCredentialBox =
-      document.getElementById('newCredentialBox');
+    const newEnrollmentBox =
+      document.getElementById('newEnrollmentBox');
 
-    const newCredential =
-      document.getElementById('newCredential');
+    const newEnrollmentCode =
+      document.getElementById('newEnrollmentCode');
 
     function showStatus(element, message) {
       element.textContent = message;
@@ -754,17 +754,154 @@
       return row;
     }
 
+    function enrollmentRow(enrollment) {
+      const row =
+        document.createElement('div');
+
+      row.className = 'provider';
+
+      const name =
+        document.createElement('div');
+
+      name.className = 'provider-name';
+      name.textContent =
+        enrollment.displayName;
+
+      const role =
+        document.createElement('div');
+
+      role.className = 'role';
+      role.textContent = 'Provider';
+
+      const status =
+        document.createElement('div');
+
+      status.className = 'active';
+      status.textContent = 'Pending';
+
+      const expires =
+        document.createElement('div');
+
+      expires.textContent =
+        'Expires ' +
+        new Date(
+          enrollment.expiresAt
+        ).toLocaleString();
+
+      const actions =
+        document.createElement('div');
+
+      actions.className =
+        'provider-actions';
+
+      const cancel =
+        document.createElement('button');
+
+      cancel.className =
+        'small danger';
+
+      cancel.textContent =
+        'Cancel Enrollment';
+
+      cancel.addEventListener(
+        'click',
+        () => {
+          const confirmCancel =
+            document.createElement('button');
+
+          confirmCancel.className =
+            'small danger';
+
+          confirmCancel.textContent =
+            'Confirm Cancel';
+
+          const keep =
+            document.createElement('button');
+
+          keep.className = 'small';
+          keep.textContent = 'Keep';
+
+          actions.replaceChildren(
+            confirmCancel,
+            keep
+          );
+
+          confirmCancel.addEventListener(
+            'click',
+            async () => {
+              try {
+                await api(
+                  `/api/provider-enrollments/${enrollment.id}/cancel`,
+                  {
+                    method: 'POST'
+                  }
+                );
+
+                await loadProviders();
+              } catch (error) {
+                showStatus(
+                  providerStatus,
+                  error.message
+                );
+
+                await loadProviders();
+              }
+            }
+          );
+
+          keep.addEventListener(
+            'click',
+            () => {
+              loadProviders();
+            }
+          );
+        }
+      );
+
+      actions.append(cancel);
+
+      row.append(
+        name,
+        role,
+        status,
+        expires,
+        actions
+      );
+
+      return row;
+    }
+
     async function loadProviders() {
       clearStatus(providerStatus);
 
-      const result =
-        await api('/api/providers');
+      const [
+        providerResult,
+        enrollmentResult
+      ] = await Promise.all([
+        api('/api/providers'),
+        api('/api/provider-enrollments')
+      ]);
 
       providerGrid.replaceChildren();
 
       for (
+        const enrollment
+        of enrollmentResult.enrollments || []
+      ) {
+        if (
+          enrollment.status !== 'pending'
+        ) {
+          continue;
+        }
+
+        providerGrid.append(
+          enrollmentRow(enrollment)
+        );
+      }
+
+      for (
         const provider
-        of result.providers || []
+        of providerResult.providers || []
       ) {
         if (
           !showRevokedProviders.checked &&
@@ -870,7 +1007,7 @@
 
             providerGrid.replaceChildren();
 
-            newCredentialBox.classList.add(
+            newEnrollmentBox.classList.add(
               'hidden'
             );
 
@@ -904,7 +1041,7 @@
           try {
             const result =
               await api(
-                '/api/providers',
+                '/api/provider-enrollments',
                 {
                   method: 'POST',
                   headers: {
@@ -919,10 +1056,10 @@
 
             nameInput.value = '';
 
-            newCredential.textContent =
-              result.credential;
+            newEnrollmentCode.textContent =
+              result.enrollmentCode;
 
-            newCredentialBox.classList.remove(
+            newEnrollmentBox.classList.remove(
               'hidden'
             );
 
@@ -937,18 +1074,18 @@
       );
 
     document
-      .getElementById('copyCredentialButton')
+      .getElementById('copyEnrollmentButton')
       .addEventListener(
         'click',
         async () => {
           try {
             await navigator.clipboard.writeText(
-              newCredential.textContent
+              newEnrollmentCode.textContent
             );
           } catch {
             window.alert(
               'Could not copy automatically. '
-              + 'Select the credential manually.'
+              + 'Select the enrollment code manually.'
             );
           }
         }

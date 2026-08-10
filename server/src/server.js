@@ -39,6 +39,13 @@ import {
 } from './providers.js';
 
 import {
+  cancelProviderEnrollment,
+  createProviderEnrollment,
+  listProviderEnrollments,
+  redeemProviderEnrollment
+} from './provider_enrollments.js';
+
+import {
   getAuditEventsBySessionId,
   verifyAuditChain
 } from './database.js';
@@ -490,6 +497,79 @@ app.post(
     }
 
     clearBootstrapFailures();
+
+    response.status(201).json(result);
+  }
+);
+
+app.get(
+  '/api/provider-enrollments',
+  requireProviderAdministrator,
+  (_request, response) => {
+    response.status(200).json({
+      enrollments:
+        listProviderEnrollments()
+    });
+  }
+);
+
+app.post(
+  '/api/provider-enrollments',
+  requireProviderAdministrator,
+  (request, response) => {
+    const result =
+      createProviderEnrollment(
+        request.body?.displayName
+      );
+
+    if (result.error) {
+      return response
+        .status(400)
+        .json(result);
+    }
+
+    response.status(201).json(result);
+  }
+);
+
+app.post(
+  '/api/provider-enrollments/:id/cancel',
+  requireProviderAdministrator,
+  (request, response) => {
+    const result =
+      cancelProviderEnrollment(
+        request.params.id
+      );
+
+    if (result.error) {
+      return response
+        .status(409)
+        .json(result);
+    }
+
+    response.status(200).json(result);
+  }
+);
+
+app.post(
+  '/api/provider-enrollments/redeem',
+  (request, response) => {
+    const result =
+      redeemProviderEnrollment(
+        request.body?.enrollmentCode
+      );
+
+    if (result.error) {
+      const status =
+        result.error ===
+          'invalid_enrollment_code'
+          ? 403
+          : 409;
+
+      return response
+        .status(status)
+        .json(result);
+    }
 
     response.status(201).json(result);
   }
