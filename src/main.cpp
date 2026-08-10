@@ -1052,9 +1052,10 @@ QDialog#settingsDialog QPushButton {
     font-weight: 700;
     background: qlineargradient(
         x1: 0, y1: 0,
-        x2: 0, y2: 1,
-        stop: 0 #245f96,
-        stop: 1 #07284b
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
     );
     border: 1px solid #28c7f7;
     border-radius: 10px;
@@ -2044,9 +2045,10 @@ QDialog#sessionDetailsDialog QPushButton {
     font-weight: 700;
     background: qlineargradient(
         x1: 0, y1: 0,
-        x2: 0, y2: 1,
-        stop: 0 #245f96,
-        stop: 1 #07284b
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
     );
     border: 1px solid #28c7f7;
     border-radius: 10px;
@@ -2713,33 +2715,33 @@ QLabel#brandSubtitle {
 
 QLabel#versionLabel {
     color: #8fe8ff;
-    font-size: 15px;
-    font-weight: 800;
-    padding: 1px 0 0 0;
+    font-size: 17px;
+    font-weight: 900;
+    padding: 0 6px;
 }
 
-QLabel#donateLink {
-    color: #ffffff;
-    font-size: 15px;
-    font-weight: 900;
-    padding: 3px 10px;
+QPushButton#donateButton {
+    min-height: 38px;
+    padding: 0 22px;
     border: 1px solid #ff6b86;
-    border-radius: 10px;
+    border-radius: 12px;
+    color: #ffffff;
+    font-weight: 800;
     background: qlineargradient(
         x1: 0, y1: 0,
         x2: 1, y2: 0,
-        stop: 0 rgba(197, 62, 91, 210),
-        stop: 1 rgba(122, 27, 57, 210)
+        stop: 0 #c53e5b,
+        stop: 1 #7a1b39
     );
 }
 
-QLabel#donateLink:hover {
+QPushButton#donateButton:hover {
     border: 1px solid #ff9fb1;
     background: qlineargradient(
         x1: 0, y1: 0,
         x2: 1, y2: 0,
-        stop: 0 rgba(224, 83, 115, 230),
-        stop: 1 rgba(146, 35, 72, 230)
+        stop: 0 #e05373,
+        stop: 1 #922348
     );
 }
 
@@ -2753,15 +2755,22 @@ QPushButton#secondaryButton {
     font-weight: 700;
     background: qlineargradient(
         x1: 0, y1: 0,
-        x2: 0, y2: 1,
-        stop: 0 #245f96,
-        stop: 1 #07284b
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
     );
 }
 
 QPushButton#settingsButton:hover,
 QPushButton#secondaryButton:hover {
-    background: #176da0;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #24c7ed,
+        stop: 0.48 #328de5,
+        stop: 1 #913ee8
+    );
 }
 
 QPushButton#secondaryButton:checked {
@@ -2835,11 +2844,34 @@ QFrame#codeCard {
     border-radius: 18px;
 }
 
-QLabel#supportCode {
+QPushButton#supportCode {
     color: #ffffff;
     font-size: 48px;
     font-weight: 900;
     letter-spacing: 9px;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+QPushButton#supportCode:hover {
+    color: #7deaff;
+}
+
+QLabel#copyToast {
+    color: #ffffff;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #287bd8,
+        stop: 1 #7830d8
+    );
+    border: 1px solid #68eaff;
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 800;
 }
 
 QLabel#statusText {
@@ -2869,15 +2901,22 @@ QPushButton#primaryButton {
     background: qlineargradient(
         x1: 0, y1: 0,
         x2: 1, y2: 0,
-        stop: 0 #1688bb,
-        stop: 1 #58249e
+        stop: 0 #18a9d8,
+        stop: 0.48 #287bd8,
+        stop: 1 #7830d8
     );
     font-size: 16px;
     font-weight: 800;
 }
 
 QPushButton#primaryButton:hover {
-    background: #257fc3;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #27c8ed,
+        stop: 0.48 #368fe8,
+        stop: 1 #9440ea
+    );
 }
 
 QPushButton#viewButton {
@@ -2888,13 +2927,23 @@ QPushButton#viewButton {
     border: 1px solid #35d8ff;
     border-radius: 9px;
     color: #ffffff;
-    background: #0b3d67;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 1 #7130d5
+    );
     font-size: 18px;
     font-weight: 800;
 }
 
 QPushButton#viewButton:hover {
-    background: #176da0;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #24c7ed,
+        stop: 1 #913ee8
+    );
 }
 
 QPushButton#dangerButton {
@@ -3030,31 +3079,11 @@ QLabel#remotePlaceholder {
             Qt::KeepAspectRatio,
             Qt::SmoothTransformation));
 
-    auto *brandLayout =
-        new QVBoxLayout;
-
-    brandLayout->setSpacing(2);
-
-    brandLayout->addWidget(
+    auto *brandTitle =
         makeLabel(
-            QStringLiteral("ScottiBYTE"),
-            QStringLiteral("brandTitle")));
-
-    auto *brandMetadataLayout =
-        new QHBoxLayout;
-
-    brandMetadataLayout->setContentsMargins(
-        0,
-        0,
-        0,
-        0);
-
-    brandMetadataLayout->setSpacing(14);
-
-    auto *assistLabel =
-        makeLabel(
-            QStringLiteral("Assist"),
-            QStringLiteral("brandSubtitle"));
+            QStringLiteral(
+                "ScottiBYTE Assist"),
+            QStringLiteral("brandTitle"));
 
     auto *versionLabel =
         makeLabel(
@@ -3064,49 +3093,25 @@ QLabel#remotePlaceholder {
                         applicationVersion()),
             QStringLiteral("versionLabel"));
 
-    auto *donateLink =
-        makeLabel(
-            QStringLiteral(
-                "<a "
-                "style=\"text-decoration:none;\" "
-                "href=\"https://www.paypal.com/paypalme/ScottiBYTE\">"
-                "<span style=\"color:#ff5d7a;\">♥</span> "
-                "<span style=\"color:#5de2ff;\">Donate</span>"
-                "</a>"),
-            QStringLiteral("donateLink"));
+    auto *donateButton =
+        makeButton(
+            QStringLiteral("♥  Donate"),
+            QStringLiteral("donateButton"));
 
-    donateLink->setTextFormat(
-        Qt::RichText);
-
-    donateLink->setTextInteractionFlags(
-        Qt::LinksAccessibleByMouse);
-
-    donateLink->setOpenExternalLinks(
-        true);
-
-    donateLink->setFocusPolicy(
-        Qt::NoFocus);
-
-    donateLink->setCursor(
-        Qt::PointingHandCursor);
-
-    donateLink->setToolTip(
+    donateButton->setToolTip(
         QStringLiteral(
             "Open the ScottiBYTE PayPal donation page"));
 
-    brandMetadataLayout->addWidget(
-        assistLabel);
-
-    brandMetadataLayout->addWidget(
-        versionLabel);
-
-    brandMetadataLayout->addWidget(
-        donateLink);
-
-    brandMetadataLayout->addStretch();
-
-    brandLayout->addLayout(
-        brandMetadataLayout);
+    QObject::connect(
+        donateButton,
+        &QPushButton::clicked,
+        []()
+        {
+            QDesktopServices::openUrl(
+                QUrl(
+                    QStringLiteral(
+                        "https://www.paypal.com/paypalme/ScottiBYTE")));
+        });
 
     auto *detailsButton =
         makeButton(
@@ -3119,10 +3124,12 @@ QLabel#remotePlaceholder {
             QStringLiteral("settingsButton"));
 
     headerLayout->addWidget(logo);
-    headerLayout->addLayout(brandLayout);
+    headerLayout->addWidget(brandTitle);
     headerLayout->addStretch();
     headerLayout->addWidget(detailsButton);
     headerLayout->addWidget(settingsButton);
+    headerLayout->addWidget(versionLabel);
+    headerLayout->addWidget(donateButton);
 
     rootLayout->addWidget(header);
 
@@ -3233,14 +3240,76 @@ QLabel#remotePlaceholder {
         new QVBoxLayout(codeCard);
 
     auto *supportCode =
-        makeLabel(
+        makeButton(
             QStringLiteral("--- ---"),
             QStringLiteral("supportCode"));
 
-    supportCode->setAlignment(
-        Qt::AlignCenter);
+    supportCode->setToolTip(
+        QStringLiteral(
+            "Click to copy the support code"));
 
     codeLayout->addWidget(supportCode);
+
+    auto *copyToast =
+        makeLabel(
+            QStringLiteral(
+                "✓  Support code copied to clipboard"),
+            QStringLiteral("copyToast"));
+
+    copyToast->setAlignment(
+        Qt::AlignCenter);
+
+    copyToast->setVisible(false);
+
+    codeLayout->addWidget(
+        copyToast,
+        0,
+        Qt::AlignHCenter);
+
+    QObject::connect(
+        supportCode,
+        &QPushButton::clicked,
+        window,
+        [supportCode, copyToast]()
+        {
+            QString code =
+                supportCode->text();
+
+            code.remove(QChar(' '));
+            code = code.trimmed();
+
+            if (
+                code.size() != 6 ||
+                !code.contains(
+                    QRegularExpression(
+                        QStringLiteral(
+                            "^[0-9]{6}$")))
+            ) {
+                return;
+            }
+
+            QApplication::clipboard()->
+                setText(code);
+
+            supportCode->setToolTip(
+                QStringLiteral(
+                    "Copied to clipboard"));
+
+            copyToast->setText(
+                QStringLiteral(
+                    "✓  Support code copied to clipboard"));
+
+            copyToast->setVisible(true);
+            copyToast->raise();
+
+            QTimer::singleShot(
+                2000,
+                copyToast,
+                [copyToast]()
+                {
+                    copyToast->setVisible(false);
+                });
+        });
 
     auto *statusRow =
         new QHBoxLayout;
