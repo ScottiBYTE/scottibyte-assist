@@ -3,6 +3,8 @@
 #include "desktop_backend.h"
 #include "lan_session.h"
 #include "remote_view.h"
+#include "remote_desktop_audio.h"
+#include "wan_desktop_audio_relay.h"
 #include "wan_signaling_client.h"
 #include "wan_voice_relay.h"
 
@@ -4213,7 +4215,90 @@ QLabel#remotePlaceholder {
         },
         Qt::DirectConnection);
 
-    providerScreenDismissFilter->
+    auto *desktopAudioThread =
+    new QThread(window);
+
+desktopAudioThread->setObjectName(
+    QStringLiteral(
+        "ScottiBYTE Assist Desktop Audio"));
+
+auto *remoteDesktopAudio =
+    new RemoteDesktopAudio();
+
+remoteDesktopAudio->moveToThread(
+    desktopAudioThread);
+
+QObject::connect(
+    desktopAudioThread,
+    &QThread::finished,
+    remoteDesktopAudio,
+    &QObject::deleteLater);
+
+desktopAudioThread->start(
+    QThread::HighPriority);
+
+QObject::connect(
+    QCoreApplication::instance(),
+    &QCoreApplication::aboutToQuit,
+    window,
+    [
+        remoteDesktopAudio,
+        desktopAudioThread
+    ]()
+    {
+        QMetaObject::invokeMethod(
+            remoteDesktopAudio,
+            &RemoteDesktopAudio::stop,
+            Qt::BlockingQueuedConnection);
+
+        desktopAudioThread->quit();
+        desktopAudioThread->wait();
+    },
+    Qt::DirectConnection);
+
+auto *desktopAudioTransportThread =
+    new QThread(window);
+
+desktopAudioTransportThread->setObjectName(
+    QStringLiteral(
+        "ScottiBYTE Assist Desktop Audio Transport"));
+
+auto *desktopAudioRelay =
+    new WanDesktopAudioRelay();
+
+desktopAudioRelay->moveToThread(
+    desktopAudioTransportThread);
+
+QObject::connect(
+    desktopAudioTransportThread,
+    &QThread::finished,
+    desktopAudioRelay,
+    &QObject::deleteLater);
+
+desktopAudioTransportThread->start(
+    QThread::HighPriority);
+
+QObject::connect(
+    QCoreApplication::instance(),
+    &QCoreApplication::aboutToQuit,
+    window,
+    [
+        desktopAudioRelay,
+        desktopAudioTransportThread
+    ]()
+    {
+        QMetaObject::invokeMethod(
+            desktopAudioRelay,
+            &WanDesktopAudioRelay::
+                disconnectFromServer,
+            Qt::BlockingQueuedConnection);
+
+        desktopAudioTransportThread->quit();
+        desktopAudioTransportThread->wait();
+    },
+    Qt::DirectConnection);
+
+providerScreenDismissFilter->
         setUserDismissedCallback(
             [lanSession]()
             {
@@ -5239,6 +5324,34 @@ QLabel#remotePlaceholder {
         Qt::QueuedConnection);
 
     QObject::connect(
+    remoteDesktopAudio,
+    &RemoteDesktopAudio::audioPacketReady,
+    desktopAudioRelay,
+    &WanDesktopAudioRelay::sendAudioPacket,
+    Qt::QueuedConnection);
+
+QObject::connect(
+    desktopAudioRelay,
+    &WanDesktopAudioRelay::audioPacketReceived,
+    remoteDesktopAudio,
+    &RemoteDesktopAudio::pushAudioPacket,
+    Qt::QueuedConnection);
+
+QObject::connect(
+    remoteDesktopAudio,
+    &RemoteDesktopAudio::audioPacketReady,
+    lanSession,
+    &LanSession::sendDesktopAudioPacket,
+    Qt::QueuedConnection);
+
+QObject::connect(
+    lanSession,
+    &LanSession::desktopAudioPacketReceived,
+    remoteDesktopAudio,
+    &RemoteDesktopAudio::pushAudioPacket,
+    Qt::QueuedConnection);
+
+QObject::connect(
         customerStartVoiceButton,
         &QPushButton::clicked,
         lanSession,
