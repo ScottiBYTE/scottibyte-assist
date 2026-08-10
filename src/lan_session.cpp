@@ -1390,13 +1390,21 @@ void LanSession::sendRemoteCursorPosition(
     int x,
     int y)
 {
-    if (role_ != Role::Customer) {
+    if (role_ == Role::Customer) {
+        sendMessage(
+            MessageType::RemoteCursorPosition,
+            pointPayload(x, y));
         return;
     }
 
-    sendMessage(
-        MessageType::RemoteCursorPosition,
-        pointPayload(x, y));
+    if (
+        role_ == Role::Provider &&
+        providerShareActive_
+    ) {
+        sendMessage(
+            MessageType::ProviderCursorPosition,
+            pointPayload(x, y));
+    }
 }
 
 void LanSession::sendLeftClick(
@@ -1863,8 +1871,12 @@ void LanSession::processIncomingBytes(
             continue;
         }
 
-        if (expectedMessageType_ ==
-            MessageType::RemoteCursorPosition) {
+        if (
+            expectedMessageType_ ==
+                MessageType::RemoteCursorPosition ||
+            expectedMessageType_ ==
+                MessageType::ProviderCursorPosition
+        ) {
             int x = 0;
             int y = 0;
 
@@ -1872,9 +1884,21 @@ void LanSession::processIncomingBytes(
                     payload,
                     x,
                     y)) {
-                emit remoteCursorPositionReceived(
-                    x,
-                    y);
+                if (
+                    expectedMessageType_ ==
+                    MessageType::
+                        RemoteCursorPosition
+                ) {
+                    emit
+                        remoteCursorPositionReceived(
+                            x,
+                            y);
+                } else {
+                    emit
+                        providerCursorPositionReceived(
+                            x,
+                            y);
+                }
             }
 
             continue;

@@ -4415,6 +4415,12 @@ QLabel#remotePlaceholder {
 
     QObject::connect(
         lanSession,
+        &LanSession::providerCursorPositionReceived,
+        providerScreenView,
+        &RemoteView::setRemoteCursorPosition);
+
+    QObject::connect(
+        lanSession,
         &LanSession::providerShareChanged,
         window,
         [
