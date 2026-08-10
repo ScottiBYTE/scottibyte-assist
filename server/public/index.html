@@ -578,10 +578,73 @@
       color: #7fa5c5;
     }
 
+  
+    .top-utilities {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-left: auto;
+      white-space: nowrap;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .top-utilities .github-placeholder {
+      color: #52a9ff;
+      cursor: default;
+    }
+
+    .top-utilities .version {
+      color: #c8d8e7;
+    }
+
+    .top-utilities .donate {
+      color: #ff6683;
+      text-decoration: none;
+    }
+
+    .top-utilities .donate:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 700px) {
+      .top-utilities {
+        width: 100%;
+        justify-content: flex-start;
+        margin-left: 0;
+        margin-top: 10px;
+      }
+    }
+
   </style>
 </head>
 
 <body>
+  <div
+    class="top-utilities"
+    style="
+      width: min(1180px, calc(100% - 40px));
+      margin: 18px auto 0;
+    ">
+    <span
+      class="github-placeholder"
+      title="GitHub link will be added with the public release">
+      GitHub
+    </span>
+
+    <span class="version">
+          v1.2.0
+        </span>
+
+    <a
+      class="donate"
+      href="https://www.paypal.com/paypalme/ScottiBYTE"
+      target="_blank"
+      rel="noopener noreferrer">
+      ❤️ Donate
+    </a>
+  </div>
   <main class="page">
     <section class="hero">
       <div class="brand">
