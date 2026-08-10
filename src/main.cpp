@@ -3640,6 +3640,22 @@ QLabel#remotePlaceholder {
     providerVoiceControls->addWidget(
         providerMuteButton);
 
+auto *providerRemoteAudioButton =
+    makeButton(
+        QStringLiteral(
+            "Hear Remote Audio"),
+        QStringLiteral(
+            "secondaryButton"));
+
+providerRemoteAudioButton->setCheckable(true);
+providerRemoteAudioButton->setEnabled(false);
+
+providerRemoteAudioButton->setToolTip(
+    QStringLiteral(
+        "Hear the customer's desktop audio "
+        "through your selected Assist output device."));
+
+
     auto *remoteWindow =
         new QWidget;
 
@@ -3845,6 +3861,9 @@ QLabel#remotePlaceholder {
         shareProviderScreenButton);
     provideLayout->addLayout(
         providerVoiceControls);
+
+    provideLayout->addWidget(
+        providerRemoteAudioButton);
     provideLayout->addStretch(1);
     provideLayout->addWidget(disconnectButton);
 
@@ -5290,6 +5309,7 @@ providerScreenDismissFilter->
         window,
         [
             customerVoiceAudio,
+        remoteDesktopAudio,
             providerCandidateFallbackTimer,
             receiveButton,
             customerStartVoiceButton,
@@ -5297,7 +5317,8 @@ providerScreenDismissFilter->
             customerMuteButton,
             providerStartVoiceButton,
             providerStopVoiceButton,
-            providerMuteButton
+            providerMuteButton,
+        providerRemoteAudioButton
         ](
             bool connected)
         {
@@ -5308,6 +5329,22 @@ providerScreenDismissFilter->
 
             customerVoiceAudio->stop();
             customerVoiceAudio->setMuted(false);
+
+        remoteDesktopAudio->stop();
+
+        providerRemoteAudioButton->
+            blockSignals(true);
+
+        providerRemoteAudioButton->
+            setChecked(false);
+
+        providerRemoteAudioButton->
+            setText(
+                QStringLiteral(
+                    "Hear Remote Audio"));
+
+        providerRemoteAudioButton->
+            blockSignals(false);
 
             customerMuteButton->blockSignals(true);
             customerMuteButton->setChecked(false);
@@ -5342,9 +5379,38 @@ providerScreenDismissFilter->
 
             providerStopVoiceButton->setEnabled(false);
             providerMuteButton->setEnabled(false);
+
+        providerRemoteAudioButton->setEnabled(
+            providerConnected);
         });
 
     QObject::connect(
+    providerRemoteAudioButton,
+    &QPushButton::toggled,
+    window,
+    [
+        lanSession,
+        providerRemoteAudioButton
+    ](
+        bool enabled)
+    {
+        providerRemoteAudioButton->setText(
+            enabled
+                ? QStringLiteral(
+                      "Stop Remote Audio")
+                : QStringLiteral(
+                      "Hear Remote Audio"));
+
+        if (enabled) {
+            lanSession->
+                requestDesktopAudioStart();
+        } else {
+            lanSession->
+                requestDesktopAudioStop();
+        }
+    });
+
+QObject::connect(
         customerVoiceAudio,
         &CustomerVoiceAudio::
             voicePacketReady,
