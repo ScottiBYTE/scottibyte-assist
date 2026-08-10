@@ -1,5 +1,6 @@
 #include "x11_desktop_backend.h"
 
+#include <QCursor>
 #include <QGuiApplication>
 #include <QPainter>
 #include <QPixmap>
@@ -847,6 +848,141 @@ void X11DesktopBackend::captureFrame()
     }
 
     if (!image.isNull()) {
+        const QPoint globalCursor =
+            QCursor::pos();
+
+        QPoint imageCursor(-1, -1);
+
+        if (
+            shareSourceId_ ==
+            QStringLiteral("desktop")
+        ) {
+            QRect desktopGeometry;
+
+            for (
+                QScreen *screen :
+                QGuiApplication::screens()
+            ) {
+                if (screen != nullptr) {
+                    desktopGeometry =
+                        desktopGeometry.united(
+                            screen->geometry());
+                }
+            }
+
+            if (
+                !desktopGeometry.isEmpty() &&
+                desktopGeometry.contains(
+                    globalCursor)
+            ) {
+                imageCursor =
+                    globalCursor -
+                    desktopGeometry.topLeft();
+            }
+        } else if (
+            shareSourceId_.startsWith(
+                QStringLiteral("screen:"))
+        ) {
+            bool valid = false;
+
+            const int screenIndex =
+                shareSourceId_
+                    .mid(
+                        QStringLiteral(
+                            "screen:").size())
+                    .toInt(&valid);
+
+            const QList<QScreen *> screens =
+                QGuiApplication::screens();
+
+            if (
+                valid &&
+                screenIndex >= 0 &&
+                screenIndex < screens.size() &&
+                screens.at(screenIndex) != nullptr
+            ) {
+                const QRect geometry =
+                    screens.at(screenIndex)->
+                        geometry();
+
+                if (geometry.contains(
+                        globalCursor)) {
+                    imageCursor =
+                        globalCursor -
+                        geometry.topLeft();
+                }
+            }
+        } else if (
+            shareSourceId_.startsWith(
+                QStringLiteral("window:"))
+        ) {
+            bool valid = false;
+
+            const qulonglong windowId =
+                shareSourceId_
+                    .mid(
+                        QStringLiteral(
+                            "window:").size())
+                    .toULongLong(&valid);
+
+            if (valid && windowId != 0) {
+                Display *display =
+                    XOpenDisplay(nullptr);
+
+                if (display != nullptr) {
+                    const Window window =
+                        static_cast<Window>(
+                            windowId);
+
+                    Window child = None;
+                    int rootX = 0;
+                    int rootY = 0;
+
+                    if (
+                        XTranslateCoordinates(
+                            display,
+                            window,
+                            DefaultRootWindow(
+                                display),
+                            0,
+                            0,
+                            &rootX,
+                            &rootY,
+                            &child)
+                    ) {
+                        const QPoint relative(
+                            globalCursor.x() -
+                                rootX,
+                            globalCursor.y() -
+                                rootY);
+
+                        if (
+                            relative.x() >= 0 &&
+                            relative.y() >= 0 &&
+                            relative.x() <
+                                image.width() &&
+                            relative.y() <
+                                image.height()
+                        ) {
+                            imageCursor =
+                                relative;
+                        }
+                    }
+
+                    XCloseDisplay(display);
+                }
+            }
+        }
+
+        if (
+            imageCursor.x() >= 0 &&
+            imageCursor.y() >= 0
+        ) {
+            emit cursorPositionChanged(
+                imageCursor.x(),
+                imageCursor.y());
+        }
+
         emit frameReady(image);
     }
 }

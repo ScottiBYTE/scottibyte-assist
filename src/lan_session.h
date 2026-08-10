@@ -128,6 +128,10 @@ signals:
         int x,
         int y);
 
+    void providerCursorPositionReceived(
+        int x,
+        int y);
+
     void providerFrameReceived(
         const QImage &image);
 
@@ -189,7 +193,8 @@ private:
         ProviderFrameAcknowledged = 21,
         Vp8Frame = 22,
         ProviderVp8Frame = 23,
-        RemoteCursorPosition = 24
+        RemoteCursorPosition = 24,
+        ProviderCursorPosition = 25
     };
 
     void startAdvertising();
