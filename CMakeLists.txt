@@ -74,6 +74,8 @@ if(WIN32)
     src/windows_customer_voice_audio.cpp
     src/windows_desktop_backend.cpp
     src/windows_desktop_backend.h
+    src/windows_remote_desktop_audio.cpp
+    src/remote_desktop_audio.h
   )
 else()
   find_package(PkgConfig REQUIRED)
