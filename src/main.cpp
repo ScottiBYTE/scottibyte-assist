@@ -8,6 +8,11 @@
 #include "wan_signaling_client.h"
 #include "wan_voice_relay.h"
 
+#include <QWindow>
+#include <QToolButton>
+#include <QPainterPath>
+#include <QStyleOptionButton>
+#include <QStylePainter>
 #include <QEventLoop>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -2605,6 +2610,98 @@ private:
 
 }
 
+
+class OutlinedCodeButton : public QPushButton
+{
+public:
+    explicit OutlinedCodeButton(
+        QWidget *parent = nullptr)
+        : QPushButton(parent)
+    {
+    }
+
+protected:
+    void paintEvent(
+        QPaintEvent *) override
+    {
+        QStylePainter painter(this);
+
+        QStyleOptionButton option;
+        initStyleOption(&option);
+
+        /*
+         * Let Qt draw the normal styled button background,
+         * border and interaction state, but suppress its
+         * normal text because we paint the text ourselves.
+         */
+        const QString codeText =
+            option.text;
+
+        option.text.clear();
+
+        painter.drawControl(
+            QStyle::CE_PushButton,
+            option);
+
+        painter.setRenderHint(
+            QPainter::Antialiasing,
+            true);
+
+        painter.setRenderHint(
+            QPainter::TextAntialiasing,
+            true);
+
+        QPainterPath textPath;
+
+        const QFont codeFont =
+            font();
+
+        const QFontMetricsF metrics(
+            codeFont);
+
+        const QRectF bounds =
+            metrics.boundingRect(
+                codeText);
+
+        const qreal x =
+            (width() - bounds.width()) / 2.0 -
+            bounds.left();
+
+        const qreal y =
+            (height() - bounds.height()) / 2.0 -
+            bounds.top();
+
+        textPath.addText(
+            QPointF(x, y),
+            codeFont,
+            codeText);
+
+        /*
+         * Thin black outline around each individual glyph,
+         * followed by the high-contrast yellow fill.
+         */
+        QPen outlinePen(
+            QColor(
+                0,
+                0,
+                0,
+                230));
+
+        outlinePen.setWidthF(1.8);
+        outlinePen.setJoinStyle(
+            Qt::RoundJoin);
+
+        painter.setPen(
+            outlinePen);
+
+        painter.setBrush(
+            QColor("#FFD34E"));
+
+        painter.drawPath(
+            textPath);
+    }
+};
+
 int main(
     int argc,
     char *argv[])
@@ -2717,7 +2814,7 @@ QLabel#brandSubtitle {
 
 QLabel#versionLabel {
     color: #8fe8ff;
-    font-size: 17px;
+    font-size: 24px;
     font-weight: 900;
     padding: 0 6px;
 }
@@ -3025,12 +3122,12 @@ QLabel#remotePlaceholder {
         applicationIcon);
 
     window->resize(
-        900,
-        720);
+        780,
+        730);
 
     window->setMinimumSize(
-        820,
-        650);
+        720,
+        700);
 
     auto *rootLayout =
         new QVBoxLayout(window);
@@ -3095,6 +3192,9 @@ QLabel#remotePlaceholder {
                         applicationVersion()),
             QStringLiteral("versionLabel"));
 
+    versionLabel->setAlignment(
+        Qt::AlignVCenter);
+
     auto *donateButton =
         makeButton(
             QStringLiteral("♥  Donate"),
@@ -3127,11 +3227,13 @@ QLabel#remotePlaceholder {
 
     headerLayout->addWidget(logo);
     headerLayout->addWidget(brandTitle);
+    headerLayout->addWidget(
+        versionLabel,
+        0,
+        Qt::AlignVCenter);
     headerLayout->addStretch();
     headerLayout->addWidget(detailsButton);
     headerLayout->addWidget(settingsButton);
-    headerLayout->addWidget(versionLabel);
-    headerLayout->addWidget(donateButton);
 
     rootLayout->addWidget(header);
 
@@ -3229,50 +3331,145 @@ QLabel#remotePlaceholder {
         makeLabel(
             QStringLiteral(
                 "Tell this code to the person helping you."),
-            QStringLiteral("pageDescription"));
+            QStringLiteral("statusText"));
 
     receiveDescription->setAlignment(
         Qt::AlignCenter);
+
+    auto receiveDescriptionFont =
+        receiveDescription->font();
+
+    receiveDescriptionFont.setPixelSize(19);
+    receiveDescriptionFont.setBold(true);
+
+    receiveDescription->setFont(
+        receiveDescriptionFont);
 
     auto *codeCard =
         makeCard(
             QStringLiteral("codeCard"));
 
+    codeCard->setMaximumWidth(620);
+
+    codeCard->setSizePolicy(
+        QSizePolicy::Expanding,
+        QSizePolicy::Preferred);
+
     auto *codeLayout =
         new QVBoxLayout(codeCard);
 
     auto *supportCode =
-        makeButton(
-            QStringLiteral("--- ---"),
-            QStringLiteral("supportCode"));
+        new OutlinedCodeButton;
+
+    supportCode->setText(
+        QStringLiteral("--- ---"));
+
+    supportCode->setObjectName(
+        QStringLiteral("supportCode"));
 
     supportCode->setToolTip(
         QStringLiteral(
-            "Click to copy the support code"));
+            "Support code"));
 
-    codeLayout->addWidget(supportCode);
+    supportCode->setCursor(
+        Qt::ArrowCursor);
 
-    auto *copyToast =
-        makeLabel(
-            QStringLiteral(
-                "✓  Support code copied to clipboard"),
-            QStringLiteral("copyToast"));
+    auto *supportCodeLayer =
+        new QWidget;
 
-    copyToast->setAlignment(
+    auto *supportCodeGrid =
+        new QGridLayout(
+            supportCodeLayer);
+
+    supportCodeGrid->setContentsMargins(
+        0,
+        0,
+        0,
+        0);
+
+    supportCodeGrid->setHorizontalSpacing(0);
+    supportCodeGrid->setVerticalSpacing(0);
+
+    auto *copyCodeIcon =
+        new QToolButton;
+
+    copyCodeIcon->setObjectName(
+        QStringLiteral("copyCodeIcon"));
+
+    copyCodeIcon->setText(
+        QStringLiteral("⧉"));
+
+    copyCodeIcon->setToolTip(
+        QStringLiteral(
+            "Copy support code"));
+
+    copyCodeIcon->setAutoRaise(true);
+
+    copyCodeIcon->setCursor(
+        Qt::PointingHandCursor);
+
+    copyCodeIcon->setFocusPolicy(
+        Qt::NoFocus);
+
+    auto copyIconFont =
+        copyCodeIcon->font();
+
+    copyIconFont.setPointSize(
+        copyIconFont.pointSize() + 3);
+
+    copyIconFont.setBold(true);
+
+    copyCodeIcon->setFont(
+        copyIconFont);
+
+    /*
+     * Column 0 contains the code.
+     * Column 1 is a narrow reserved gutter for the copy icon.
+     * This prevents the icon from intruding into the digits.
+     */
+    /*
+     * Use equal left and right gutters so the support code
+     * is optically centered inside the box.
+     *
+     * Column 0: empty 28px balancing gutter
+     * Column 1: centered six-digit code
+     * Column 2: 28px copy-icon gutter
+     */
+    supportCodeGrid->setColumnMinimumWidth(
+        0,
+        28);
+
+    supportCodeGrid->setColumnStretch(
+        1,
+        1);
+
+    supportCodeGrid->setColumnMinimumWidth(
+        2,
+        28);
+
+    supportCodeGrid->addWidget(
+        supportCode,
+        0,
+        1,
         Qt::AlignCenter);
 
-    copyToast->setVisible(false);
+    supportCodeGrid->addWidget(
+        copyCodeIcon,
+        0,
+        2,
+        Qt::AlignRight |
+            Qt::AlignBottom);
 
     codeLayout->addWidget(
-        copyToast,
+        supportCodeLayer,
         0,
         Qt::AlignHCenter);
 
     QObject::connect(
-        supportCode,
-        &QPushButton::clicked,
+        copyCodeIcon,
+        &QToolButton::clicked,
         window,
-        [supportCode, copyToast]()
+        [supportCode, copyCodeIcon]()
         {
             QString code =
                 supportCode->text();
@@ -3293,24 +3490,38 @@ QLabel#remotePlaceholder {
             QApplication::clipboard()->
                 setText(code);
 
-            supportCode->setToolTip(
+            copyCodeIcon->setText(
+                QStringLiteral("✓"));
+
+            copyCodeIcon->setToolTip(
                 QStringLiteral(
-                    "Copied to clipboard"));
+                    "Support code copied"));
+        });
 
-            copyToast->setText(
+    /*
+     * Keep the check mark visible until the user moves
+     * away from the ScottiBYTE Assist window.
+     */
+    QObject::connect(
+        qApp,
+        &QGuiApplication::focusWindowChanged,
+        window,
+        [window, copyCodeIcon](
+            QWindow *focusWindow)
+        {
+            if (
+                focusWindow ==
+                window->windowHandle()
+            ) {
+                return;
+            }
+
+            copyCodeIcon->setText(
+                QStringLiteral("⧉"));
+
+            copyCodeIcon->setToolTip(
                 QStringLiteral(
-                    "✓  Support code copied to clipboard"));
-
-            copyToast->setVisible(true);
-            copyToast->raise();
-
-            QTimer::singleShot(
-                2000,
-                copyToast,
-                [copyToast]()
-                {
-                    copyToast->setVisible(false);
-                });
+                    "Copy support code"));
         });
 
     auto *statusRow =
@@ -3318,6 +3529,12 @@ QLabel#remotePlaceholder {
 
     statusRow->setAlignment(
         Qt::AlignCenter);
+
+    statusRow->setContentsMargins(
+        0,
+        0,
+        0,
+        0);
 
     auto *statusDot =
         makeLabel(
@@ -3332,6 +3549,17 @@ QLabel#remotePlaceholder {
             QStringLiteral(
                 "Waiting for the person helping you..."),
             QStringLiteral("statusText"));
+
+    auto receiveStatusFont =
+        receiveStatus->font();
+
+    receiveStatusFont.setPointSize(
+        receiveStatusFont.pointSize() + 3);
+
+    receiveStatusFont.setBold(true);
+
+    receiveStatus->setFont(
+        receiveStatusFont);
 
     statusRow->addWidget(statusDot);
     statusRow->addSpacing(8);
@@ -3401,14 +3629,23 @@ QLabel#remotePlaceholder {
         makeCard(
             QStringLiteral("progressCard"));
 
+    progressCard->setMinimumWidth(430);
+    progressCard->setMaximumWidth(620);
+
+    progressCard->setSizePolicy(
+        QSizePolicy::Expanding,
+        QSizePolicy::Preferred);
+
     auto *progressLayout =
         new QVBoxLayout(progressCard);
 
     progressLayout->setContentsMargins(
-        22,
-        18,
-        22,
-        18);
+        26,
+        20,
+        26,
+        20);
+
+    progressLayout->setSpacing(8);
 
     auto *progressHeading =
         makeLabel(
@@ -3416,12 +3653,30 @@ QLabel#remotePlaceholder {
                 "Secure session ready"),
             QStringLiteral("sectionHeading"));
 
+    auto progressHeadingFont =
+        progressHeading->font();
+
+    progressHeadingFont.setPixelSize(20);
+    progressHeadingFont.setBold(true);
+
+    progressHeading->setFont(
+        progressHeadingFont);
+
     auto *progressDetail =
         makeLabel(
             QStringLiteral(
                 "Waiting for the person helping you "
                 "to connect."),
             QStringLiteral("smallText"));
+
+    auto progressDetailFont =
+        progressDetail->font();
+
+    progressDetailFont.setPixelSize(18);
+    progressDetailFont.setBold(true);
+
+    progressDetail->setFont(
+        progressDetailFont);
 
     progressLayout->addWidget(
         progressHeading);
@@ -3431,12 +3686,30 @@ QLabel#remotePlaceholder {
 
     receiveLayout->addWidget(receiveTitle);
     receiveLayout->addWidget(receiveDescription);
-    receiveLayout->addWidget(codeCard);
+
+    receiveLayout->addWidget(
+        codeCard,
+        0,
+        Qt::AlignHCenter);
+
+    receiveLayout->addSpacing(10);
+
     receiveLayout->addLayout(statusRow);
     receiveLayout->addLayout(receiveActions);
+
     receiveLayout->addLayout(
         customerVoiceControls);
-    receiveLayout->addWidget(progressCard);
+
+    receiveLayout->addWidget(
+        progressCard,
+        0,
+        Qt::AlignHCenter);
+
+    receiveLayout->addWidget(
+        donateButton,
+        0,
+        Qt::AlignHCenter);
+
     receiveLayout->addStretch();
 
     pages->addWidget(receivePage);
@@ -3470,10 +3743,19 @@ QLabel#remotePlaceholder {
         makeLabel(
             QStringLiteral(
                 "Enter the six-digit code shown on the other computer."),
-            QStringLiteral("pageDescription"));
+            QStringLiteral("statusText"));
 
     provideDescription->setAlignment(
         Qt::AlignCenter);
+
+    auto provideDescriptionFont =
+        provideDescription->font();
+
+    provideDescriptionFont.setPixelSize(19);
+    provideDescriptionFont.setBold(true);
+
+    provideDescription->setFont(
+        provideDescriptionFont);
 
     auto *codeEntry =
         new QLineEdit;
@@ -3489,6 +3771,8 @@ QLabel#remotePlaceholder {
 
     codeEntry->setMaxLength(7);
 
+    codeEntry->setFixedWidth(190);
+
     codeEntry->setValidator(
         new QRegularExpressionValidator(
             QRegularExpression(
@@ -3502,19 +3786,53 @@ QLabel#remotePlaceholder {
                 "Connect"),
             QStringLiteral("primaryButton"));
 
+    connectButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
+    connectButton->setMinimumWidth(120);
+
+    auto *connectRow =
+        new QHBoxLayout;
+
+    connectRow->setAlignment(
+        Qt::AlignCenter);
+
+    connectRow->setSpacing(10);
+
+    connectRow->setContentsMargins(
+        0,
+        4,
+        0,
+        8);
+
+    connectRow->addStretch();
+
+    connectRow->addWidget(
+        codeEntry);
+
+    connectRow->addWidget(
+        connectButton);
+
+    connectRow->addStretch();
+
     auto *provideStatus =
         makeLabel(
-            QStringLiteral(
-                "Enter a support code to begin."),
+            QString(),
             QStringLiteral("statusText"));
 
     provideStatus->setAlignment(
         Qt::AlignCenter);
 
+    provideStatus->setVisible(false);
+
     auto *providerWindowControls =
         new QHBoxLayout;
 
     providerWindowControls->setSpacing(8);
+
+    providerWindowControls->setAlignment(
+        Qt::AlignCenter);
 
     auto *openRemoteWindowButton =
         makeButton(
@@ -3541,9 +3859,16 @@ QLabel#remotePlaceholder {
 
     fullScreenButton->setEnabled(false);
 
+    openRemoteWindowButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
+    fullScreenButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
     providerWindowControls->addWidget(
-        openRemoteWindowButton,
-        1);
+        openRemoteWindowButton);
 
     providerWindowControls->addWidget(
         fullScreenButton);
@@ -3558,12 +3883,23 @@ QLabel#remotePlaceholder {
             QStringLiteral("Share source"),
             QStringLiteral("smallText"));
 
+    auto shareSourceLabelFont =
+        shareSourceLabel->font();
+
+    shareSourceLabelFont.setPixelSize(18);
+    shareSourceLabelFont.setBold(true);
+
+    shareSourceLabel->setFont(
+        shareSourceLabelFont);
+
     auto *shareSourceCombo =
         new QComboBox;
 
     shareSourceCombo->setSizePolicy(
         QSizePolicy::Expanding,
         QSizePolicy::Fixed);
+
+    shareSourceCombo->setMinimumHeight(38);
 
     shareSourceCombo->setEnabled(false);
 
@@ -3575,6 +3911,10 @@ QLabel#remotePlaceholder {
 
     refreshShareSourcesButton->setEnabled(
         false);
+
+    refreshShareSourcesButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
 
     shareSourceLayout->addWidget(
         shareSourceLabel);
@@ -3596,6 +3936,10 @@ QLabel#remotePlaceholder {
         QStringLiteral(
             "Share your screen with the customer"));
 
+    shareProviderScreenButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
     shareProviderScreenButton->setEnabled(false);
 
     auto *providerStartVoiceButton =
@@ -3605,12 +3949,20 @@ QLabel#remotePlaceholder {
 
     providerStartVoiceButton->setEnabled(false);
 
+    providerStartVoiceButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
     auto *providerStopVoiceButton =
         makeButton(
             QStringLiteral("Stop Voice"),
             QStringLiteral("secondaryButton"));
 
     providerStopVoiceButton->setEnabled(false);
+
+    providerStopVoiceButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
 
     auto *providerMuteButton =
         makeButton(
@@ -3619,6 +3971,10 @@ QLabel#remotePlaceholder {
 
     providerMuteButton->setCheckable(true);
     providerMuteButton->setEnabled(false);
+
+    providerMuteButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
 
     providerMuteButton->setToolTip(
         QStringLiteral(
@@ -3629,6 +3985,9 @@ QLabel#remotePlaceholder {
         new QHBoxLayout;
 
     providerVoiceControls->setSpacing(8);
+
+    providerVoiceControls->setAlignment(
+        Qt::AlignCenter);
 
     providerVoiceControls->addWidget(
         providerStartVoiceButton,
@@ -3642,13 +4001,16 @@ QLabel#remotePlaceholder {
 
 auto *providerRemoteAudioButton =
     makeButton(
-        QStringLiteral(
-            "Hear Remote Audio"),
+        QStringLiteral("Hear Remote Desktop Audio"),
         QStringLiteral(
             "secondaryButton"));
 
 providerRemoteAudioButton->setCheckable(true);
 providerRemoteAudioButton->setEnabled(false);
+
+    providerRemoteAudioButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
 
 providerRemoteAudioButton->setToolTip(
     QStringLiteral(
@@ -3849,23 +4211,37 @@ providerRemoteAudioButton->setToolTip(
 
     disconnectButton->setEnabled(false);
 
+    disconnectButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
     provideLayout->addWidget(provideTitle);
     provideLayout->addWidget(provideDescription);
-    provideLayout->addWidget(codeEntry);
-    provideLayout->addWidget(connectButton);
+    provideLayout->addLayout(
+        connectRow);
+
+    provideLayout->addSpacing(6);
+
     provideLayout->addWidget(provideStatus);
     provideLayout->addLayout(providerWindowControls);
     provideLayout->addLayout(
         shareSourceLayout);
     provideLayout->addWidget(
-        shareProviderScreenButton);
+        shareProviderScreenButton,
+        0,
+        Qt::AlignHCenter);
     provideLayout->addLayout(
         providerVoiceControls);
 
     provideLayout->addWidget(
-        providerRemoteAudioButton);
+        providerRemoteAudioButton,
+        0,
+        Qt::AlignHCenter);
     provideLayout->addStretch(1);
-    provideLayout->addWidget(disconnectButton);
+    provideLayout->addWidget(
+        disconnectButton,
+        0,
+        Qt::AlignHCenter);
 
     pages->addWidget(providePage);
 
@@ -5340,8 +5716,7 @@ providerScreenDismissFilter->
 
         providerRemoteAudioButton->
             setText(
-                QStringLiteral(
-                    "Hear Remote Audio"));
+                QStringLiteral("Hear Remote Desktop Audio"));
 
         providerRemoteAudioButton->
             blockSignals(false);
@@ -5398,8 +5773,7 @@ providerScreenDismissFilter->
             enabled
                 ? QStringLiteral(
                       "Stop Remote Audio")
-                : QStringLiteral(
-                      "Hear Remote Audio"));
+                : QStringLiteral("Hear Remote Desktop Audio"));
 
         if (enabled) {
             lanSession->
