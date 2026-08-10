@@ -52,6 +52,8 @@ set(
   src/vp8_video_codec.h
   src/wan_signaling_client.cpp
   src/wan_signaling_client.h
+  src/wan_desktop_audio_relay.cpp
+  src/wan_desktop_audio_relay.h
 )
 
 if(WIN32)
