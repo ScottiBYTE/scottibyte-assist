@@ -3777,7 +3777,7 @@ QLabel#remotePlaceholder {
 
     codeEntry->setMaxLength(7);
 
-    codeEntry->setFixedWidth(190);
+    codeEntry->setFixedWidth(230);
 
     codeEntry->setValidator(
         new QRegularExpressionValidator(
