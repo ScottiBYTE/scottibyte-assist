@@ -47,6 +47,7 @@ set(
   src/lan_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/remote_desktop_audio.h
   src/vp8_video_codec.cpp
   src/vp8_video_codec.h
   src/wan_signaling_client.cpp
@@ -118,6 +119,7 @@ else()
     ASSIST_PLATFORM_SOURCES
     src/audio_devices.cpp
     src/customer_voice_audio.cpp
+    src/remote_desktop_audio.cpp
     src/libei_input.cpp
     src/libei_input.h
     src/pipewire_echo_cancel.cpp
