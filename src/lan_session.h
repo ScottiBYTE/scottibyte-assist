@@ -81,6 +81,15 @@ public:
     void receiveVoiceRelayPacket(
         const QByteArray &packet);
 
+    void requestDesktopAudioStart();
+    void requestDesktopAudioStop();
+
+    void sendDesktopAudioPacket(
+        const QByteArray &packet);
+
+    void receiveDesktopAudioRelayPacket(
+        const QByteArray &packet);
+
     void sendPointerMove(
         int x,
         int y);
@@ -151,6 +160,12 @@ signals:
     void voiceRelayPacketReady(
         const QByteArray &packet);
 
+    void desktopAudioStartRequested();
+    void desktopAudioStopRequested();
+
+    void desktopAudioPacketReceived(
+        const QByteArray &packet);
+
     void clipboardTextReceived(
         const QString &text);
 
@@ -194,7 +209,10 @@ private:
         Vp8Frame = 22,
         ProviderVp8Frame = 23,
         RemoteCursorPosition = 24,
-        ProviderCursorPosition = 25
+        ProviderCursorPosition = 25,
+        DesktopAudioStart = 26,
+        DesktopAudioStop = 27,
+        DesktopAudioPacket = 28
     };
 
     void startAdvertising();

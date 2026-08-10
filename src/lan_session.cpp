@@ -1377,6 +1377,63 @@ void LanSession::receiveVoiceRelayPacket(
         packet);
 }
 
+void LanSession::requestDesktopAudioStart()
+{
+    sendMessage(
+        MessageType::DesktopAudioStart,
+        {});
+
+    emit desktopAudioStartRequested();
+}
+
+void LanSession::requestDesktopAudioStop()
+{
+    sendMessage(
+        MessageType::DesktopAudioStop,
+        {});
+
+    emit desktopAudioStopRequested();
+}
+
+void LanSession::sendDesktopAudioPacket(
+    const QByteArray &packet)
+{
+    if (
+        packet.isEmpty() ||
+        packet.size() > 64 * 1024
+    ) {
+        return;
+    }
+
+    /*
+     * WAN desktop audio uses its own dedicated relay
+     * connection. Do not put its continuous packet
+     * stream into the main VP8/session relay.
+     */
+    if (relayActive_) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::DesktopAudioPacket,
+        packet);
+}
+
+void LanSession::receiveDesktopAudioRelayPacket(
+    const QByteArray &packet)
+{
+    if (
+        !relayActive_ ||
+        packet.isEmpty() ||
+        packet.size() > 64 * 1024
+    ) {
+        return;
+    }
+
+    emit desktopAudioPacketReceived(
+        packet);
+}
+
 void LanSession::sendPointerMove(
     int x,
     int y)
@@ -1865,6 +1922,28 @@ void LanSession::processIncomingBytes(
                     QDateTime::currentMSecsSinceEpoch();
 
                 emit voicePacketReceived(
+                    payload);
+            }
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::DesktopAudioStart) {
+            emit desktopAudioStartRequested();
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::DesktopAudioStop) {
+            emit desktopAudioStopRequested();
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::DesktopAudioPacket) {
+            if (!payload.isEmpty()) {
+                emit desktopAudioPacketReceived(
                     payload);
             }
 
