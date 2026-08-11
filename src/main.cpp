@@ -6351,6 +6351,12 @@ QObject::connect(
 
     QObject::connect(
         lanSession,
+        &LanSession::providerCursorImageReceived,
+        providerScreenView,
+        &RemoteView::setRemoteCursorImage);
+
+    QObject::connect(
+        lanSession,
         &LanSession::providerShareChanged,
         window,
         [
@@ -6568,6 +6574,31 @@ QObject::connect(
                 setRemoteCursorPosition(
                     x,
                     y);
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::remoteCursorImageReceived,
+        window,
+        [
+            remoteWindowView,
+            fullScreenRemoteView
+        ](
+            const QImage &image,
+            int hotspotX,
+            int hotspotY)
+        {
+            remoteWindowView->
+                setRemoteCursorImage(
+                    image,
+                    hotspotX,
+                    hotspotY);
+
+            fullScreenRemoteView->
+                setRemoteCursorImage(
+                    image,
+                    hotspotX,
+                    hotspotY);
         });
 
     QObject::connect(

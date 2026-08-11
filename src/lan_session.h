@@ -98,6 +98,11 @@ public:
         int x,
         int y);
 
+    void sendRemoteCursorImage(
+        const QImage &image,
+        int hotspotX,
+        int hotspotY);
+
     void sendLeftClick(
         int x,
         int y);
@@ -140,6 +145,16 @@ signals:
     void providerCursorPositionReceived(
         int x,
         int y);
+
+    void remoteCursorImageReceived(
+        const QImage &image,
+        int hotspotX,
+        int hotspotY);
+
+    void providerCursorImageReceived(
+        const QImage &image,
+        int hotspotX,
+        int hotspotY);
 
     void providerFrameReceived(
         const QImage &image);
@@ -212,7 +227,9 @@ private:
         ProviderCursorPosition = 25,
         DesktopAudioStart = 26,
         DesktopAudioStop = 27,
-        DesktopAudioPacket = 28
+        DesktopAudioPacket = 28,
+        RemoteCursorImage = 29,
+        ProviderCursorImage = 30
     };
 
     void startAdvertising();

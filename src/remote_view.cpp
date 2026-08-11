@@ -38,6 +38,8 @@ void RemoteView::clearFrame()
 {
     frame_ = {};
     remoteCursorPosition_ = QPoint(-1, -1);
+    remoteCursorImage_ = {};
+    remoteCursorHotspot_ = QPoint(0, 0);
     update();
 }
 
@@ -47,6 +49,20 @@ void RemoteView::setRemoteCursorPosition(
 {
     remoteCursorPosition_ =
         QPoint(x, y);
+
+    update();
+}
+
+void RemoteView::setRemoteCursorImage(
+    const QImage &image,
+    int hotspotX,
+    int hotspotY)
+{
+    remoteCursorImage_ = image;
+    remoteCursorHotspot_ =
+        QPoint(
+            hotspotX,
+            hotspotY);
 
     update();
 }
@@ -179,6 +195,56 @@ void RemoteView::paintEvent(
             remoteCursorPosition_.y() *
                 target.height() /
                 frame_.height();
+
+        if (!remoteCursorImage_.isNull()) {
+            const double scaleX =
+                static_cast<double>(
+                    target.width()) /
+                static_cast<double>(
+                    frame_.width());
+
+            const double scaleY =
+                static_cast<double>(
+                    target.height()) /
+                static_cast<double>(
+                    frame_.height());
+
+            const int cursorWidth =
+                qMax(
+                    1,
+                    qRound(
+                        remoteCursorImage_.width() *
+                        scaleX));
+
+            const int cursorHeight =
+                qMax(
+                    1,
+                    qRound(
+                        remoteCursorImage_.height() *
+                        scaleY));
+
+            const int hotspotX =
+                qRound(
+                    remoteCursorHotspot_.x() *
+                    scaleX);
+
+            const int hotspotY =
+                qRound(
+                    remoteCursorHotspot_.y() *
+                    scaleY);
+
+            const QRect cursorRect(
+                cursorX - hotspotX,
+                cursorY - hotspotY,
+                cursorWidth,
+                cursorHeight);
+
+            painter.drawImage(
+                cursorRect,
+                remoteCursorImage_);
+
+            return;
+        }
 
         const QPoint tip(
             cursorX,

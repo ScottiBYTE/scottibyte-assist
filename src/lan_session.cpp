@@ -47,6 +47,95 @@ QByteArray pointPayload(
     return payload;
 }
 
+QByteArray cursorImagePayload(
+    const QImage &image,
+    int hotspotX,
+    int hotspotY)
+{
+    QByteArray pngBytes;
+
+    QBuffer buffer(&pngBytes);
+    buffer.open(QIODevice::WriteOnly);
+
+    if (
+        image.isNull() ||
+        !image.save(
+            &buffer,
+            "PNG")
+    ) {
+        return {};
+    }
+
+    QByteArray payload;
+
+    QDataStream stream(
+        &payload,
+        QIODevice::WriteOnly);
+
+    stream.setByteOrder(
+        QDataStream::BigEndian);
+
+    stream
+        << static_cast<qint32>(hotspotX)
+        << static_cast<qint32>(hotspotY);
+
+    payload.append(pngBytes);
+
+    return payload;
+}
+
+bool decodeCursorImage(
+    const QByteArray &payload,
+    QImage &image,
+    int &hotspotX,
+    int &hotspotY)
+{
+    constexpr int headerSize =
+        sizeof(qint32) * 2;
+
+    if (payload.size() <= headerSize) {
+        return false;
+    }
+
+    const QByteArray header =
+        payload.left(headerSize);
+
+    QDataStream stream(header);
+    stream.setByteOrder(
+        QDataStream::BigEndian);
+
+    qint32 decodedHotspotX = 0;
+    qint32 decodedHotspotY = 0;
+
+    stream
+        >> decodedHotspotX
+        >> decodedHotspotY;
+
+    if (stream.status() != QDataStream::Ok) {
+        return false;
+    }
+
+    const QByteArray imageBytes =
+        payload.mid(headerSize);
+
+    QImage decodedImage;
+
+    if (
+        !decodedImage.loadFromData(
+            imageBytes,
+            "PNG") ||
+        decodedImage.isNull()
+    ) {
+        return false;
+    }
+
+    image = decodedImage;
+    hotspotX = decodedHotspotX;
+    hotspotY = decodedHotspotY;
+
+    return true;
+}
+
 QByteArray keyPayload(
     int qtKey)
 {
@@ -269,6 +358,12 @@ void LanSession::setDesktopBackend(
         &DesktopBackend::cursorPositionChanged,
         this,
         &LanSession::sendRemoteCursorPosition);
+
+    connect(
+        desktopBackend_,
+        &DesktopBackend::cursorImageChanged,
+        this,
+        &LanSession::sendRemoteCursorImage);
 
     connect(
         desktopBackend_,
@@ -1464,6 +1559,38 @@ void LanSession::sendRemoteCursorPosition(
     }
 }
 
+void LanSession::sendRemoteCursorImage(
+    const QImage &image,
+    int hotspotX,
+    int hotspotY)
+{
+    const QByteArray payload =
+        cursorImagePayload(
+            image,
+            hotspotX,
+            hotspotY);
+
+    if (payload.isEmpty()) {
+        return;
+    }
+
+    if (role_ == Role::Customer) {
+        sendMessage(
+            MessageType::RemoteCursorImage,
+            payload);
+        return;
+    }
+
+    if (
+        role_ == Role::Provider &&
+        providerShareActive_
+    ) {
+        sendMessage(
+            MessageType::ProviderCursorImage,
+            payload);
+    }
+}
+
 void LanSession::sendLeftClick(
     int x,
     int y)
@@ -1977,6 +2104,42 @@ void LanSession::processIncomingBytes(
                         providerCursorPositionReceived(
                             x,
                             y);
+                }
+            }
+
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::RemoteCursorImage ||
+            expectedMessageType_ ==
+                MessageType::ProviderCursorImage
+        ) {
+            QImage cursorImage;
+            int hotspotX = 0;
+            int hotspotY = 0;
+
+            if (
+                decodeCursorImage(
+                    payload,
+                    cursorImage,
+                    hotspotX,
+                    hotspotY)
+            ) {
+                if (
+                    expectedMessageType_ ==
+                    MessageType::RemoteCursorImage
+                ) {
+                    emit remoteCursorImageReceived(
+                        cursorImage,
+                        hotspotX,
+                        hotspotY);
+                } else {
+                    emit providerCursorImageReceived(
+                        cursorImage,
+                        hotspotX,
+                        hotspotY);
                 }
             }
 
