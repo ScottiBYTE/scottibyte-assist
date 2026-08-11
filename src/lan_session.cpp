@@ -1402,6 +1402,19 @@ void LanSession::requestRemoteControlStop()
             "Customer desktop viewing stopped."));
 }
 
+void LanSession::requestSupportActivityStart()
+{
+    if (!isConnected()) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::SupportActivityStart,
+        {});
+
+    emit supportActivityStarted();
+}
+
 void LanSession::requestVoiceStart()
 {
     sendMessage(
@@ -2021,6 +2034,12 @@ void LanSession::processIncomingBytes(
                     payload.at(0) != 0);
             }
 
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::SupportActivityStart) {
+            emit supportActivityStarted();
             continue;
         }
 

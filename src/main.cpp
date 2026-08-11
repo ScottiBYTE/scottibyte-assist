@@ -17,6 +17,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QScrollArea>
 
@@ -63,7 +64,6 @@
 #include <QShortcut>
 #include <QStandardPaths>
 #include <QStackedWidget>
-#include <QTimer>
 #include <QThread>
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -3176,11 +3176,11 @@ QLabel#remotePlaceholder {
 
     window->resize(
         780,
-        730);
+        820);
 
     window->setMinimumSize(
         720,
-        700);
+        790);
 
     auto *rootLayout =
         new QVBoxLayout(window);
@@ -3742,8 +3742,45 @@ QLabel#remotePlaceholder {
     progressLayout->addWidget(
         progressDetail);
 
+    auto *receiveSessionTimer =
+        makeLabel(
+            QStringLiteral("⏱  00:00:00"),
+            QStringLiteral("smallText"));
+
+    receiveSessionTimer->setAlignment(
+        Qt::AlignCenter);
+
+    receiveSessionTimer->setMinimumWidth(200);
+    receiveSessionTimer->setMinimumHeight(52);
+
+    receiveSessionTimer->setStyleSheet(
+        QStringLiteral(
+            "QLabel {"
+            " color: #ffffff;"
+            " background: qlineargradient("
+            "x1:0, y1:0, x2:1, y2:0,"
+            "stop:0 #087da8,"
+            "stop:1 #6338dc);"
+            " border: 2px solid #58eaff;"
+            " border-radius: 18px;"
+            " padding: 8px 22px;"
+            " font-size: 24px;"
+            " font-weight: 800;"
+            "}"));
+
+    receiveSessionTimer->setVisible(true);
+
     receiveLayout->addWidget(receiveTitle);
     receiveLayout->addWidget(receiveDescription);
+
+    receiveLayout->addSpacing(6);
+
+    receiveLayout->addWidget(
+        receiveSessionTimer,
+        0,
+        Qt::AlignHCenter);
+
+    receiveLayout->addSpacing(10);
 
     receiveLayout->addWidget(
         codeCard,
@@ -3881,6 +3918,34 @@ QLabel#remotePlaceholder {
 
     provideStatus->setAlignment(
         Qt::AlignCenter);
+
+    auto *provideSessionTimer =
+        makeLabel(
+            QStringLiteral("⏱  00:00:00"),
+            QStringLiteral("smallText"));
+
+    provideSessionTimer->setAlignment(
+        Qt::AlignCenter);
+
+    provideSessionTimer->setMinimumWidth(200);
+    provideSessionTimer->setMinimumHeight(52);
+
+    provideSessionTimer->setStyleSheet(
+        QStringLiteral(
+            "QLabel {"
+            " color: #ffffff;"
+            " background: qlineargradient("
+            "x1:0, y1:0, x2:1, y2:0,"
+            "stop:0 #087da8,"
+            "stop:1 #6338dc);"
+            " border: 2px solid #58eaff;"
+            " border-radius: 18px;"
+            " padding: 8px 22px;"
+            " font-size: 24px;"
+            " font-weight: 800;"
+            "}"));
+
+    provideSessionTimer->setVisible(true);
 
     auto *providerWindowControls =
         new QHBoxLayout;
@@ -4273,6 +4338,16 @@ providerRemoteAudioButton->setToolTip(
 
     provideLayout->addWidget(provideTitle);
     provideLayout->addWidget(provideDescription);
+
+    provideLayout->addSpacing(6);
+
+    provideLayout->addWidget(
+        provideSessionTimer,
+        0,
+        Qt::AlignHCenter);
+
+    provideLayout->addSpacing(10);
+
     provideLayout->addLayout(
         connectRow);
 
@@ -4300,6 +4375,139 @@ providerRemoteAudioButton->setToolTip(
         Qt::AlignHCenter);
 
     pages->addWidget(providePage);
+
+    QElapsedTimer supportElapsedClock;
+    bool supportElapsedRunning = false;
+
+    auto *supportElapsedTick =
+        new QTimer(window);
+
+    supportElapsedTick->setInterval(1000);
+
+    const auto updateSupportElapsed =
+        [
+            &supportElapsedClock,
+            &supportElapsedRunning,
+            receiveSessionTimer,
+            provideSessionTimer
+        ]()
+        {
+            if (!supportElapsedRunning) {
+                return;
+            }
+
+            const qint64 totalSeconds =
+                supportElapsedClock.elapsed() /
+                1000;
+
+            const qint64 hours =
+                totalSeconds / 3600;
+
+            const qint64 minutes =
+                (totalSeconds % 3600) / 60;
+
+            const qint64 seconds =
+                totalSeconds % 60;
+
+            const QString elapsedText =
+                QStringLiteral(
+                    "⏱  %1:%2:%3")
+                    .arg(
+                        hours,
+                        2,
+                        10,
+                        QChar('0'))
+                    .arg(
+                        minutes,
+                        2,
+                        10,
+                        QChar('0'))
+                    .arg(
+                        seconds,
+                        2,
+                        10,
+                        QChar('0'));
+
+            receiveSessionTimer->setText(
+                elapsedText);
+
+            provideSessionTimer->setText(
+                elapsedText);
+        };
+
+    const auto startSupportElapsed =
+        [
+            &supportElapsedClock,
+            &supportElapsedRunning,
+            supportElapsedTick,
+            receiveSessionTimer,
+            provideSessionTimer,
+            updateSupportElapsed
+        ]()
+        {
+            if (supportElapsedRunning) {
+                return;
+            }
+
+            supportElapsedRunning = true;
+            supportElapsedClock.start();
+
+            receiveSessionTimer->setVisible(true);
+            provideSessionTimer->setVisible(true);
+
+            updateSupportElapsed();
+            supportElapsedTick->start();
+        };
+
+    const auto resetSupportElapsed =
+        [
+            &supportElapsedRunning,
+            supportElapsedTick,
+            receiveSessionTimer,
+            provideSessionTimer
+        ]()
+        {
+            supportElapsedRunning = false;
+            supportElapsedTick->stop();
+
+            receiveSessionTimer->setText(
+                QStringLiteral(
+                    "⏱  00:00:00"));
+
+            provideSessionTimer->setText(
+                QStringLiteral(
+                    "⏱  00:00:00"));
+
+            receiveSessionTimer->setVisible(true);
+            provideSessionTimer->setVisible(true);
+        };
+
+    const auto stopSupportElapsed =
+        [
+            &supportElapsedRunning,
+            supportElapsedTick,
+            updateSupportElapsed
+        ]()
+        {
+            if (!supportElapsedRunning) {
+                return;
+            }
+
+            /*
+             * Capture the final displayed second before
+             * freezing the completed support time.
+             */
+            updateSupportElapsed();
+
+            supportElapsedRunning = false;
+            supportElapsedTick->stop();
+        };
+
+    QObject::connect(
+        supportElapsedTick,
+        &QTimer::timeout,
+        window,
+        updateSupportElapsed);
 
     auto *providerScreenWindow =
         new QWidget;
@@ -4404,6 +4612,29 @@ providerRemoteAudioButton->setToolTip(
 
     auto *lanSession =
         new LanSession(window);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::supportActivityStarted,
+        window,
+        startSupportElapsed);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::connectedChanged,
+        window,
+        [
+            resetSupportElapsed,
+            stopSupportElapsed
+        ](
+            bool connected)
+        {
+            if (connected) {
+                resetSupportElapsed();
+            } else {
+                stopSupportElapsed();
+            }
+        });
 
     auto *customerSignaling =
         new WanSignalingClient(window);
@@ -5022,11 +5253,16 @@ providerScreenDismissFilter->
             newCodeButton,
             endSupportButton,
             copyCodeIcon,
+            resetSupportElapsed,
             &customerCodeConsumed,
             &restartingCustomerSession
         ](
-            bool)
+            bool resetElapsed)
         {
+            if (resetElapsed) {
+                resetSupportElapsed();
+            }
+
             restartingCustomerSession = true;
             customerCodeConsumed = false;
 
@@ -6035,6 +6271,9 @@ QObject::connect(
                     QStringLiteral(
                         "Full-duplex voice is active."));
 
+                lanSession->
+                    requestSupportActivityStart();
+
                 return;
             }
 
@@ -6065,6 +6304,9 @@ QObject::connect(
             provideStatus->setText(
                 QStringLiteral(
                     "Full-duplex voice is active."));
+
+            lanSession->
+                requestSupportActivityStart();
         });
 
     QObject::connect(
@@ -6337,7 +6579,7 @@ QObject::connect(
                             ]()
                             {
                                 restartingCustomerSession = false;
-                                startCustomerSession(true);
+                                startCustomerSession(false);
                             });
                     }
                 }
@@ -6590,6 +6832,9 @@ QObject::connect(
                         lanSession->
                             requestRemoteControlStart(
                                 displayId);
+
+                        lanSession->
+                            requestSupportActivityStart();
 
                         remoteWindowFullScreenButton->
                             setEnabled(true);
