@@ -72,6 +72,8 @@ public:
 
     void requestRemoteControlStop();
 
+    void requestSupportActivityStart();
+
     void requestVoiceStart();
     void requestVoiceStop();
 
@@ -166,6 +168,8 @@ signals:
         const QStringList &displayIds,
         const QStringList &displayLabels);
 
+    void supportActivityStarted();
+
     void voiceStartRequested();
     void voiceStopRequested();
 
@@ -229,7 +233,8 @@ private:
         DesktopAudioStop = 27,
         DesktopAudioPacket = 28,
         RemoteCursorImage = 29,
-        ProviderCursorImage = 30
+        ProviderCursorImage = 30,
+        SupportActivityStart = 31
     };
 
     void startAdvertising();
