@@ -117,6 +117,12 @@ else()
     REQUIRED
   )
 
+  find_library(
+    XFIXES_LIBRARY
+    Xfixes
+    REQUIRED
+  )
+
   set(
     ASSIST_PLATFORM_SOURCES
     src/audio_devices.cpp
@@ -178,6 +184,7 @@ else()
       PkgConfig::GSTREAMER
       X11::X11
       ${XTST_LIBRARY}
+      ${XFIXES_LIBRARY}
   )
 endif()
 

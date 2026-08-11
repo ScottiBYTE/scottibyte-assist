@@ -23,6 +23,11 @@ public slots:
         int x,
         int y);
 
+    void setRemoteCursorImage(
+        const QImage &image,
+        int hotspotX,
+        int hotspotY);
+
 signals:
     void pointerMoveRequested(
         int x,
@@ -77,4 +82,6 @@ private:
 
     QImage frame_;
     QPoint remoteCursorPosition_{-1, -1};
+    QImage remoteCursorImage_;
+    QPoint remoteCursorHotspot_{0, 0};
 };

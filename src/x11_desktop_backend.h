@@ -83,4 +83,6 @@ private:
 
     QString shareSourceId_ =
         QStringLiteral("desktop");
+
+    unsigned long lastCursorSerial_ = 0;
 };

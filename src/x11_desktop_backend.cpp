@@ -16,6 +16,7 @@
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <X11/extensions/XTest.h>
+#include <X11/extensions/Xfixes.h>
 
 X11DesktopBackend::X11DesktopBackend(
     QObject *parent)
@@ -981,6 +982,74 @@ void X11DesktopBackend::captureFrame()
             emit cursorPositionChanged(
                 imageCursor.x(),
                 imageCursor.y());
+
+            Display *display =
+                XOpenDisplay(nullptr);
+
+            if (display != nullptr) {
+                XFixesCursorImage *cursor =
+                    XFixesGetCursorImage(
+                        display);
+
+                if (cursor != nullptr) {
+                    if (
+                        cursor->cursor_serial !=
+                        lastCursorSerial_
+                    ) {
+                        lastCursorSerial_ =
+                            cursor->cursor_serial;
+
+                        QImage cursorImage(
+                            static_cast<int>(
+                                cursor->width),
+                            static_cast<int>(
+                                cursor->height),
+                            QImage::Format_ARGB32);
+
+                        if (!cursorImage.isNull()) {
+                            for (
+                                int y = 0;
+                                y <
+                                    cursorImage.height();
+                                ++y
+                            ) {
+                                QRgb *line =
+                                    reinterpret_cast<QRgb *>(
+                                        cursorImage.scanLine(y));
+
+                                for (
+                                    int x = 0;
+                                    x <
+                                        cursorImage.width();
+                                    ++x
+                                ) {
+                                    const unsigned long pixel =
+                                        cursor->pixels[
+                                            y *
+                                                cursor->width +
+                                            x];
+
+                                    line[x] =
+                                        static_cast<QRgb>(
+                                            pixel &
+                                            0xffffffffUL);
+                                }
+                            }
+
+                            emit cursorImageChanged(
+                                cursorImage,
+                                static_cast<int>(
+                                    cursor->xhot),
+                                static_cast<int>(
+                                    cursor->yhot));
+                        }
+                    }
+
+                    XFree(cursor);
+                }
+
+                XCloseDisplay(display);
+            }
         }
 
         emit frameReady(image);

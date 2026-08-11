@@ -70,6 +70,11 @@ signals:
         int x,
         int y);
 
+    void cursorImageChanged(
+        const QImage &image,
+        int hotspotX,
+        int hotspotY);
+
     void statusChanged(
         const QString &status);
 
