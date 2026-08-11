@@ -3824,6 +3824,7 @@ QLabel#remotePlaceholder {
     provideStatus->setAlignment(
         Qt::AlignCenter);
     provideStatus->setWordWrap(true);
+    provideStatus->setMinimumHeight(44);
 
 
     auto *providerWindowControls =
@@ -4220,7 +4221,7 @@ providerRemoteAudioButton->setToolTip(
     provideLayout->addLayout(
         connectRow);
 
-    provideLayout->addSpacing(6);
+    provideLayout->addSpacing(18);
 
     provideLayout->addWidget(provideStatus);
     provideLayout->addLayout(providerWindowControls);
