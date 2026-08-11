@@ -4969,6 +4969,7 @@ providerScreenDismissFilter->
             progressDetail,
             newCodeButton,
             endSupportButton,
+            copyCodeIcon,
             &customerCodeConsumed,
             &restartingCustomerSession
         ](
@@ -4983,6 +4984,13 @@ providerScreenDismissFilter->
 
             supportCode->setText(
                 QStringLiteral("--- ---"));
+
+            copyCodeIcon->setText(
+                QString::fromUtf8("\xE2\xA7\x89"));
+
+            copyCodeIcon->setToolTip(
+                QStringLiteral(
+                    "Copy support code"));
 
             newCodeButton->setEnabled(false);
             endSupportButton->setEnabled(false);
