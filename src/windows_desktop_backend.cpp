@@ -516,6 +516,35 @@ void WindowsDesktopBackend::pressLeftAt(
         x,
         y);
 
+    POINT cursorPoint {};
+
+    if (GetCursorPos(&cursorPoint)) {
+        HWND targetWindow =
+            WindowFromPoint(
+                cursorPoint);
+
+        if (targetWindow != nullptr) {
+            const LRESULT hitTest =
+                SendMessage(
+                    targetWindow,
+                    WM_NCHITTEST,
+                    0,
+                    MAKELPARAM(
+                        cursorPoint.x,
+                        cursorPoint.y));
+
+            if (hitTest == HTCLOSE) {
+                PostMessage(
+                    targetWindow,
+                    WM_CLOSE,
+                    0,
+                    0);
+
+                return;
+            }
+        }
+    }
+
     sendMouseButton(
         MOUSEEVENTF_LEFTDOWN);
 }
