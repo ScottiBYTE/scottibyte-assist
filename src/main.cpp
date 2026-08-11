@@ -5299,8 +5299,7 @@ providerScreenDismissFilter->
         {
             provideStatus->setText(
                 QStringLiteral(
-                    "Support code claimed. Requesting "
-                    "the customer connection address..."));
+                    "Support code claimed. Connecting..."));
 
             providerSignaling->
                 sendCandidateRequest();
@@ -6328,9 +6327,7 @@ QObject::connect(
 
                 provideStatus->setText(
                     QStringLiteral(
-                        "Session connected. Choose Remote "
-                        "Control Customer when you are "
-                        "ready to view a display."));
+                        "Session connected."));
             } else if (providerWasConnected) {
                 providerWasConnected = false;
                 codeEntry->clear();
