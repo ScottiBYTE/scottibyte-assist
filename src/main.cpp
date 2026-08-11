@@ -3823,6 +3823,8 @@ QLabel#remotePlaceholder {
 
     provideStatus->setAlignment(
         Qt::AlignCenter);
+    provideStatus->setWordWrap(true);
+
 
     auto *providerWindowControls =
         new QHBoxLayout;
@@ -4963,6 +4965,7 @@ providerScreenDismissFilter->
             progressDetail,
             newCodeButton,
             endSupportButton,
+            copyCodeIcon,
             &customerCodeConsumed,
             &restartingCustomerSession
         ](
@@ -4977,6 +4980,13 @@ providerScreenDismissFilter->
 
             supportCode->setText(
                 QStringLiteral("--- ---"));
+
+            copyCodeIcon->setText(
+                QStringLiteral("⧉"));
+
+            copyCodeIcon->setToolTip(
+                QStringLiteral(
+                    "Copy support code"));
 
             newCodeButton->setEnabled(false);
             endSupportButton->setEnabled(false);
