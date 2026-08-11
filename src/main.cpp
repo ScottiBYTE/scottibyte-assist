@@ -878,6 +878,53 @@ private:
         userDismissedCallback_;
 };
 
+class CopyCodeClickAwayFilter final
+    : public QObject
+{
+public:
+    explicit CopyCodeClickAwayFilter(
+        QToolButton *copyButton,
+        QObject *parent = nullptr)
+        : QObject(parent),
+          copyButton_(copyButton)
+    {
+    }
+
+protected:
+    bool eventFilter(
+        QObject *watched,
+        QEvent *event) override
+    {
+        if (event->type() == QEvent::MouseButtonPress) {
+            QWidget *widget =
+                qobject_cast<QWidget *>(watched);
+
+            const bool clickedCopyButton =
+                widget == copyButton_ ||
+                (
+                    widget &&
+                    copyButton_->isAncestorOf(widget)
+                );
+
+            if (!clickedCopyButton) {
+                copyButton_->setText(
+                    QStringLiteral("⧉"));
+
+                copyButton_->setToolTip(
+                    QStringLiteral(
+                        "Copy support code"));
+            }
+        }
+
+        return QObject::eventFilter(
+            watched,
+            event);
+    }
+
+private:
+    QToolButton *copyButton_;
+};
+
 class AssistAudioComboBox final
     : public QComboBox
 {
@@ -3417,6 +3464,14 @@ QLabel#remotePlaceholder {
     copyCodeIcon->setFocusPolicy(
         Qt::NoFocus);
 
+    auto *copyCodeClickAwayFilter =
+        new CopyCodeClickAwayFilter(
+            copyCodeIcon,
+            window);
+
+    qApp->installEventFilter(
+        copyCodeClickAwayFilter);
+
     auto copyIconFont =
         copyCodeIcon->font();
 
@@ -3505,20 +3560,17 @@ QLabel#remotePlaceholder {
         });
 
     /*
-     * Keep the check mark visible until the user moves
-     * away from the ScottiBYTE Assist window.
+     * Keep the check mark visible while ScottiBYTE Assist
+     * remains the active application.
      */
     QObject::connect(
         qApp,
-        &QGuiApplication::focusWindowChanged,
+        &QGuiApplication::applicationStateChanged,
         window,
-        [window, copyCodeIcon](
-            QWindow *focusWindow)
+        [copyCodeIcon](
+            Qt::ApplicationState state)
         {
-            if (
-                focusWindow ==
-                window->windowHandle()
-            ) {
+            if (state == Qt::ApplicationActive) {
                 return;
             }
 
