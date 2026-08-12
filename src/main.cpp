@@ -3181,8 +3181,11 @@ QLabel#remotePlaceholder {
     auto *brandTitle =
         makeLabel(
             QStringLiteral(
-                "ScottiBYTE Assist"),
+                "Scotti<span style=\"color:#50dcff;\">BYTE</span> Assist"),
             QStringLiteral("brandTitle"));
+
+    brandTitle->setTextFormat(
+        Qt::RichText);
 
     auto *versionLabel =
         makeLabel(
