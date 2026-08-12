@@ -75,6 +75,7 @@ if(WIN32)
     src/windows_desktop_backend.cpp
     src/windows_desktop_backend.h
     src/windows_remote_desktop_audio.cpp
+    assets/scottibyte-assist.rc
     src/remote_desktop_audio.h
   )
 else()
