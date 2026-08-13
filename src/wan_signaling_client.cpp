@@ -1,4 +1,5 @@
 #include "wan_signaling_client.h"
+#include <QFile>
 
 #include <QCryptographicHash>
 #include <QSaveFile>
@@ -1162,6 +1163,153 @@ void WanSignalingClient::createFileTransfer(
         });
 }
 
+void WanSignalingClient::uploadFileTransfer(
+    const QString &transferId,
+    const QString &filePath)
+{
+    const QString normalizedId =
+        transferId.trimmed();
+
+    if (
+        state_ != State::Subscribed ||
+        code_.isEmpty() ||
+        normalizedId.isEmpty() ||
+        filePath.trimmed().isEmpty()
+    ) {
+        emit fileUploadFailed(
+            normalizedId,
+            QStringLiteral(
+                "The file upload could not be started."));
+        return;
+    }
+
+    if (fileUploadReply_ != nullptr) {
+        emit fileUploadFailed(
+            normalizedId,
+            QStringLiteral(
+                "Another file is already being sent."));
+        return;
+    }
+
+    auto *file =
+        new QFile(filePath);
+
+    if (!file->open(QIODevice::ReadOnly)) {
+        delete file;
+
+        emit fileUploadFailed(
+            normalizedId,
+            QStringLiteral(
+                "The selected file could not be opened."));
+        return;
+    }
+
+    QUrl url = apiBaseUrl_;
+
+    QString path = url.path();
+
+    if (path.endsWith('/')) {
+        path.chop(1);
+    }
+
+    path +=
+        QStringLiteral(
+            "/api/sessions/%1/transfers/%2/content")
+            .arg(
+                code_,
+                normalizedId);
+
+    url.setPath(path);
+
+    QNetworkRequest request(url);
+
+    request.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        QStringLiteral(
+            "application/octet-stream"));
+
+    request.setHeader(
+        QNetworkRequest::ContentLengthHeader,
+        file->size());
+
+    if (role_ == Role::Supporter) {
+        request.setRawHeader(
+            "Authorization",
+            QByteArray("Bearer ") +
+                supporterToken_.toUtf8());
+    } else if (role_ == Role::Customer) {
+        request.setRawHeader(
+            "X-Customer-Token",
+            customerToken_.toUtf8());
+    }
+
+    auto *reply =
+        network_->put(
+            request,
+            file);
+
+    file->setParent(reply);
+
+    fileUploadReply_ = reply;
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::uploadProgress,
+        this,
+        [
+            this,
+            normalizedId
+        ](
+            qint64 bytesSent,
+            qint64 bytesTotal)
+        {
+            emit fileUploadProgress(
+                normalizedId,
+                bytesSent,
+                bytesTotal);
+        });
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::finished,
+        this,
+        [
+            this,
+            reply,
+            normalizedId
+        ]() {
+            fileUploadReply_ = nullptr;
+
+            if (
+                reply->error() !=
+                    QNetworkReply::NoError
+            ) {
+                emit fileUploadFailed(
+                    normalizedId,
+                    reply->errorString());
+
+                reply->deleteLater();
+                return;
+            }
+
+            sendFileReady(
+                normalizedId);
+
+            emit fileUploadCompleted(
+                normalizedId);
+
+            reply->deleteLater();
+        });
+}
+
+
+void WanSignalingClient::cancelFileUpload()
+{
+    if (fileUploadReply_ != nullptr) {
+        fileUploadReply_->abort();
+    }
+}
+
 void WanSignalingClient::sendFileOffer(
     const QString &transferId,
     const QString &fileName,
@@ -1252,6 +1400,33 @@ void WanSignalingClient::sendFileDecline(
 
     sendJson(
         QStringLiteral("file.decline"),
+        fields);
+}
+
+void WanSignalingClient::sendFileReady(
+    const QString &transferId)
+{
+    if (
+        state_ != State::Subscribed ||
+        transferId.trimmed().isEmpty()
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("transferId"),
+        transferId.trimmed());
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral("file.ready"),
         fields);
 }
 
