@@ -5479,8 +5479,132 @@ providerScreenDismissFilter->
         });
 
 
-    const auto chooseFileToSend =
+
+    const auto showFileTransferMessage =
         [window](
+            const QString &title,
+            const QString &message)
+        {
+            QDialog dialog(window);
+
+            dialog.setObjectName(
+                QStringLiteral(
+                    "settingsDialog"));
+
+            dialog.setWindowTitle(
+                title);
+
+            dialog.setModal(true);
+            dialog.setMinimumWidth(420);
+
+            dialog.setStyleSheet(
+                QStringLiteral(
+                    R"CSS(
+QDialog#settingsDialog {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 1,
+        stop: 0 #09294c,
+        stop: 0.55 #071d39,
+        stop: 1 #151043
+    );
+}
+
+QDialog#settingsDialog QLabel {
+    color: #c8d8e7;
+    font-size: 14px;
+}
+
+QDialog#settingsDialog QPushButton {
+    min-height: 38px;
+    padding: 0 20px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
+    );
+    border: 1px solid #28c7f7;
+    border-radius: 10px;
+}
+
+QDialog#settingsDialog QPushButton:hover {
+    background: #176da0;
+}
+)CSS"));
+
+            auto *layout =
+                new QVBoxLayout(&dialog);
+
+            layout->setContentsMargins(
+                28,
+                24,
+                28,
+                24);
+
+            layout->setSpacing(16);
+
+            auto *heading =
+                makeLabel(title);
+
+            QFont headingFont =
+                heading->font();
+
+            headingFont.setPointSize(
+                headingFont.pointSize() + 3);
+
+            headingFont.setBold(true);
+
+            heading->setFont(
+                headingFont);
+
+            heading->setAlignment(
+                Qt::AlignCenter);
+
+            auto *messageLabel =
+                makeLabel(message);
+
+            messageLabel->setAlignment(
+                Qt::AlignCenter);
+
+            messageLabel->setWordWrap(true);
+
+            auto *okButton =
+                makeButton(
+                    QStringLiteral("OK"),
+                    QStringLiteral(
+                        "primaryButton"));
+
+            layout->addWidget(
+                heading);
+
+            layout->addWidget(
+                messageLabel);
+
+            layout->addSpacing(4);
+
+            layout->addWidget(
+                okButton,
+                0,
+                Qt::AlignHCenter);
+
+            QObject::connect(
+                okButton,
+                &QPushButton::clicked,
+                &dialog,
+                &QDialog::accept);
+
+            dialog.exec();
+        };
+
+    const auto chooseFileToSend =
+        [
+            window,
+            showFileTransferMessage
+        ](
             WanSignalingClient *signaling)
         {
             const QString path =
@@ -5499,8 +5623,7 @@ providerScreenDismissFilter->
                 !info.exists() ||
                 !info.isFile()
             ) {
-                QMessageBox::warning(
-                    window,
+                showFileTransferMessage(
                     QStringLiteral(
                         "Send File"),
                     QStringLiteral(
@@ -5607,7 +5730,8 @@ providerScreenDismissFilter->
     const auto wireFileTransferSignaling =
         [
             window,
-            formatFileSize
+            formatFileSize,
+            showFileTransferMessage
         ](
             WanSignalingClient *signaling)
         {
@@ -5647,49 +5771,201 @@ providerScreenDismissFilter->
                     const QString &fileName,
                     qint64 fileSize)
                 {
-                    QMessageBox dialog(window);
+                    QDialog dialog(window);
+
+                    dialog.setObjectName(
+                        QStringLiteral(
+                            "settingsDialog"));
 
                     dialog.setWindowTitle(
                         QStringLiteral(
                             "Incoming File"));
 
-                    dialog.setIcon(
-                        QMessageBox::Question);
+                    dialog.setModal(true);
+                    dialog.setMinimumWidth(420);
 
-                    dialog.setText(
+                    dialog.setStyleSheet(
                         QStringLiteral(
-                            "The other person wants "
-                            "to send you a file."));
+                            R"CSS(
+QDialog#settingsDialog {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 1,
+        stop: 0 #09294c,
+        stop: 0.55 #071d39,
+        stop: 1 #151043
+    );
+}
 
-                    dialog.setInformativeText(
-                        QStringLiteral(
-                            "%1\n%2")
-                            .arg(
-                                fileName,
-                                formatFileSize(
-                                    fileSize)));
+QDialog#settingsDialog QLabel {
+    color: #c8d8e7;
+    font-size: 14px;
+}
+
+QDialog#settingsDialog QPushButton {
+    min-height: 38px;
+    padding: 0 20px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
+    );
+    border: 1px solid #28c7f7;
+    border-radius: 10px;
+}
+
+QDialog#settingsDialog QPushButton:hover {
+    background: #176da0;
+}
+
+QDialog#settingsDialog QPushButton#declineFileButton {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #a93650,
+        stop: 1 #671227
+    );
+    border-color: #ff6b86;
+}
+)CSS"));
+
+                    auto *layout =
+                        new QVBoxLayout(&dialog);
+
+                    layout->setContentsMargins(
+                        28,
+                        24,
+                        28,
+                        24);
+
+                    layout->setSpacing(14);
+
+                    auto *heading =
+                        makeLabel(
+                            QStringLiteral(
+                                "Incoming File"));
+
+                    QFont headingFont =
+                        heading->font();
+
+                    headingFont.setPointSize(
+                        headingFont.pointSize() + 4);
+
+                    headingFont.setBold(true);
+
+                    heading->setFont(
+                        headingFont);
+
+                    heading->setAlignment(
+                        Qt::AlignCenter);
+
+                    auto *message =
+                        makeLabel(
+                            QStringLiteral(
+                                "The other person wants "
+                                "to send you a file."));
+
+                    message->setAlignment(
+                        Qt::AlignCenter);
+
+                    message->setWordWrap(true);
+
+                    auto *fileLabel =
+                        makeLabel(fileName);
+
+                    fileLabel->setTextFormat(
+                        Qt::PlainText);
+
+                    QFont fileFont =
+                        fileLabel->font();
+
+                    fileFont.setBold(true);
+
+                    fileLabel->setFont(
+                        fileFont);
+
+                    fileLabel->setAlignment(
+                        Qt::AlignCenter);
+
+                    fileLabel->setWordWrap(true);
+
+                    auto *sizeLabel =
+                        makeLabel(
+                            formatFileSize(
+                                fileSize));
+
+                    sizeLabel->setAlignment(
+                        Qt::AlignCenter);
+
+                    auto *buttons =
+                        new QHBoxLayout;
+
+                    buttons->setSpacing(10);
+
+                    buttons->addStretch();
+
+                    auto *declineButton =
+                        makeButton(
+                            QStringLiteral(
+                                "Decline"),
+                            QStringLiteral(
+                                "declineFileButton"));
 
                     auto *acceptButton =
-                        dialog.addButton(
+                        makeButton(
                             QStringLiteral(
                                 "Accept"),
-                            QMessageBox::AcceptRole);
+                            QStringLiteral(
+                                "primaryButton"));
 
-                    dialog.addButton(
-                        QStringLiteral(
-                            "Decline"),
-                        QMessageBox::RejectRole);
+                    buttons->addWidget(
+                        declineButton);
 
-                    dialog.setDefaultButton(
-                        qobject_cast<QPushButton *>(
-                            acceptButton));
+                    buttons->addWidget(
+                        acceptButton);
 
-                    dialog.exec();
+                    buttons->addStretch();
 
-                    if (
-                        dialog.clickedButton() ==
-                        acceptButton
-                    ) {
+                    layout->addWidget(
+                        heading);
+
+                    layout->addWidget(
+                        message);
+
+                    layout->addSpacing(4);
+
+                    layout->addWidget(
+                        fileLabel);
+
+                    layout->addWidget(
+                        sizeLabel);
+
+                    layout->addSpacing(8);
+
+                    layout->addLayout(
+                        buttons);
+
+                    QObject::connect(
+                        declineButton,
+                        &QPushButton::clicked,
+                        &dialog,
+                        &QDialog::reject);
+
+                    QObject::connect(
+                        acceptButton,
+                        &QPushButton::clicked,
+                        &dialog,
+                        &QDialog::accept);
+
+                    const bool accepted =
+                        dialog.exec() ==
+                        QDialog::Accepted;
+
+                    if (accepted) {
                         signaling->sendFileAccept(
                             transferId);
                     } else {
@@ -5705,7 +5981,8 @@ providerScreenDismissFilter->
                 window,
                 [
                     window,
-                    signaling
+                    signaling,
+                    showFileTransferMessage
                 ](
                     const QString &transferId)
                 {
@@ -5723,8 +6000,7 @@ providerScreenDismissFilter->
                             "pendingFileName")
                             .toString();
 
-                    QMessageBox::information(
-                        window,
+                    showFileTransferMessage(
                         QStringLiteral(
                             "Send File"),
                         QStringLiteral(
@@ -5739,7 +6015,8 @@ providerScreenDismissFilter->
                 window,
                 [
                     window,
-                    signaling
+                    signaling,
+                    showFileTransferMessage
                 ](
                     const QString &transferId)
                 {
@@ -5757,8 +6034,7 @@ providerScreenDismissFilter->
                             "pendingFileName")
                             .toString();
 
-                    QMessageBox::information(
-                        window,
+                    showFileTransferMessage(
                         QStringLiteral(
                             "Send File"),
                         QStringLiteral(
