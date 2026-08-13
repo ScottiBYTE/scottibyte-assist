@@ -5432,7 +5432,10 @@ providerScreenDismissFilter->
             const QString &message,
             bool lower = false)
         {
-            QDialog dialog(window);
+            QDialog dialog(
+                lower
+                    ? nullptr
+                    : window);
 
             dialog.setObjectName(
                 QStringLiteral(
@@ -5547,18 +5550,15 @@ QDialog#settingsDialog QPushButton:hover {
             dialog.adjustSize();
 
             if (lower) {
-                QTimer::singleShot(
-                    0,
-                    &dialog,
-                    [&dialog, window]()
-                    {
-                        const QPoint center =
-                            window->frameGeometry().center();
+                dialog.setWindowModality(
+                    Qt::ApplicationModal);
 
-                        dialog.move(
-                            center.x() - dialog.width() / 2,
-                            center.y() - dialog.height() / 2 + 120);
-                    });
+                const QPoint center =
+                    window->frameGeometry().center();
+
+                dialog.move(
+                    center.x() - dialog.width() / 2,
+                    center.y() - dialog.height() / 2 + 150);
             }
 
             dialog.exec();
@@ -6114,69 +6114,13 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                         &WanSignalingClient::
                             fileDownloadCompleted,
                         dialog,
-                        [
-                            dialog,
-                            signaling,
-                            transferId,
-                            fileName,
-                            layout,
-                            progressBar,
-                            cancelButton
-                        ](
+                        [dialog, transferId](
                             const QString &id,
                             const QString &)
                         {
-                            if (id != transferId) {
-                                return;
+                            if (id == transferId) {
+                                dialog->accept();
                             }
-
-                            progressBar->setValue(100);
-                            progressBar->setFormat(
-                                QStringLiteral("100%"));
-
-                            cancelButton->hide();
-
-                            auto *successLabel =
-                                makeLabel(
-                                    QStringLiteral(
-                                        "%1 was received successfully.")
-                                        .arg(fileName));
-
-                            successLabel->setAlignment(
-                                Qt::AlignCenter);
-                            successLabel->setWordWrap(true);
-
-                            auto *okButton =
-                                makeButton(
-                                    QStringLiteral("OK"),
-                                    QStringLiteral(
-                                        "primaryButton"));
-
-                            layout->addSpacing(8);
-                            layout->addWidget(
-                                successLabel);
-                            layout->addWidget(
-                                okButton,
-                                0,
-                                Qt::AlignHCenter);
-
-                            QObject::connect(
-                                okButton,
-                                &QPushButton::clicked,
-                                dialog,
-                                &QDialog::accept);
-
-                            signaling->setProperty(
-                                "incomingTransferId",
-                                QVariant());
-                            signaling->setProperty(
-                                "incomingFileName",
-                                QVariant());
-                            signaling->setProperty(
-                                "incomingFilePath",
-                                QVariant());
-
-                            dialog->adjustSize();
                         });
 
                     QObject::connect(
@@ -6198,6 +6142,51 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                     signaling->downloadFileTransfer(
                         transferId,
                         filePath);
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileDownloadCompleted,
+                window,
+                [
+                    signaling,
+                    showFileTransferMessage
+                ](
+                    const QString &transferId,
+                    const QString &)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString fileName =
+                        signaling->property(
+                            "incomingFileName")
+                            .toString();
+
+                    showFileTransferMessage(
+                        QStringLiteral(
+                            "Incoming File"),
+                        QStringLiteral(
+                            "%1 was received successfully.")
+                            .arg(fileName),
+                        true);
+
+                    signaling->setProperty(
+                        "incomingTransferId",
+                        QVariant());
+                    signaling->setProperty(
+                        "incomingFileName",
+                        QVariant());
+                    signaling->setProperty(
+                        "incomingFilePath",
+                        QVariant());
                 });
 
             QObject::connect(
