@@ -1247,6 +1247,147 @@ void WanSignalingClient::sendSessionSubscription()
 }
 
 
+
+void WanSignalingClient::createFileTransfer(
+    const QString &fileName,
+    qint64 fileSize)
+{
+    if (
+        state_ != State::Subscribed ||
+        code_.isEmpty() ||
+        fileName.trimmed().isEmpty() ||
+        fileSize < 0
+    ) {
+        return;
+    }
+
+    QUrl url = apiBaseUrl_;
+
+    QString path = url.path();
+
+    if (path.endsWith(QChar('/'))) {
+        path.chop(1);
+    }
+
+    url.setPath(
+        path +
+        QStringLiteral(
+            "/api/sessions/") +
+        code_ +
+        QStringLiteral(
+            "/transfers"));
+
+    QNetworkRequest request(url);
+
+    request.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        QStringLiteral(
+            "application/json"));
+
+    if (role_ == Role::Supporter) {
+        request.setRawHeader(
+            QByteArrayLiteral("Authorization"),
+            QByteArrayLiteral("Bearer ") +
+                supporterToken_.toUtf8());
+    } else if (role_ == Role::Customer) {
+        request.setRawHeader(
+            QByteArrayLiteral("X-Customer-Token"),
+            customerToken_.toUtf8());
+    }
+
+    QJsonObject body;
+
+    body.insert(
+        QStringLiteral("fileName"),
+        fileName.trimmed());
+
+    body.insert(
+        QStringLiteral("size"),
+        fileSize);
+
+    QNetworkReply *reply =
+        network_->post(
+            request,
+            QJsonDocument(body)
+                .toJson(
+                    QJsonDocument::Compact));
+
+    connect(
+        reply,
+        &QNetworkReply::finished,
+        this,
+        [
+            this,
+            reply,
+            fileName,
+            fileSize
+        ]()
+        {
+            const QByteArray body =
+                reply->readAll();
+
+            if (
+                reply->error() !=
+                    QNetworkReply::NoError
+            ) {
+                fail(
+                    responseMessage(
+                        body,
+                        reply->errorString()));
+
+                reply->deleteLater();
+                return;
+            }
+
+            QJsonParseError parseError;
+
+            const QJsonDocument document =
+                QJsonDocument::fromJson(
+                    body,
+                    &parseError);
+
+            if (
+                parseError.error !=
+                    QJsonParseError::NoError ||
+                !document.isObject()
+            ) {
+                fail(
+                    QStringLiteral(
+                        "The Assist server returned "
+                        "an invalid file transfer response."));
+
+                reply->deleteLater();
+                return;
+            }
+
+            const QJsonObject object =
+                document.object();
+
+            const QString transferId =
+                object.value(
+                    QStringLiteral("id"))
+                    .toString()
+                    .trimmed();
+
+            if (transferId.isEmpty()) {
+                fail(
+                    QStringLiteral(
+                        "The Assist server did not return "
+                        "a file transfer ID."));
+
+                reply->deleteLater();
+                return;
+            }
+
+            emit fileTransferCreated(
+                transferId,
+                fileName,
+                fileSize);
+
+            reply->deleteLater();
+        });
+}
+
 void WanSignalingClient::sendFileOffer(
     const QString &transferId,
     const QString &fileName,

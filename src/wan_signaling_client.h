@@ -40,6 +40,10 @@ public:
         const QString &address,
         quint16 port);
 
+    void createFileTransfer(
+        const QString &fileName,
+        qint64 fileSize);
+
     void sendFileOffer(
         const QString &transferId,
         const QString &fileName,
@@ -91,6 +95,11 @@ signals:
     void peerCandidateReceived(
         const QString &address,
         quint16 port);
+
+    void fileTransferCreated(
+        const QString &transferId,
+        const QString &fileName,
+        qint64 fileSize);
 
     void fileOfferReceived(
         const QString &transferId,
