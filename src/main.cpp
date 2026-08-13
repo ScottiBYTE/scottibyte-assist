@@ -38,6 +38,7 @@
 #include <QDir>
 #include <QEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHostInfo>
@@ -3586,6 +3587,13 @@ QLabel#remotePlaceholder {
 
     endSupportButton->setEnabled(false);
 
+    auto *customerSendFileButton =
+        makeButton(
+            QStringLiteral("Send File"),
+            QStringLiteral("secondaryButton"));
+
+    customerSendFileButton->setEnabled(false);
+
     auto *customerStartVoiceButton =
         makeButton(
             QStringLiteral("Start Voice"),
@@ -3626,6 +3634,7 @@ QLabel#remotePlaceholder {
         customerMuteButton);
 
     receiveActions->addWidget(newCodeButton);
+    receiveActions->addWidget(customerSendFileButton);
     receiveActions->addWidget(endSupportButton);
 
     auto *progressCard =
@@ -4280,6 +4289,13 @@ providerRemoteAudioButton->setToolTip(
 
     disconnectButton->setEnabled(false);
 
+    auto *providerSendFileButton =
+        makeButton(
+            QStringLiteral("Send File"),
+            QStringLiteral("secondaryButton"));
+
+    providerSendFileButton->setEnabled(false);
+
     disconnectButton->setSizePolicy(
         QSizePolicy::Fixed,
         QSizePolicy::Fixed);
@@ -4314,6 +4330,10 @@ providerRemoteAudioButton->setToolTip(
 
     provideLayout->addWidget(
         providerRemoteAudioButton,
+        0,
+        Qt::AlignHCenter);
+    provideLayout->addWidget(
+        providerSendFileButton,
         0,
         Qt::AlignHCenter);
     provideLayout->addStretch(1);
@@ -5403,6 +5423,320 @@ providerScreenDismissFilter->
                 window);
         });
 
+
+    const auto chooseFileToSend =
+        [window](
+            WanSignalingClient *signaling)
+        {
+            const QString path =
+                QFileDialog::getOpenFileName(
+                    window,
+                    QStringLiteral(
+                        "Choose a file to send"));
+
+            if (path.isEmpty()) {
+                return;
+            }
+
+            const QFileInfo info(path);
+
+            if (
+                !info.exists() ||
+                !info.isFile()
+            ) {
+                QMessageBox::warning(
+                    window,
+                    QStringLiteral(
+                        "Send File"),
+                    QStringLiteral(
+                        "That file could not be opened."));
+                return;
+            }
+
+            /*
+             * Keep the local source path with this
+             * signaling client. The later HTTP upload
+             * step will use it after file.accept.
+             */
+            signaling->setProperty(
+                "pendingFilePath",
+                path);
+
+            signaling->setProperty(
+                "pendingFileName",
+                info.fileName());
+
+            signaling->setProperty(
+                "pendingFileSize",
+                info.size());
+
+            signaling->createFileTransfer(
+                info.fileName(),
+                info.size());
+        };
+
+    QObject::connect(
+        customerSendFileButton,
+        &QPushButton::clicked,
+        window,
+        [
+            customerSignaling,
+            chooseFileToSend
+        ]()
+        {
+            chooseFileToSend(
+                customerSignaling);
+        });
+
+    QObject::connect(
+        providerSendFileButton,
+        &QPushButton::clicked,
+        window,
+        [
+            providerSignaling,
+            chooseFileToSend
+        ]()
+        {
+            chooseFileToSend(
+                providerSignaling);
+        });
+
+    const auto formatFileSize =
+        [](
+            qint64 bytes)
+        {
+            if (
+                bytes >=
+                1024LL * 1024LL * 1024LL
+            ) {
+                return
+                    QString::number(
+                        static_cast<double>(
+                            bytes) /
+                        (1024.0 * 1024.0 * 1024.0),
+                        'f',
+                        1) +
+                    QStringLiteral(" GB");
+            }
+
+            if (
+                bytes >=
+                1024LL * 1024LL
+            ) {
+                return
+                    QString::number(
+                        static_cast<double>(
+                            bytes) /
+                        (1024.0 * 1024.0),
+                        'f',
+                        1) +
+                    QStringLiteral(" MB");
+            }
+
+            if (bytes >= 1024) {
+                return
+                    QString::number(
+                        static_cast<double>(
+                            bytes) /
+                        1024.0,
+                        'f',
+                        1) +
+                    QStringLiteral(" KB");
+            }
+
+            return
+                QString::number(bytes) +
+                QStringLiteral(" bytes");
+        };
+
+    const auto wireFileTransferSignaling =
+        [
+            window,
+            formatFileSize
+        ](
+            WanSignalingClient *signaling)
+        {
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileTransferCreated,
+                window,
+                [
+                    signaling
+                ](
+                    const QString &transferId,
+                    const QString &fileName,
+                    qint64 fileSize)
+                {
+                    signaling->setProperty(
+                        "pendingTransferId",
+                        transferId);
+
+                    signaling->sendFileOffer(
+                        transferId,
+                        fileName,
+                        fileSize);
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileOfferReceived,
+                window,
+                [
+                    window,
+                    signaling,
+                    formatFileSize
+                ](
+                    const QString &transferId,
+                    const QString &fileName,
+                    qint64 fileSize)
+                {
+                    QMessageBox dialog(window);
+
+                    dialog.setObjectName(
+                        QStringLiteral("settingsDialog"));
+
+                    dialog.setWindowTitle(
+                        QStringLiteral(
+                            "Incoming File"));
+
+                    dialog.setIcon(
+                        QMessageBox::Question);
+
+                    dialog.setText(
+                        QStringLiteral(
+                            "The other person wants "
+                            "to send you a file."));
+
+                    dialog.setInformativeText(
+                        QStringLiteral(
+                            "%1\n%2")
+                            .arg(
+                                fileName,
+                                formatFileSize(
+                                    fileSize)));
+
+                    auto *acceptButton =
+                        dialog.addButton(
+                            QStringLiteral(
+                                "Accept"),
+                            QMessageBox::AcceptRole);
+
+                    dialog.addButton(
+                        QStringLiteral(
+                            "Decline"),
+                        QMessageBox::RejectRole);
+
+                    dialog.setDefaultButton(
+                        qobject_cast<QPushButton *>(
+                            acceptButton));
+
+                    dialog.exec();
+
+                    if (
+                        dialog.clickedButton() ==
+                        acceptButton
+                    ) {
+                        signaling->sendFileAccept(
+                            transferId);
+                    } else {
+                        signaling->sendFileDecline(
+                            transferId);
+                    }
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileAccepted,
+                window,
+                [
+                    window,
+                    signaling
+                ](
+                    const QString &transferId)
+                {
+                    if (
+                        signaling->property(
+                            "pendingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString fileName =
+                        signaling->property(
+                            "pendingFileName")
+                            .toString();
+
+                    QMessageBox::information(
+                        window,
+                        QStringLiteral(
+                            "Send File"),
+                        QStringLiteral(
+                            "%1 was accepted.")
+                            .arg(fileName));
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileDeclined,
+                window,
+                [
+                    window,
+                    signaling
+                ](
+                    const QString &transferId)
+                {
+                    if (
+                        signaling->property(
+                            "pendingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString fileName =
+                        signaling->property(
+                            "pendingFileName")
+                            .toString();
+
+                    QMessageBox::information(
+                        window,
+                        QStringLiteral(
+                            "Send File"),
+                        QStringLiteral(
+                            "%1 was declined.")
+                            .arg(fileName));
+
+                    signaling->setProperty(
+                        "pendingTransferId",
+                        QVariant());
+
+                    signaling->setProperty(
+                        "pendingFilePath",
+                        QVariant());
+
+                    signaling->setProperty(
+                        "pendingFileName",
+                        QVariant());
+
+                    signaling->setProperty(
+                        "pendingFileSize",
+                        QVariant());
+                });
+        };
+
+    wireFileTransferSignaling(
+        customerSignaling);
+
+    wireFileTransferSignaling(
+        providerSignaling);
+
     QObject::connect(
         codeEntry,
         &QLineEdit::returnPressed,
@@ -6452,6 +6786,8 @@ QObject::connect(
             provideStatus,
             newCodeButton,
             endSupportButton,
+            customerSendFileButton,
+            providerSendFileButton,
             startCustomerSession,
             &customerCodeConsumed,
             &restartingCustomerSession,
@@ -6521,6 +6857,7 @@ QObject::connect(
 
                     newCodeButton->setEnabled(false);
                     endSupportButton->setEnabled(true);
+                    customerSendFileButton->setEnabled(true);
                 } else {
                     progressHeading->setText(
                         QStringLiteral(
@@ -6533,6 +6870,7 @@ QObject::connect(
 
                     newCodeButton->setEnabled(true);
                     endSupportButton->setEnabled(false);
+                    customerSendFileButton->setEnabled(false);
 
                     if (
                         customerCodeConsumed &&
@@ -6563,6 +6901,9 @@ QObject::connect(
 
             disconnectButton->setEnabled(
                 connected);
+
+            providerSendFileButton->setEnabled(
+                providerConnected);
 
             codeEntry->setEnabled(
                 !connected);
