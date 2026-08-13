@@ -2,6 +2,7 @@
 
 #include <QAbstractSocket>
 #include <QDateTime>
+#include <QFile>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -1393,6 +1394,167 @@ void WanSignalingClient::createFileTransfer(
         });
 }
 
+
+void WanSignalingClient::uploadFileTransfer(
+    const QString &transferId,
+    const QString &filePath)
+{
+    const QString normalizedId =
+        transferId.trimmed();
+
+    if (
+        state_ != State::Subscribed ||
+        code_.isEmpty() ||
+        normalizedId.isEmpty() ||
+        filePath.isEmpty()
+    ) {
+        return;
+    }
+
+    if (fileUploadReply_ != nullptr) {
+        emit fileUploadFailed(
+            normalizedId,
+            QStringLiteral(
+                "Another file is already being sent."));
+        return;
+    }
+
+    auto *file =
+        new QFile(filePath);
+
+    if (!file->open(QIODevice::ReadOnly)) {
+        emit fileUploadFailed(
+            normalizedId,
+            QStringLiteral(
+                "The selected file could not be opened."));
+
+        delete file;
+        return;
+    }
+
+    QUrl url = apiBaseUrl_;
+
+    QString path = url.path();
+
+    if (path.endsWith(QChar('/'))) {
+        path.chop(1);
+    }
+
+    url.setPath(
+        path +
+        QStringLiteral(
+            "/api/sessions/") +
+        code_ +
+        QStringLiteral(
+            "/transfers/") +
+        normalizedId +
+        QStringLiteral(
+            "/content"));
+
+    QNetworkRequest request(url);
+
+    request.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        QStringLiteral(
+            "application/octet-stream"));
+
+    request.setHeader(
+        QNetworkRequest::ContentLengthHeader,
+        file->size());
+
+    if (role_ == Role::Supporter) {
+        request.setRawHeader(
+            QByteArrayLiteral("Authorization"),
+            QByteArrayLiteral("Bearer ") +
+                supporterToken_.toUtf8());
+    } else if (role_ == Role::Customer) {
+        request.setRawHeader(
+            QByteArrayLiteral("X-Customer-Token"),
+            customerToken_.toUtf8());
+    }
+
+    QNetworkReply *reply =
+        network_->put(
+            request,
+            file);
+
+    fileUploadReply_ = reply;
+
+    file->setParent(reply);
+
+    connect(
+        reply,
+        &QNetworkReply::uploadProgress,
+        this,
+        [
+            this,
+            normalizedId
+        ](
+            qint64 bytesSent,
+            qint64 bytesTotal)
+        {
+            emit fileUploadProgress(
+                normalizedId,
+                bytesSent,
+                bytesTotal);
+        });
+
+    connect(
+        reply,
+        &QNetworkReply::finished,
+        this,
+        [
+            this,
+            reply,
+            normalizedId
+        ]()
+        {
+            const QByteArray body =
+                reply->readAll();
+
+            const bool cancelled =
+                reply->error() ==
+                QNetworkReply::OperationCanceledError;
+
+            const bool failed =
+                reply->error() !=
+                QNetworkReply::NoError;
+
+            fileUploadReply_ = nullptr;
+
+            if (failed) {
+                emit fileUploadFailed(
+                    normalizedId,
+                    cancelled
+                        ? QStringLiteral(
+                              "File transfer cancelled.")
+                        : responseMessage(
+                              body,
+                              reply->errorString()));
+
+                reply->deleteLater();
+                return;
+            }
+
+            emit fileUploadCompleted(
+                normalizedId);
+
+            sendFileReady(
+                normalizedId);
+
+            reply->deleteLater();
+        });
+}
+
+void WanSignalingClient::cancelFileUpload()
+{
+    if (fileUploadReply_ == nullptr) {
+        return;
+    }
+
+    fileUploadReply_->abort();
+}
+
 void WanSignalingClient::sendFileOffer(
     const QString &transferId,
     const QString &fileName,
@@ -1483,6 +1645,34 @@ void WanSignalingClient::sendFileDecline(
 
     sendJson(
         QStringLiteral("file.decline"),
+        fields);
+}
+
+
+void WanSignalingClient::sendFileReady(
+    const QString &transferId)
+{
+    if (
+        state_ != State::Subscribed ||
+        transferId.trimmed().isEmpty()
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("transferId"),
+        transferId.trimmed());
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral("file.ready"),
         fields);
 }
 
@@ -1718,6 +1908,10 @@ void WanSignalingClient::sendJson(
 
 void WanSignalingClient::disconnectFromServer()
 {
+    if (fileUploadReply_ != nullptr) {
+        fileUploadReply_->abort();
+    }
+
     state_ = State::Idle;
     role_ = Role::Inactive;
 

@@ -44,6 +44,12 @@ public:
         const QString &fileName,
         qint64 fileSize);
 
+    void uploadFileTransfer(
+        const QString &transferId,
+        const QString &filePath);
+
+    void cancelFileUpload();
+
     void sendFileOffer(
         const QString &transferId,
         const QString &fileName,
@@ -53,6 +59,9 @@ public:
         const QString &transferId);
 
     void sendFileDecline(
+        const QString &transferId);
+
+    void sendFileReady(
         const QString &transferId);
 
     void startRelay();
@@ -111,6 +120,18 @@ signals:
 
     void fileDeclined(
         const QString &transferId);
+
+    void fileUploadProgress(
+        const QString &transferId,
+        qint64 bytesSent,
+        qint64 bytesTotal);
+
+    void fileUploadCompleted(
+        const QString &transferId);
+
+    void fileUploadFailed(
+        const QString &transferId,
+        const QString &message);
 
     void relayReady();
 
@@ -184,6 +205,7 @@ private:
         const QString &message);
 
     QNetworkAccessManager *network_ = nullptr;
+    QNetworkReply *fileUploadReply_ = nullptr;
     QWebSocket *socket_ = nullptr;
     QWebSocket *voiceSocket_ = nullptr;
 
