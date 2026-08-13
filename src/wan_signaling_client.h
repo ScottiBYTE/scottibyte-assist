@@ -59,6 +59,8 @@ public:
         const QString &transferId,
         const QString &filePath);
 
+    void cancelFileDownload();
+
     void startRelay();
 
     void sendRelayBytes(
@@ -113,6 +115,11 @@ signals:
 
     void fileReady(
         const QString &transferId);
+
+    void fileDownloadProgress(
+        const QString &transferId,
+        qint64 bytesReceived,
+        qint64 bytesTotal);
 
     void fileDownloadCompleted(
         const QString &transferId,

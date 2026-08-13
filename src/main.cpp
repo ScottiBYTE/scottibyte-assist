@@ -57,6 +57,7 @@
 #include <QPaintEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScreen>
@@ -6003,7 +6004,11 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                 signaling,
                 &WanSignalingClient::fileReady,
                 window,
-                [signaling](
+                [
+                    window,
+                    signaling,
+                    formatFileSize
+                ](
                     const QString &transferId)
                 {
                     if (
@@ -6019,6 +6024,216 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                         signaling->property(
                             "incomingFilePath")
                             .toString();
+
+                    const QString fileName =
+                        signaling->property(
+                            "incomingFileName")
+                            .toString();
+
+                    auto *dialog =
+                        new QDialog(window);
+
+                    dialog->setObjectName(
+                        QStringLiteral(
+                            "settingsDialog"));
+
+                    dialog->setWindowTitle(
+                        QStringLiteral(
+                            "Receiving File"));
+
+                    dialog->setModal(true);
+                    dialog->setMinimumWidth(440);
+                    dialog->setAttribute(
+                        Qt::WA_DeleteOnClose);
+
+                    dialog->setStyleSheet(
+                        QStringLiteral(
+                            R"CSS(
+QDialog#settingsDialog {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 1,
+        stop: 0 #09294c,
+        stop: 0.55 #071d39,
+        stop: 1 #151043
+    );
+}
+
+QDialog#settingsDialog QLabel {
+    color: #c8d8e7;
+    font-size: 14px;
+}
+
+QDialog#settingsDialog QProgressBar {
+    min-height: 20px;
+    color: #ffffff;
+    text-align: center;
+    background: #06162a;
+    border: 1px solid #28c7f7;
+    border-radius: 8px;
+}
+
+QDialog#settingsDialog QProgressBar::chunk {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
+    );
+    border-radius: 7px;
+}
+
+QDialog#settingsDialog QPushButton {
+    min-height: 38px;
+    padding: 0 20px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #a93650,
+        stop: 1 #671227
+    );
+    border: 1px solid #ff6b86;
+    border-radius: 10px;
+}
+)CSS"));
+
+                    auto *layout =
+                        new QVBoxLayout(dialog);
+
+                    layout->setContentsMargins(
+                        28, 24, 28, 24);
+                    layout->setSpacing(14);
+
+                    auto *fileLabel =
+                        makeLabel(fileName);
+                    fileLabel->setTextFormat(
+                        Qt::PlainText);
+                    fileLabel->setAlignment(
+                        Qt::AlignCenter);
+                    fileLabel->setWordWrap(true);
+
+                    QFont fileFont =
+                        fileLabel->font();
+                    fileFont.setBold(true);
+                    fileLabel->setFont(fileFont);
+
+                    auto *progressBar =
+                        new QProgressBar(dialog);
+                    progressBar->setRange(0, 100);
+                    progressBar->setValue(0);
+                    progressBar->setFormat(
+                        QStringLiteral("0%"));
+
+                    auto *amountLabel =
+                        makeLabel(
+                            QStringLiteral(
+                                "0 bytes received"));
+                    amountLabel->setAlignment(
+                        Qt::AlignCenter);
+
+                    auto *cancelButton =
+                        makeButton(
+                            QStringLiteral("Cancel"),
+                            QStringLiteral(
+                                "declineFileButton"));
+
+                    layout->addWidget(fileLabel);
+                    layout->addWidget(progressBar);
+                    layout->addWidget(amountLabel);
+                    layout->addWidget(
+                        cancelButton,
+                        0,
+                        Qt::AlignCenter);
+
+                    QObject::connect(
+                        cancelButton,
+                        &QPushButton::clicked,
+                        signaling,
+                        &WanSignalingClient::
+                            cancelFileDownload);
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileDownloadProgress,
+                        dialog,
+                        [
+                            transferId,
+                            progressBar,
+                            amountLabel,
+                            formatFileSize
+                        ](
+                            const QString &id,
+                            qint64 received,
+                            qint64 total)
+                        {
+                            if (id != transferId) {
+                                return;
+                            }
+
+                            if (total > 0) {
+                                const int percent =
+                                    static_cast<int>(
+                                        (received * 100)
+                                        / total);
+
+                                progressBar->setValue(
+                                    percent);
+                                progressBar->setFormat(
+                                    QStringLiteral(
+                                        "%1%")
+                                        .arg(percent));
+
+                                amountLabel->setText(
+                                    QStringLiteral(
+                                        "%1 of %2")
+                                        .arg(
+                                            formatFileSize(
+                                                received),
+                                            formatFileSize(
+                                                total)));
+                            } else {
+                                amountLabel->setText(
+                                    QStringLiteral(
+                                        "%1 received")
+                                        .arg(
+                                            formatFileSize(
+                                                received)));
+                            }
+                        });
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileDownloadCompleted,
+                        dialog,
+                        [dialog, transferId](
+                            const QString &id,
+                            const QString &)
+                        {
+                            if (id == transferId) {
+                                dialog->accept();
+                            }
+                        });
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileDownloadFailed,
+                        dialog,
+                        [dialog, transferId](
+                            const QString &id,
+                            const QString &)
+                        {
+                            if (id == transferId) {
+                                dialog->reject();
+                            }
+                        });
+
+                    dialog->show();
 
                     signaling->downloadFileTransfer(
                         transferId,

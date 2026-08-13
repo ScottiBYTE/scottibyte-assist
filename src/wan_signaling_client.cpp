@@ -1340,6 +1340,23 @@ void WanSignalingClient::downloadFileTransfer(
 
     QObject::connect(
         reply,
+        &QNetworkReply::downloadProgress,
+        this,
+        [
+            this,
+            normalizedId
+        ](
+            qint64 bytesReceived,
+            qint64 bytesTotal)
+        {
+            emit fileDownloadProgress(
+                normalizedId,
+                bytesReceived,
+                bytesTotal);
+        });
+
+    QObject::connect(
+        reply,
         &QNetworkReply::readyRead,
         this,
         [reply, output, hash]() {
@@ -1463,6 +1480,13 @@ void WanSignalingClient::downloadFileTransfer(
 
             reply->deleteLater();
         });
+}
+
+void WanSignalingClient::cancelFileDownload()
+{
+    if (fileDownloadReply_ != nullptr) {
+        fileDownloadReply_->abort();
+    }
 }
 
 void WanSignalingClient::sendCandidateRequest()
