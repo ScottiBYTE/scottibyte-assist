@@ -1568,10 +1568,10 @@ void WanSignalingClient::uploadFileTransfer(
                 return;
             }
 
-            emit fileUploadCompleted(
+            sendFileReady(
                 normalizedId);
 
-            sendFileReady(
+            emit fileUploadCompleted(
                 normalizedId);
 
             reply->deleteLater();

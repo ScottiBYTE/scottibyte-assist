@@ -6218,12 +6218,58 @@ QDialog#settingsDialog QPushButton#declineFileButton {
             QObject::connect(
                 signaling,
                 &WanSignalingClient::
+                    fileUploadCompleted,
+                window,
+                [
+                    signaling,
+                    showFileTransferMessage
+                ](
+                    const QString &transferId)
+                {
+                    if (
+                        signaling->property(
+                            "pendingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString fileName =
+                        signaling->property(
+                            "pendingFileName")
+                            .toString();
+
+                    showFileTransferMessage(
+                        QStringLiteral("Send File"),
+                        QStringLiteral(
+                            "%1 was sent successfully.")
+                            .arg(fileName),
+                        true);
+
+                    signaling->setProperty(
+                        "pendingTransferId",
+                        QVariant());
+                    signaling->setProperty(
+                        "pendingFilePath",
+                        QVariant());
+                    signaling->setProperty(
+                        "pendingFileName",
+                        QVariant());
+                    signaling->setProperty(
+                        "pendingFileSize",
+                        QVariant());
+                });
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
                     fileAccepted,
                 window,
                 [
                     window,
                     signaling,
-                    showFileTransferMessage
+                    showFileTransferMessage,
+                    formatFileSize
                 ](
                     const QString &transferId)
                 {
@@ -6254,6 +6300,137 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                                 "The selected file is no longer available."));
                         return;
                     }
+
+                    auto *dialog =
+                        new QDialog(window);
+
+                    dialog->setObjectName(
+                        QStringLiteral("settingsDialog"));
+                    dialog->setWindowTitle(
+                        QStringLiteral("Sending File"));
+                    dialog->setModal(true);
+                    dialog->setMinimumWidth(440);
+                    dialog->setAttribute(
+                        Qt::WA_DeleteOnClose);
+
+                    auto *layout =
+                        new QVBoxLayout(dialog);
+                    layout->setContentsMargins(
+                        28, 24, 28, 24);
+                    layout->setSpacing(14);
+
+                    auto *fileLabel =
+                        makeLabel(fileName);
+                    fileLabel->setTextFormat(
+                        Qt::PlainText);
+                    fileLabel->setAlignment(
+                        Qt::AlignCenter);
+                    fileLabel->setWordWrap(true);
+
+                    QFont fileFont =
+                        fileLabel->font();
+                    fileFont.setBold(true);
+                    fileLabel->setFont(fileFont);
+
+                    auto *progressBar =
+                        new QProgressBar(dialog);
+                    progressBar->setRange(0, 100);
+                    progressBar->setValue(0);
+                    progressBar->setFormat(
+                        QStringLiteral("0%"));
+
+                    auto *amountLabel =
+                        makeLabel(
+                            QStringLiteral("0 bytes sent"));
+                    amountLabel->setAlignment(
+                        Qt::AlignCenter);
+
+                    auto *cancelButton =
+                        makeButton(
+                            QStringLiteral("Cancel"),
+                            QStringLiteral(
+                                "declineFileButton"));
+
+                    layout->addWidget(fileLabel);
+                    layout->addWidget(progressBar);
+                    layout->addWidget(amountLabel);
+                    layout->addWidget(
+                        cancelButton,
+                        0,
+                        Qt::AlignCenter);
+
+                    QObject::connect(
+                        cancelButton,
+                        &QPushButton::clicked,
+                        signaling,
+                        &WanSignalingClient::
+                            cancelFileUpload);
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileUploadProgress,
+                        dialog,
+                        [
+                            transferId,
+                            progressBar,
+                            amountLabel,
+                            formatFileSize
+                        ](
+                            const QString &id,
+                            qint64 sent,
+                            qint64 total)
+                        {
+                            if (id != transferId) {
+                                return;
+                            }
+
+                            if (total > 0) {
+                                const int percent =
+                                    static_cast<int>(
+                                        (sent * 100) / total);
+
+                                progressBar->setValue(percent);
+                                progressBar->setFormat(
+                                    QStringLiteral("%1%")
+                                        .arg(percent));
+
+                                amountLabel->setText(
+                                    QStringLiteral("%1 of %2")
+                                        .arg(
+                                            formatFileSize(sent),
+                                            formatFileSize(total)));
+                            }
+                        });
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileUploadCompleted,
+                        dialog,
+                        [dialog, transferId](
+                            const QString &id)
+                        {
+                            if (id == transferId) {
+                                dialog->accept();
+                            }
+                        });
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileUploadFailed,
+                        dialog,
+                        [dialog, transferId](
+                            const QString &id,
+                            const QString &)
+                        {
+                            if (id == transferId) {
+                                dialog->reject();
+                            }
+                        });
+
+                    dialog->show();
 
                     signaling->uploadFileTransfer(
                         transferId,
