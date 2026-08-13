@@ -1099,8 +1099,13 @@ void WanSignalingClient::createFileTransfer(
             const QJsonObject object =
                 document.object();
 
-            const QString transferId =
+            const QJsonObject transfer =
                 object.value(
+                    QStringLiteral("transfer"))
+                    .toObject();
+
+            const QString transferId =
+                transfer.value(
                     QStringLiteral("id"))
                     .toString()
                     .trimmed();
