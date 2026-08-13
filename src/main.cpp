@@ -57,6 +57,7 @@
 #include <QPaintEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScreen>
@@ -5428,7 +5429,8 @@ providerScreenDismissFilter->
     const auto showFileTransferMessage =
         [window](
             const QString &title,
-            const QString &message)
+            const QString &message,
+            bool lower = false)
         {
             QDialog dialog(window);
 
@@ -5541,6 +5543,23 @@ QDialog#settingsDialog QPushButton:hover {
                 &QPushButton::clicked,
                 &dialog,
                 &QDialog::accept);
+
+            dialog.adjustSize();
+
+            if (lower) {
+                QTimer::singleShot(
+                    0,
+                    &dialog,
+                    [&dialog, window]()
+                    {
+                        const QPoint center =
+                            window->frameGeometry().center();
+
+                        dialog.move(
+                            center.x() - dialog.width() / 2,
+                            center.y() - dialog.height() / 2 + 120);
+                    });
+            }
 
             dialog.exec();
         };
@@ -5911,6 +5930,29 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                         QDialog::Accepted;
 
                     if (accepted) {
+                        const QString savePath =
+                            QFileDialog::getSaveFileName(
+                                window,
+                                QStringLiteral(
+                                    "Save Incoming File"),
+                                fileName);
+
+                        if (savePath.isEmpty()) {
+                            signaling->sendFileDecline(
+                                transferId);
+                            return;
+                        }
+
+                        signaling->setProperty(
+                            "incomingTransferId",
+                            transferId);
+                        signaling->setProperty(
+                            "incomingFileName",
+                            fileName);
+                        signaling->setProperty(
+                            "incomingFilePath",
+                            savePath);
+
                         signaling->sendFileAccept(
                             transferId);
                     } else {
@@ -5919,6 +5961,260 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                     }
                 });
 
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::fileReady,
+                window,
+                [
+                    window,
+                    signaling,
+                    formatFileSize
+                ](
+                    const QString &transferId)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString filePath =
+                        signaling->property(
+                            "incomingFilePath")
+                            .toString();
+
+                    const QString fileName =
+                        signaling->property(
+                            "incomingFileName")
+                            .toString();
+
+                    auto *dialog =
+                        new QDialog(window);
+
+                    dialog->setObjectName(
+                        QStringLiteral(
+                            "settingsDialog"));
+                    dialog->setWindowTitle(
+                        QStringLiteral(
+                            "Receiving File"));
+                    dialog->setModal(true);
+                    dialog->setMinimumWidth(440);
+                    dialog->setAttribute(
+                        Qt::WA_DeleteOnClose);
+
+                    auto *layout =
+                        new QVBoxLayout(dialog);
+                    layout->setContentsMargins(
+                        28, 24, 28, 24);
+                    layout->setSpacing(14);
+
+                    auto *fileLabel =
+                        makeLabel(fileName);
+                    fileLabel->setTextFormat(
+                        Qt::PlainText);
+                    fileLabel->setAlignment(
+                        Qt::AlignCenter);
+                    fileLabel->setWordWrap(true);
+
+                    QFont fileFont =
+                        fileLabel->font();
+                    fileFont.setBold(true);
+                    fileLabel->setFont(fileFont);
+
+                    auto *progressBar =
+                        new QProgressBar(dialog);
+                    progressBar->setRange(0, 100);
+                    progressBar->setValue(0);
+                    progressBar->setFormat(
+                        QStringLiteral("0%"));
+
+                    auto *amountLabel =
+                        makeLabel(
+                            QStringLiteral(
+                                "0 bytes received"));
+                    amountLabel->setAlignment(
+                        Qt::AlignCenter);
+
+                    auto *cancelButton =
+                        makeButton(
+                            QStringLiteral("Cancel"),
+                            QStringLiteral(
+                                "declineFileButton"));
+
+                    layout->addWidget(fileLabel);
+                    layout->addWidget(progressBar);
+                    layout->addWidget(amountLabel);
+                    layout->addWidget(
+                        cancelButton,
+                        0,
+                        Qt::AlignCenter);
+
+                    QObject::connect(
+                        cancelButton,
+                        &QPushButton::clicked,
+                        signaling,
+                        &WanSignalingClient::
+                            cancelFileDownload);
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileDownloadProgress,
+                        dialog,
+                        [
+                            transferId,
+                            progressBar,
+                            amountLabel,
+                            formatFileSize
+                        ](
+                            const QString &id,
+                            qint64 received,
+                            qint64 total)
+                        {
+                            if (id != transferId) {
+                                return;
+                            }
+
+                            if (total > 0) {
+                                const int percent =
+                                    static_cast<int>(
+                                        (received * 100)
+                                        / total);
+
+                                progressBar->setValue(
+                                    percent);
+                                progressBar->setFormat(
+                                    QStringLiteral(
+                                        "%1%")
+                                        .arg(percent));
+
+                                amountLabel->setText(
+                                    QStringLiteral(
+                                        "%1 of %2")
+                                        .arg(
+                                            formatFileSize(
+                                                received),
+                                            formatFileSize(
+                                                total)));
+                            } else {
+                                amountLabel->setText(
+                                    QStringLiteral(
+                                        "%1 received")
+                                        .arg(
+                                            formatFileSize(
+                                                received)));
+                            }
+                        });
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileDownloadCompleted,
+                        dialog,
+                        [dialog, transferId](
+                            const QString &id,
+                            const QString &)
+                        {
+                            if (id == transferId) {
+                                dialog->accept();
+                            }
+                        });
+
+                    QObject::connect(
+                        signaling,
+                        &WanSignalingClient::
+                            fileDownloadFailed,
+                        dialog,
+                        [dialog, transferId](
+                            const QString &id,
+                            const QString &)
+                        {
+                            if (id == transferId) {
+                                dialog->reject();
+                            }
+                        });
+
+                    dialog->show();
+
+                    signaling->downloadFileTransfer(
+                        transferId,
+                        filePath);
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileDownloadCompleted,
+                window,
+                [
+                    signaling,
+                    showFileTransferMessage
+                ](
+                    const QString &transferId,
+                    const QString &)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString fileName =
+                        signaling->property(
+                            "incomingFileName")
+                            .toString();
+
+                    showFileTransferMessage(
+                        QStringLiteral(
+                            "Incoming File"),
+                        QStringLiteral(
+                            "%1 was received successfully.")
+                            .arg(fileName),
+                        true);
+
+                    signaling->setProperty(
+                        "incomingTransferId",
+                        QVariant());
+                    signaling->setProperty(
+                        "incomingFileName",
+                        QVariant());
+                    signaling->setProperty(
+                        "incomingFilePath",
+                        QVariant());
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileDownloadFailed,
+                window,
+                [
+                    signaling,
+                    showFileTransferMessage
+                ](
+                    const QString &transferId,
+                    const QString &message)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    showFileTransferMessage(
+                        QStringLiteral(
+                            "Incoming File"),
+                        message);
+                });
             QObject::connect(
                 signaling,
                 &WanSignalingClient::
@@ -5945,12 +6241,23 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                             "pendingFileName")
                             .toString();
 
-                    showFileTransferMessage(
-                        QStringLiteral(
-                            "Send File"),
-                        QStringLiteral(
-                            "%1 was accepted.")
-                            .arg(fileName));
+                    const QString filePath =
+                        signaling->property(
+                            "pendingFilePath")
+                            .toString();
+
+                    if (filePath.isEmpty()) {
+                        showFileTransferMessage(
+                            QStringLiteral(
+                                "Send File"),
+                            QStringLiteral(
+                                "The selected file is no longer available."));
+                        return;
+                    }
+
+                    signaling->uploadFileTransfer(
+                        transferId,
+                        filePath);
                 });
 
             QObject::connect(

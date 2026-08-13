@@ -1,4 +1,6 @@
 #include "wan_signaling_client.h"
+#include <QCryptographicHash>
+#include <QSaveFile>
 
 #include <QAbstractSocket>
 #include <QDateTime>
@@ -1178,6 +1180,36 @@ void WanSignalingClient::processTextMessage(
 
     if (
         type ==
+        QStringLiteral(
+            "file.ready")
+    ) {
+        const QJsonObject payload =
+            object.value(
+                QStringLiteral("payload"))
+                .toObject();
+
+        const QString transferId =
+            payload.value(
+                QStringLiteral("transferId"))
+                .toString()
+                .trimmed();
+
+        if (transferId.isEmpty()) {
+            fail(
+                QStringLiteral(
+                    "The peer sent an invalid "
+                    "file ready message."));
+            return;
+        }
+
+        emit fileReady(
+            transferId);
+
+        return;
+    }
+
+    if (
+        type ==
         QStringLiteral("error")
     ) {
         const QString serverMessage =
@@ -1648,6 +1680,241 @@ void WanSignalingClient::sendFileDecline(
         fields);
 }
 
+
+void WanSignalingClient::downloadFileTransfer(
+    const QString &transferId,
+    const QString &filePath)
+{
+    const QString normalizedId =
+        transferId.trimmed();
+
+    if (
+        state_ != State::Subscribed ||
+        code_.isEmpty() ||
+        normalizedId.isEmpty() ||
+        filePath.trimmed().isEmpty()
+    ) {
+        emit fileDownloadFailed(
+            normalizedId,
+            QStringLiteral(
+                "The file download could not be started."));
+        return;
+    }
+
+    if (fileDownloadReply_ != nullptr) {
+        emit fileDownloadFailed(
+            normalizedId,
+            QStringLiteral(
+                "Another file is already being received."));
+        return;
+    }
+
+    QUrl url = apiBaseUrl_;
+
+    QString path = url.path();
+
+    if (path.endsWith('/')) {
+        path.chop(1);
+    }
+
+    path +=
+        QStringLiteral(
+            "/api/sessions/%1/transfers/%2/content")
+            .arg(
+                code_,
+                normalizedId);
+
+    url.setPath(path);
+
+    QNetworkRequest request(url);
+
+    if (role_ == Role::Supporter) {
+        request.setRawHeader(
+            "Authorization",
+            QByteArray("Bearer ") +
+                supporterToken_.toUtf8());
+    } else if (role_ == Role::Customer) {
+        request.setRawHeader(
+            "X-Customer-Token",
+            customerToken_.toUtf8());
+    }
+
+    auto *reply =
+        network_->get(request);
+
+    auto *output =
+        new QSaveFile(
+            filePath,
+            reply);
+
+    if (!output->open(QIODevice::WriteOnly)) {
+        reply->abort();
+        reply->deleteLater();
+
+        emit fileDownloadFailed(
+            normalizedId,
+            QStringLiteral(
+                "The destination file could not be opened."));
+        return;
+    }
+
+    auto *hash =
+        new QCryptographicHash(
+            QCryptographicHash::Sha256);
+
+    fileDownloadReply_ = reply;
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::downloadProgress,
+        this,
+        [
+            this,
+            normalizedId
+        ](
+            qint64 bytesReceived,
+            qint64 bytesTotal)
+        {
+            emit fileDownloadProgress(
+                normalizedId,
+                bytesReceived,
+                bytesTotal);
+        });
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::readyRead,
+        this,
+        [reply, output, hash]() {
+            const QByteArray bytes =
+                reply->readAll();
+
+            if (bytes.isEmpty()) {
+                return;
+            }
+
+            hash->addData(bytes);
+
+            if (
+                output->write(bytes) !=
+                bytes.size()
+            ) {
+                reply->setProperty(
+                    "assistDownloadWriteFailed",
+                    true);
+                reply->abort();
+            }
+        });
+
+    QObject::connect(
+        reply,
+        &QNetworkReply::finished,
+        this,
+        [
+            this,
+            reply,
+            output,
+            hash,
+            normalizedId,
+            filePath
+        ]() {
+            const QByteArray remaining =
+                reply->readAll();
+
+            if (!remaining.isEmpty()) {
+                hash->addData(remaining);
+
+                if (
+                    output->write(remaining) !=
+                    remaining.size()
+                ) {
+                    reply->setProperty(
+                        "assistDownloadWriteFailed",
+                        true);
+                }
+            }
+
+            fileDownloadReply_ = nullptr;
+
+            const bool writeFailed =
+                reply->property(
+                    "assistDownloadWriteFailed")
+                    .toBool();
+
+            const QByteArray expectedHash =
+                reply->rawHeader(
+                    "X-Assist-SHA256")
+                    .trimmed()
+                    .toLower();
+
+            const QByteArray actualHash =
+                hash->result()
+                    .toHex()
+                    .toLower();
+
+            delete hash;
+
+            if (
+                reply->error() !=
+                    QNetworkReply::NoError ||
+                writeFailed
+            ) {
+                output->cancelWriting();
+
+                const QString message =
+                    writeFailed
+                        ? QStringLiteral(
+                              "The received file could not be written.")
+                        : reply->errorString();
+
+                emit fileDownloadFailed(
+                    normalizedId,
+                    message);
+
+                reply->deleteLater();
+                return;
+            }
+
+            if (
+                expectedHash.isEmpty() ||
+                actualHash != expectedHash
+            ) {
+                output->cancelWriting();
+
+                emit fileDownloadFailed(
+                    normalizedId,
+                    QStringLiteral(
+                        "The received file failed SHA-256 verification."));
+
+                reply->deleteLater();
+                return;
+            }
+
+            if (!output->commit()) {
+                emit fileDownloadFailed(
+                    normalizedId,
+                    QStringLiteral(
+                        "The received file could not be saved."));
+
+                reply->deleteLater();
+                return;
+            }
+
+            emit fileDownloadCompleted(
+                normalizedId,
+                filePath);
+
+            reply->deleteLater();
+        });
+}
+
+
+void WanSignalingClient::cancelFileDownload()
+{
+    if (fileDownloadReply_ != nullptr) {
+        fileDownloadReply_->abort();
+    }
+}
 
 void WanSignalingClient::sendFileReady(
     const QString &transferId)
