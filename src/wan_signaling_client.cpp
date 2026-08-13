@@ -802,6 +802,115 @@ void WanSignalingClient::processTextMessage(
         return;
     }
 
+
+    if (
+        type ==
+        QStringLiteral(
+            "file.offer")
+    ) {
+        const QJsonObject payload =
+            object.value(
+                QStringLiteral("payload"))
+                .toObject();
+
+        const QString transferId =
+            payload.value(
+                QStringLiteral("transferId"))
+                .toString()
+                .trimmed();
+
+        const QString fileName =
+            payload.value(
+                QStringLiteral("fileName"))
+                .toString()
+                .trimmed();
+
+        const qint64 fileSize =
+            payload.value(
+                QStringLiteral("size"))
+                .toVariant()
+                .toLongLong();
+
+        if (
+            transferId.isEmpty() ||
+            fileName.isEmpty() ||
+            fileSize < 0
+        ) {
+            fail(
+                QStringLiteral(
+                    "The peer sent an invalid "
+                    "file transfer offer."));
+            return;
+        }
+
+        emit fileOfferReceived(
+            transferId,
+            fileName,
+            fileSize);
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
+            "file.accept")
+    ) {
+        const QJsonObject payload =
+            object.value(
+                QStringLiteral("payload"))
+                .toObject();
+
+        const QString transferId =
+            payload.value(
+                QStringLiteral("transferId"))
+                .toString()
+                .trimmed();
+
+        if (transferId.isEmpty()) {
+            fail(
+                QStringLiteral(
+                    "The peer sent an invalid "
+                    "file acceptance."));
+            return;
+        }
+
+        emit fileAccepted(
+            transferId);
+
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral(
+            "file.decline")
+    ) {
+        const QJsonObject payload =
+            object.value(
+                QStringLiteral("payload"))
+                .toObject();
+
+        const QString transferId =
+            payload.value(
+                QStringLiteral("transferId"))
+                .toString()
+                .trimmed();
+
+        if (transferId.isEmpty()) {
+            fail(
+                QStringLiteral(
+                    "The peer sent an invalid "
+                    "file decline."));
+            return;
+        }
+
+        emit fileDeclined(
+            transferId);
+
+        return;
+    }
+
     if (
         type ==
         QStringLiteral("error")
@@ -870,6 +979,100 @@ void WanSignalingClient::sendSessionSubscription()
     sendJson(
         QStringLiteral(
             "session.subscribe"),
+        fields);
+}
+
+
+void WanSignalingClient::sendFileOffer(
+    const QString &transferId,
+    const QString &fileName,
+    qint64 fileSize)
+{
+    if (
+        state_ != State::Subscribed ||
+        transferId.trimmed().isEmpty() ||
+        fileName.trimmed().isEmpty() ||
+        fileSize < 0
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("transferId"),
+        transferId.trimmed());
+
+    payload.insert(
+        QStringLiteral("fileName"),
+        fileName.trimmed());
+
+    payload.insert(
+        QStringLiteral("size"),
+        fileSize);
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral("file.offer"),
+        fields);
+}
+
+void WanSignalingClient::sendFileAccept(
+    const QString &transferId)
+{
+    if (
+        state_ != State::Subscribed ||
+        transferId.trimmed().isEmpty()
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("transferId"),
+        transferId.trimmed());
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral("file.accept"),
+        fields);
+}
+
+void WanSignalingClient::sendFileDecline(
+    const QString &transferId)
+{
+    if (
+        state_ != State::Subscribed ||
+        transferId.trimmed().isEmpty()
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("transferId"),
+        transferId.trimmed());
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral("file.decline"),
         fields);
 }
 
