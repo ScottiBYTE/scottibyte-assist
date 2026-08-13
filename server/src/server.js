@@ -56,6 +56,15 @@ import {
   websocketStats
 } from './websocket.js';
 
+import {
+  createTransfer,
+  createTransferReadStream,
+  deleteTransfer,
+  getTransfer,
+  receiveTransferBody,
+  transferView
+} from './transfers.js';
+
 const app = express();
 
 const port = Number.parseInt(
@@ -255,6 +264,30 @@ function customerToken(request) {
   }
 
   return '';
+}
+
+function transferActorRole(
+  request,
+  code
+) {
+  if (
+    validateCustomerToken(
+      code,
+      customerToken(request)
+    )
+  ) {
+    return 'customer';
+  }
+
+  if (
+    validateSupporterToken(
+      bearerToken(request)
+    )
+  ) {
+    return 'supporter';
+  }
+
+  return null;
 }
 
 function receiptToken(request) {
@@ -828,6 +861,269 @@ app.post(
     );
 
     response.status(200).json(result);
+  }
+);
+
+
+app.post(
+  '/api/sessions/:code/transfers',
+  async (request, response) => {
+    const { code } = request.params;
+
+    if (!validCode(code)) {
+      return response.status(400).json({
+        error: 'invalid_code',
+        message:
+          'Support codes must contain exactly six digits.'
+      });
+    }
+
+    const session = getSession(code);
+
+    if (!session) {
+      return response.status(404).json({
+        error: 'not_found',
+        message:
+          'The support session was not found.'
+      });
+    }
+
+    if (
+      session.status !==
+      'SUPPORTER_JOINED'
+    ) {
+      return response.status(409).json({
+        error: 'session_not_connected',
+        message:
+          'File transfer requires a connected support session.'
+      });
+    }
+
+    const senderRole =
+      transferActorRole(
+        request,
+        code
+      );
+
+    if (!senderRole) {
+      return response.status(403).json({
+        error:
+          'transfer_authorization_required',
+        message:
+          'A valid session credential is required.'
+      });
+    }
+
+    const result =
+      await createTransfer({
+        sessionCode: code,
+        senderRole,
+        fileName:
+          request.body?.fileName,
+        declaredSize:
+          request.body?.size
+      });
+
+    if (result.error) {
+      return response
+        .status(400)
+        .json(result);
+    }
+
+    response.status(201).json(result);
+  }
+);
+
+app.put(
+  '/api/sessions/:code/transfers/:id/content',
+  async (request, response) => {
+    const { code, id } =
+      request.params;
+
+    const transfer =
+      getTransfer(code, id);
+
+    if (!transfer) {
+      return response.status(404).json({
+        error: 'transfer_not_found',
+        message:
+          'The file transfer was not found.'
+      });
+    }
+
+    const actorRole =
+      transferActorRole(
+        request,
+        code
+      );
+
+    if (
+      !actorRole ||
+      actorRole !== transfer.senderRole
+    ) {
+      return response.status(403).json({
+        error:
+          'transfer_sender_required',
+        message:
+          'Only the transfer sender may upload this file.'
+      });
+    }
+
+    const result =
+      await receiveTransferBody(
+        transfer,
+        request
+      );
+
+    if (result.error) {
+      return response
+        .status(409)
+        .json(result);
+    }
+
+    response.status(200).json(result);
+  }
+);
+
+app.get(
+  '/api/sessions/:code/transfers/:id/content',
+  (request, response) => {
+    const { code, id } =
+      request.params;
+
+    const transfer =
+      getTransfer(code, id);
+
+    if (!transfer) {
+      return response.status(404).json({
+        error: 'transfer_not_found',
+        message:
+          'The file transfer was not found.'
+      });
+    }
+
+    const actorRole =
+      transferActorRole(
+        request,
+        code
+      );
+
+    if (
+      !actorRole ||
+      actorRole !== transfer.recipientRole
+    ) {
+      return response.status(403).json({
+        error:
+          'transfer_recipient_required',
+        message:
+          'Only the transfer recipient may download this file.'
+      });
+    }
+
+    const input =
+      createTransferReadStream(
+        transfer
+      );
+
+    if (!input) {
+      return response.status(409).json({
+        error: 'transfer_not_ready',
+        message:
+          'The file is not ready for download.'
+      });
+    }
+
+    response.setHeader(
+      'Content-Type',
+      'application/octet-stream'
+    );
+
+    response.setHeader(
+      'Content-Length',
+      String(transfer.storedSize)
+    );
+
+    response.setHeader(
+      'X-Assist-SHA256',
+      transfer.sha256
+    );
+
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${
+        encodeURIComponent(
+          transfer.fileName
+        )
+      }`
+    );
+
+    input.on(
+      'error',
+      (error) => {
+        console.error(
+          'Transfer download failed:',
+          error
+        );
+
+        if (!response.headersSent) {
+          response.status(500).end();
+        } else {
+          response.destroy(error);
+        }
+      }
+    );
+
+    input.pipe(response);
+  }
+);
+
+app.delete(
+  '/api/sessions/:code/transfers/:id',
+  async (request, response) => {
+    const { code, id } =
+      request.params;
+
+    const transfer =
+      getTransfer(code, id);
+
+    if (!transfer) {
+      return response.status(404).json({
+        error: 'transfer_not_found',
+        message:
+          'The file transfer was not found.'
+      });
+    }
+
+    const actorRole =
+      transferActorRole(
+        request,
+        code
+      );
+
+    if (
+      !actorRole ||
+      (
+        actorRole !== transfer.senderRole &&
+        actorRole !== transfer.recipientRole
+      )
+    ) {
+      return response.status(403).json({
+        error:
+          'transfer_authorization_required',
+        message:
+          'A valid transfer participant credential is required.'
+      });
+    }
+
+    await deleteTransfer(
+      transfer
+    );
+
+    response.status(200).json({
+      deleted: true,
+      transfer:
+        transferView(transfer)
+    });
   }
 );
 
