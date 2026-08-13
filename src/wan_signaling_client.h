@@ -40,6 +40,17 @@ public:
         const QString &address,
         quint16 port);
 
+    void sendFileOffer(
+        const QString &transferId,
+        const QString &fileName,
+        qint64 fileSize);
+
+    void sendFileAccept(
+        const QString &transferId);
+
+    void sendFileDecline(
+        const QString &transferId);
+
     void startRelay();
 
     void sendRelayBytes(
@@ -80,6 +91,17 @@ signals:
     void peerCandidateReceived(
         const QString &address,
         quint16 port);
+
+    void fileOfferReceived(
+        const QString &transferId,
+        const QString &fileName,
+        qint64 fileSize);
+
+    void fileAccepted(
+        const QString &transferId);
+
+    void fileDeclined(
+        const QString &transferId);
 
     void relayReady();
 
