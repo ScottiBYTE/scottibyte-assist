@@ -28,7 +28,10 @@ const SIGNAL_TYPES = new Set([
   'session.answer',
   'session.candidate',
   'session.video-destination',
-  'session.state'
+  'session.state',
+  'file.offer',
+  'file.accept',
+  'file.decline'
 ]);
 
 function sendJson(socket, payload) {
