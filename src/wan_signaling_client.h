@@ -55,6 +55,10 @@ public:
     void sendFileDecline(
         const QString &transferId);
 
+    void downloadFileTransfer(
+        const QString &transferId,
+        const QString &filePath);
+
     void startRelay();
 
     void sendRelayBytes(
@@ -106,6 +110,17 @@ signals:
 
     void fileDeclined(
         const QString &transferId);
+
+    void fileReady(
+        const QString &transferId);
+
+    void fileDownloadCompleted(
+        const QString &transferId,
+        const QString &filePath);
+
+    void fileDownloadFailed(
+        const QString &transferId,
+        const QString &message);
 
     void relayReady();
 
@@ -169,6 +184,7 @@ private:
         const QString &message);
 
     QNetworkAccessManager *network_ = nullptr;
+    QNetworkReply *fileDownloadReply_ = nullptr;
     QWebSocket *socket_ = nullptr;
 
     QTimer *relayHeartbeatTimer_ = nullptr;

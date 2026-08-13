@@ -5966,6 +5966,31 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                         QDialog::Accepted;
 
                     if (accepted) {
+                        const QString savePath =
+                            QFileDialog::getSaveFileName(
+                                window,
+                                QStringLiteral(
+                                    "Save Incoming File"),
+                                fileName);
+
+                        if (savePath.isEmpty()) {
+                            signaling->sendFileDecline(
+                                transferId);
+                            return;
+                        }
+
+                        signaling->setProperty(
+                            "incomingTransferId",
+                            transferId);
+
+                        signaling->setProperty(
+                            "incomingFileName",
+                            fileName);
+
+                        signaling->setProperty(
+                            "incomingFilePath",
+                            savePath);
+
                         signaling->sendFileAccept(
                             transferId);
                     } else {
@@ -5974,6 +5999,102 @@ QDialog#settingsDialog QPushButton#declineFileButton {
                     }
                 });
 
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::fileReady,
+                window,
+                [signaling](
+                    const QString &transferId)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString filePath =
+                        signaling->property(
+                            "incomingFilePath")
+                            .toString();
+
+                    signaling->downloadFileTransfer(
+                        transferId,
+                        filePath);
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileDownloadCompleted,
+                window,
+                [
+                    signaling,
+                    showFileTransferMessage
+                ](
+                    const QString &transferId,
+                    const QString &)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    const QString fileName =
+                        signaling->property(
+                            "incomingFileName")
+                            .toString();
+
+                    showFileTransferMessage(
+                        QStringLiteral(
+                            "Incoming File"),
+                        QStringLiteral(
+                            "%1 was received successfully.")
+                            .arg(fileName));
+
+                    signaling->setProperty(
+                        "incomingTransferId",
+                        QVariant());
+                    signaling->setProperty(
+                        "incomingFileName",
+                        QVariant());
+                    signaling->setProperty(
+                        "incomingFilePath",
+                        QVariant());
+                });
+
+            QObject::connect(
+                signaling,
+                &WanSignalingClient::
+                    fileDownloadFailed,
+                window,
+                [
+                    signaling,
+                    showFileTransferMessage
+                ](
+                    const QString &transferId,
+                    const QString &message)
+                {
+                    if (
+                        signaling->property(
+                            "incomingTransferId")
+                            .toString() !=
+                        transferId
+                    ) {
+                        return;
+                    }
+
+                    showFileTransferMessage(
+                        QStringLiteral(
+                            "Incoming File"),
+                        message);
+                });
             QObject::connect(
                 signaling,
                 &WanSignalingClient::
