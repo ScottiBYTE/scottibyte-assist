@@ -3940,31 +3940,12 @@ QLabel#remotePlaceholder {
 
     openRemoteWindowButton->setEnabled(false);
 
-    auto *fullScreenButton =
-        makeButton(
-            QStringLiteral("Full Screen Remote Control"),
-            QStringLiteral(
-                "secondaryButton"));
-
-    fullScreenButton->setToolTip(
-        QStringLiteral(
-            "View remote desktop full screen"));
-
-    fullScreenButton->setEnabled(false);
-
     openRemoteWindowButton->setSizePolicy(
-        QSizePolicy::Fixed,
-        QSizePolicy::Fixed);
-
-    fullScreenButton->setSizePolicy(
         QSizePolicy::Fixed,
         QSizePolicy::Fixed);
 
     providerWindowControls->addWidget(
         openRemoteWindowButton);
-
-    providerWindowControls->addWidget(
-        fullScreenButton);
 
     auto *shareSourceLayout =
         new QHBoxLayout;
@@ -7588,7 +7569,6 @@ QObject::connect(
             fullScreenRemoteView,
             fullScreenWindow,
             openRemoteWindowButton,
-            fullScreenButton,
             shareProviderScreenButton,
             shareSourceCombo,
             refreshShareSourcesButton,
@@ -7611,9 +7591,6 @@ QObject::connect(
             bool connected)
         {
             openRemoteWindowButton->setEnabled(
-                connected);
-
-            fullScreenButton->setEnabled(
                 connected);
 
             const bool providerConnected =
@@ -8202,59 +8179,6 @@ QObject::connect(
             exitFullScreenBubble->
                 prepareForFullScreen();
         };
-
-    QObject::connect(
-        fullScreenButton,
-        &QPushButton::clicked,
-        window,
-        [
-            lanSession,
-            remoteWindow,
-            remoteWindowView,
-            remoteDisplayLayout,
-            remoteWindowFullScreenButton,
-            &selectedRemoteDisplayId
-        ]()
-        {
-            selectedRemoteDisplayId.clear();
-
-            remoteWindowView->clearFrame();
-
-            remoteWindowFullScreenButton->
-                setEnabled(false);
-
-            while (
-                QLayoutItem *item =
-                    remoteDisplayLayout->
-                        takeAt(0)
-            ) {
-                if (QWidget *widget =
-                        item->widget()) {
-                    widget->deleteLater();
-                }
-
-                delete item;
-            }
-
-            auto *loadingLabel =
-                makeLabel(
-                    QStringLiteral(
-                        "Loading customer displays..."),
-                    QStringLiteral(
-                        "smallText"));
-
-            remoteDisplayLayout->addWidget(
-                loadingLabel);
-
-            remoteDisplayLayout->addStretch();
-
-            remoteWindow->showNormal();
-            remoteWindow->raise();
-            remoteWindow->activateWindow();
-
-            lanSession->
-                requestRemoteControlDisplays();
-        });
 
     QObject::connect(
         remoteWindowFullScreenButton,
