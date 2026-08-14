@@ -3,6 +3,7 @@
 #include "desktop_backend.h"
 
 #include <QList>
+#include <QPoint>
 #include <QString>
 
 class QTimer;
@@ -72,6 +73,10 @@ private slots:
     void captureFrame();
 
 private:
+    QPoint remoteInputPoint(
+        int x,
+        int y) const;
+
     QImage captureEntireDesktop() const;
     QImage captureScreen(
         int screenIndex) const;

@@ -1056,10 +1056,52 @@ void X11DesktopBackend::captureFrame()
     }
 }
 
+QPoint X11DesktopBackend::remoteInputPoint(
+    int x,
+    int y) const
+{
+    QPoint point(x, y);
+
+    if (!shareSourceId_.startsWith(
+            QStringLiteral("screen:"))) {
+        return point;
+    }
+
+    bool valid = false;
+
+    const int screenIndex =
+        shareSourceId_
+            .mid(
+                QStringLiteral(
+                    "screen:").size())
+            .toInt(&valid);
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (
+        !valid ||
+        screenIndex < 0 ||
+        screenIndex >= screens.size() ||
+        screens.at(screenIndex) == nullptr
+    ) {
+        return point;
+    }
+
+    return point +
+        screens.at(screenIndex)->
+            geometry().topLeft();
+}
+
 void X11DesktopBackend::movePointerTo(
     int x,
     int y)
 {
+    const QPoint desktopPoint =
+        remoteInputPoint(
+            x,
+            y);
+
     Display *display =
         XOpenDisplay(nullptr);
 
@@ -1073,8 +1115,8 @@ void X11DesktopBackend::movePointerTo(
     XTestFakeMotionEvent(
         display,
         -1,
-        x,
-        y,
+        desktopPoint.x(),
+        desktopPoint.y(),
         CurrentTime);
 
     XFlush(display);
@@ -1085,6 +1127,11 @@ void X11DesktopBackend::clickLeftAt(
     int x,
     int y)
 {
+    const QPoint desktopPoint =
+        remoteInputPoint(
+            x,
+            y);
+
     Display *display =
         XOpenDisplay(nullptr);
 
@@ -1098,8 +1145,8 @@ void X11DesktopBackend::clickLeftAt(
     XTestFakeMotionEvent(
         display,
         -1,
-        x,
-        y,
+        desktopPoint.x(),
+        desktopPoint.y(),
         CurrentTime);
 
     XTestFakeButtonEvent(
@@ -1122,6 +1169,11 @@ void X11DesktopBackend::clickRightAt(
     int x,
     int y)
 {
+    const QPoint desktopPoint =
+        remoteInputPoint(
+            x,
+            y);
+
     Display *display =
         XOpenDisplay(nullptr);
 
@@ -1135,8 +1187,8 @@ void X11DesktopBackend::clickRightAt(
     XTestFakeMotionEvent(
         display,
         -1,
-        x,
-        y,
+        desktopPoint.x(),
+        desktopPoint.y(),
         CurrentTime);
 
     XTestFakeButtonEvent(
@@ -1159,6 +1211,11 @@ void X11DesktopBackend::pressLeftAt(
     int x,
     int y)
 {
+    const QPoint desktopPoint =
+        remoteInputPoint(
+            x,
+            y);
+
     Display *display =
         XOpenDisplay(nullptr);
 
@@ -1172,8 +1229,8 @@ void X11DesktopBackend::pressLeftAt(
     XTestFakeMotionEvent(
         display,
         -1,
-        x,
-        y,
+        desktopPoint.x(),
+        desktopPoint.y(),
         CurrentTime);
 
     XTestFakeButtonEvent(
@@ -1190,6 +1247,11 @@ void X11DesktopBackend::releaseLeftAt(
     int x,
     int y)
 {
+    const QPoint desktopPoint =
+        remoteInputPoint(
+            x,
+            y);
+
     Display *display =
         XOpenDisplay(nullptr);
 
@@ -1203,8 +1265,8 @@ void X11DesktopBackend::releaseLeftAt(
     XTestFakeMotionEvent(
         display,
         -1,
-        x,
-        y,
+        desktopPoint.x(),
+        desktopPoint.y(),
         CurrentTime);
 
     XTestFakeButtonEvent(
