@@ -64,6 +64,9 @@ public:
     void sendFileReady(
         const QString &transferId);
 
+    void sendFileComplete(
+        const QString &transferId);
+
     void downloadFileTransfer(
         const QString &transferId,
         const QString &filePath);
@@ -128,6 +131,9 @@ signals:
         const QString &transferId);
 
     void fileReady(
+        const QString &transferId);
+
+    void fileComplete(
         const QString &transferId);
 
     void fileDownloadProgress(
