@@ -495,18 +495,29 @@
     }
 
     .platform-icon {
-      width: 62px;
-      height: 62px;
-      border-color: #1d8fc3;
+      width: 82px;
+      height: 82px;
+      border: none;
+      border-radius: 0;
       color: #ffffff;
-      background:
-        linear-gradient(
-          145deg,
-          #126b9c,
-          #133b70
-        );
-      box-shadow:
-        0 8px 22px rgba(0, 0, 0, 0.3);
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .platform-icon svg,
+    .platform-icon img {
+      display: block;
+      width: auto;
+      height: auto;
+    }
+
+    .platform-logo {
+      object-fit: contain;
+    }
+
+    .linux-logo {
+      max-width: 74px;
+      max-height: 74px;
     }
 
     .platform h2,
@@ -681,13 +692,23 @@
             class="platform-icon"
             aria-hidden="true"
           >
-            W
+            <svg
+              viewBox="0 0 64 64"
+              width="68"
+              height="68"
+              aria-hidden="true"
+            >
+              <path
+                fill="#00a4ef"
+                d="M5 12.5 29 9v21H5zm27-4L59 5v25H32zM5 34h24v21L5 51.5zm27 0h27v25l-27-3.5z"
+              />
+            </svg>
           </div>
 
           <div>
             <h2>Windows</h2>
             <p>64-bit Windows installer</p>
-            <p>Version 0.4.2</p>
+            <p>Version 0.4.3</p>
           </div>
         </div>
 
@@ -701,7 +722,7 @@
         <div class="actions">
           <a
             class="download-button"
-            href="/downloads/0.4.2/ScottiBYTE-Assist-Setup-0.4.2-07f4fa9.exe"
+            href="/downloads/0.4.3/ScottiBYTE-Assist-Setup-0.4.3-8ab37f5.exe"
             download
           >
             Download for Windows
@@ -709,7 +730,7 @@
 
           <a
             class="checksum-link"
-            href="/downloads/0.4.2/ScottiBYTE-Assist-Setup-0.4.2-07f4fa9.exe.sha256"
+            href="/downloads/0.4.3/ScottiBYTE-Assist-Setup-0.4.3-8ab37f5.exe.sha256"
           >
             View SHA-256 checksum
           </a>
@@ -722,13 +743,17 @@
             class="platform-icon"
             aria-hidden="true"
           >
-            L
+            <img
+              src="/assets/linux.png"
+              alt=""
+              class="platform-logo linux-logo"
+            >
           </div>
 
           <div>
             <h2>Ubuntu Linux</h2>
             <p>64-bit Debian package</p>
-            <p>Version 0.4.2</p>
+            <p>Version 0.4.3</p>
           </div>
         </div>
 
@@ -742,7 +767,7 @@
         <div class="actions">
           <a
             class="download-button"
-            href="/downloads/0.4.2/ScottiBYTE-Assist_0.4.2_29017eb_amd64.deb"
+            href="/downloads/0.4.3/ScottiBYTE-Assist_0.4.3_7c08e74_amd64.deb"
             download
           >
             Download for Ubuntu
@@ -750,7 +775,7 @@
 
           <a
             class="checksum-link"
-            href="/downloads/0.4.2/ScottiBYTE-Assist_0.4.2_29017eb_amd64.deb.sha256"
+            href="/downloads/0.4.3/ScottiBYTE-Assist_0.4.3_7c08e74_amd64.deb.sha256"
           >
             View SHA-256 checksum
           </a>
