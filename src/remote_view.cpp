@@ -111,21 +111,21 @@ QPoint RemoteView::imagePosition(
             widgetPosition.x() -
             target.left()) /
         static_cast<double>(
-            target.width());
+            target.width() - 1);
 
     const double relativeY =
         static_cast<double>(
             widgetPosition.y() -
             target.top()) /
         static_cast<double>(
-            target.height());
+            target.height() - 1);
 
     const int imageX =
         qBound(
             0,
             static_cast<int>(
                 relativeX *
-                frame_.width()),
+                (frame_.width() - 1)),
             frame_.width() - 1);
 
     const int imageY =
@@ -133,7 +133,7 @@ QPoint RemoteView::imagePosition(
             0,
             static_cast<int>(
                 relativeY *
-                frame_.height()),
+                (frame_.height() - 1)),
             frame_.height() - 1);
 
     return QPoint(
