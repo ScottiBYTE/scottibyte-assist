@@ -22,9 +22,6 @@ const transferRoot =
 
 const transfers = new Map();
 
-const maximumTransferBytes =
-  1024 * 1024 * 1024;
-
 function safeFileName(value) {
   if (typeof value !== 'string') {
     return '';
@@ -82,8 +79,7 @@ export async function createTransfer({
 
   if (
     !Number.isSafeInteger(declaredSize) ||
-    declaredSize < 0 ||
-    declaredSize > maximumTransferBytes
+    declaredSize < 0
   ) {
     return {
       error: 'invalid_file_size',
@@ -193,18 +189,6 @@ export async function receiveTransferBody(
           'data',
           (chunk) => {
             bytes += chunk.length;
-
-            if (
-              bytes >
-              maximumTransferBytes
-            ) {
-              fail(
-                new Error(
-                  'transfer_too_large'
-                )
-              );
-              return;
-            }
 
             hash.update(chunk);
           }

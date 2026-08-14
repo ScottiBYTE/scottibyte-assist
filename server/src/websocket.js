@@ -32,7 +32,8 @@ const SIGNAL_TYPES = new Set([
   'file.offer',
   'file.accept',
   'file.decline',
-  'file.ready'
+  'file.ready',
+  'file.complete'
 ]);
 
 function sendJson(socket, payload) {
