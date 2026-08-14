@@ -947,6 +947,36 @@ void WanSignalingClient::processTextMessage(
 
     if (
         type ==
+        QStringLiteral(
+            "file.complete")
+    ) {
+        const QJsonObject payload =
+            object.value(
+                QStringLiteral("payload"))
+                .toObject();
+
+        const QString transferId =
+            payload.value(
+                QStringLiteral("transferId"))
+                .toString()
+                .trimmed();
+
+        if (transferId.isEmpty()) {
+            fail(
+                QStringLiteral(
+                    "The peer sent an invalid "
+                    "file completion message."));
+            return;
+        }
+
+        emit fileComplete(
+            transferId);
+
+        return;
+    }
+
+    if (
+        type ==
         QStringLiteral("error")
     ) {
         const QString serverMessage =
@@ -1430,6 +1460,33 @@ void WanSignalingClient::sendFileReady(
         fields);
 }
 
+void WanSignalingClient::sendFileComplete(
+    const QString &transferId)
+{
+    if (
+        state_ != State::Subscribed ||
+        transferId.trimmed().isEmpty()
+    ) {
+        return;
+    }
+
+    QJsonObject payload;
+
+    payload.insert(
+        QStringLiteral("transferId"),
+        transferId.trimmed());
+
+    QJsonObject fields;
+
+    fields.insert(
+        QStringLiteral("payload"),
+        payload);
+
+    sendJson(
+        QStringLiteral("file.complete"),
+        fields);
+}
+
 void WanSignalingClient::downloadFileTransfer(
     const QString &transferId,
     const QString &filePath)
@@ -1648,6 +1705,9 @@ void WanSignalingClient::downloadFileTransfer(
                 reply->deleteLater();
                 return;
             }
+
+            sendFileComplete(
+                normalizedId);
 
             emit fileDownloadCompleted(
                 normalizedId,

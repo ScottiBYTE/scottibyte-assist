@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-BUILD="$ROOT/build"
+BUILD="$ROOT/build-windows"
 DEPLOY="$ROOT/deploy-windows"
 UCRT_BIN="/ucrt64/bin"
 GST_PLUGINS="/ucrt64/lib/gstreamer-1.0"

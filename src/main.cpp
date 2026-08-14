@@ -3034,18 +3034,6 @@ QLabel#statusText {
     font-weight: 800;
 }
 
-QLabel#statusDot {
-    min-width: 28px;
-    max-width: 28px;
-    min-height: 28px;
-    max-height: 28px;
-    border: 1px solid #55e6ff;
-    border-radius: 14px;
-    background: #06304c;
-    color: #68eaff;
-    font-weight: 800;
-}
-
 QPushButton#primaryButton {
     min-height: 44px;
     padding: 0 28px;
@@ -3599,19 +3587,14 @@ QLabel#remotePlaceholder {
         0,
         0);
 
-    auto *statusDot =
-        makeLabel(
-            QStringLiteral("◌"),
-            QStringLiteral("statusDot"));
-
-    statusDot->setAlignment(
-        Qt::AlignCenter);
-
     auto *receiveStatus =
         makeLabel(
             QStringLiteral(
                 "Waiting for the person helping you..."),
             QStringLiteral("statusText"));
+
+    receiveStatus->setAlignment(
+        Qt::AlignCenter);
 
     auto receiveStatusFont =
         receiveStatus->font();
@@ -3624,8 +3607,6 @@ QLabel#remotePlaceholder {
     receiveStatus->setFont(
         receiveStatusFont);
 
-    statusRow->addWidget(statusDot);
-    statusRow->addSpacing(8);
     statusRow->addWidget(receiveStatus);
 
     auto *receiveActions =
@@ -3634,6 +3615,8 @@ QLabel#remotePlaceholder {
     receiveActions->setAlignment(
         Qt::AlignCenter);
 
+    receiveActions->setSpacing(8);
+
     auto *newCodeButton =
         makeButton(
             QStringLiteral("↻  New Code"),
@@ -3641,7 +3624,7 @@ QLabel#remotePlaceholder {
 
     auto *endSupportButton =
         makeButton(
-            QStringLiteral("■  End Support"),
+            QStringLiteral("End Support"),
             QStringLiteral("dangerButton"));
 
     endSupportButton->setEnabled(false);
@@ -3674,6 +3657,37 @@ QLabel#remotePlaceholder {
 
     customerMuteButton->setCheckable(true);
     customerMuteButton->setEnabled(false);
+
+    const QList<QPushButton *> receiveButtons = {
+        newCodeButton,
+        customerSendFileButton,
+        endSupportButton,
+        customerStartVoiceButton,
+        customerStopVoiceButton,
+        customerMuteButton
+    };
+
+    int receiveButtonWidth = 0;
+
+    for (auto *button : receiveButtons) {
+        receiveButtonWidth =
+            qMax(
+                receiveButtonWidth,
+                button->sizeHint().width());
+    }
+
+    for (auto *button : receiveButtons) {
+        button->setFixedWidth(
+            receiveButtonWidth);
+
+        button->setFixedHeight(
+            44);
+
+        button->setStyleSheet(
+            QStringLiteral(
+                "padding-left: 22px;"
+                "padding-right: 22px;"));
+    }
 
     auto *customerVoiceControls =
         new QHBoxLayout;
@@ -6139,6 +6153,29 @@ QDialog#settingsDialog QPushButton {
                     progressBar->setFormat(
                         QStringLiteral("0%"));
 
+                    progressBar->setFixedHeight(26);
+                    progressBar->setTextVisible(true);
+                    progressBar->setAlignment(
+                        Qt::AlignCenter);
+
+                    progressBar->setStyleSheet(
+                        QStringLiteral(
+                            "QProgressBar {"
+                            " background-color: #102b4a;"
+                            " border: 1px solid #25c9ef;"
+                            " border-radius: 12px;"
+                            " color: #ffffff;"
+                            " font-weight: 700;"
+                            " text-align: center;"
+                            "}"
+                            "QProgressBar::chunk {"
+                            " border-radius: 11px;"
+                            " background: qlineargradient("
+                            "x1:0, y1:0, x2:1, y2:0,"
+                            "stop:0 #16bde8,"
+                            "stop:1 #7138e8);"
+                            "}"));
+
                     auto *amountLabel =
                         makeLabel(
                             QStringLiteral(
@@ -6326,7 +6363,7 @@ QDialog#settingsDialog QPushButton {
             QObject::connect(
                 signaling,
                 &WanSignalingClient::
-                    fileUploadCompleted,
+                    fileComplete,
                 window,
                 [
                     signaling,
@@ -6450,6 +6487,29 @@ QDialog#settingsDialog QPushButton {
                     progressBar->setFormat(
                         QStringLiteral("0%"));
 
+                    progressBar->setFixedHeight(26);
+                    progressBar->setTextVisible(true);
+                    progressBar->setAlignment(
+                        Qt::AlignCenter);
+
+                    progressBar->setStyleSheet(
+                        QStringLiteral(
+                            "QProgressBar {"
+                            " background-color: #102b4a;"
+                            " border: 1px solid #25c9ef;"
+                            " border-radius: 12px;"
+                            " color: #ffffff;"
+                            " font-weight: 700;"
+                            " text-align: center;"
+                            "}"
+                            "QProgressBar::chunk {"
+                            " border-radius: 11px;"
+                            " background: qlineargradient("
+                            "x1:0, y1:0, x2:1, y2:0,"
+                            "stop:0 #16bde8,"
+                            "stop:1 #7138e8);"
+                            "}"));
+
                     auto *amountLabel =
                         makeLabel(
                             QStringLiteral(
@@ -6522,7 +6582,7 @@ QDialog#settingsDialog QPushButton {
                     QObject::connect(
                         signaling,
                         &WanSignalingClient::
-                            fileUploadCompleted,
+                            fileComplete,
                         dialog,
                         [dialog, transferId](
                             const QString &id)
