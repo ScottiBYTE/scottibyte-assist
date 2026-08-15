@@ -1870,12 +1870,6 @@ QMessageBox QPushButton:default {
                     "from this computer."));
         });
 
-    QObject::connect(
-        serverUrl,
-        &QLineEdit::editingFinished,
-        &dialog,
-        refreshProviderStatus);
-
     layout->addWidget(providerTitle);
     layout->addWidget(providerStatus);
 
@@ -2937,6 +2931,53 @@ QPushButton#secondaryButton:checked {
     );
 }
 
+QPushButton#muteButton {
+    min-width: 170px;
+    min-height: 38px;
+    padding: 0 22px;
+    border: 1px solid #28c7f7;
+    border-radius: 12px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
+    );
+}
+
+QPushButton#muteButton:hover {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #24c7ed,
+        stop: 0.48 #328de5,
+        stop: 1 #913ee8
+    );
+}
+
+QPushButton#muteButton:checked {
+    border: 1px solid #ff6b86;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #c53e5b,
+        stop: 1 #691128
+    );
+}
+
+QPushButton#muteButton:checked:hover {
+    border: 1px solid #ff9fb1;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #e05373,
+        stop: 1 #922348
+    );
+}
+
 QFrame#modeBar {
     background: #03142b;
     border-bottom: 1px solid #1a5d89;
@@ -3108,6 +3149,7 @@ QPushButton:disabled,
 QPushButton#primaryButton:disabled,
 QPushButton#dangerButton:disabled,
 QPushButton#secondaryButton:disabled,
+QPushButton#muteButton:disabled,
 QPushButton#settingsButton:disabled {
     color: #7d8998;
     border-color: #465363;
@@ -3653,7 +3695,7 @@ QLabel#remotePlaceholder {
     auto *customerMuteButton =
         makeButton(
             QStringLiteral("Mute Microphone"),
-            QStringLiteral("secondaryButton"));
+            QStringLiteral("muteButton"));
 
     customerMuteButton->setCheckable(true);
     customerMuteButton->setEnabled(false);
@@ -4096,7 +4138,7 @@ QLabel#remotePlaceholder {
     auto *providerMuteButton =
         makeButton(
             QStringLiteral("Mute Microphone"),
-            QStringLiteral("secondaryButton"));
+            QStringLiteral("muteButton"));
 
     providerMuteButton->setCheckable(true);
     providerMuteButton->setEnabled(false);
@@ -4366,7 +4408,7 @@ providerRemoteAudioButton->setToolTip(
     provideLayout->addLayout(
         connectRow);
 
-    provideLayout->addSpacing(6);
+    provideLayout->addSpacing(30);
 
     provideLayout->addWidget(provideStatus);
     provideLayout->addLayout(providerWindowControls);
@@ -5265,6 +5307,7 @@ providerScreenDismissFilter->
         [
             lanSession,
             customerSignaling,
+            providerSignaling,
             supportCode,
             receiveStatus,
             progressHeading,
@@ -5286,7 +5329,17 @@ providerScreenDismissFilter->
             customerCodeConsumed = false;
 
             lanSession->disconnectSession();
+
+            /*
+             * A single Assist process can change roles between
+             * sessions. Tear down both WAN signaling clients so
+             * state from a previous provider session cannot
+             * survive when this computer becomes the customer.
+             */
             customerSignaling->
+                disconnectFromServer();
+
+            providerSignaling->
                 disconnectFromServer();
 
             supportCode->setText(
@@ -5398,8 +5451,55 @@ providerScreenDismissFilter->
     QObject::connect(
         modeGroup,
         &QButtonGroup::idClicked,
-        pages,
-        &QStackedWidget::setCurrentIndex);
+        window,
+        [
+            pages,
+            receiveButton,
+            provideButton,
+            lanSession,
+            customerSignaling,
+            startCustomerSession
+        ](
+            int id)
+        {
+            /*
+             * Do not allow a mode-tab click to terminate
+             * an active support session.
+             */
+            if (lanSession->isConnected()) {
+                const int activeMode =
+                    pages->currentIndex();
+
+                receiveButton->setChecked(
+                    activeMode == 0);
+
+                provideButton->setChecked(
+                    activeMode == 1);
+
+                return;
+            }
+
+            pages->setCurrentIndex(id);
+
+            if (id == 0) {
+                /*
+                 * Entering Receive Support without an
+                 * active session establishes a fresh
+                 * customer subscription and support code.
+                 */
+                startCustomerSession(true);
+                return;
+            }
+
+            /*
+             * Entering Provide Support while idle
+             * invalidates the background customer
+             * session. A fresh one will be created if
+             * the user returns to Receive Support.
+             */
+            customerSignaling->
+                disconnectFromServer();
+        });
 
     QObject::connect(
         newCodeButton,
@@ -6670,6 +6770,7 @@ QDialog#settingsDialog QPushButton {
         window,
         [
             lanSession,
+            customerSignaling,
             providerSignaling,
             codeEntry,
             connectButton,
@@ -6704,6 +6805,14 @@ QDialog#settingsDialog QPushButton {
 
             const QUrl serverUrl =
                 configuredAssistServerUrl();
+
+            /*
+             * A single Assist process can change roles between
+             * sessions. Tear down customer signaling before this
+             * computer claims a session as the provider.
+             */
+            customerSignaling->
+                disconnectFromServer();
 
             providerSignaling->
                 claimSupportSession(
@@ -7587,12 +7696,6 @@ QObject::connect(
                     : QStringLiteral(
                           "Mute Microphone"));
 
-            receiveStatus->setText(
-                muted
-                    ? QStringLiteral(
-                          "Microphone muted.")
-                    : QStringLiteral(
-                          "Microphone unmuted."));
         });
 
     QObject::connect(
@@ -7615,12 +7718,6 @@ QObject::connect(
                     : QStringLiteral(
                           "Mute Microphone"));
 
-            provideStatus->setText(
-                muted
-                    ? QStringLiteral(
-                          "Microphone muted.")
-                    : QStringLiteral(
-                          "Microphone unmuted."));
         });
 
     QObject::connect(
