@@ -395,8 +395,21 @@ void WindowsDesktopBackend::captureFrame()
     frameWidth_ = frame.width();
     frameHeight_ = frame.height();
 
-    const QRect geometry =
+    const QRect logicalGeometry =
         screen->geometry();
+
+    const qreal devicePixelRatio =
+        screen->devicePixelRatio();
+
+    const QRect geometry(
+        qRound(
+            logicalGeometry.left() *
+            devicePixelRatio),
+        qRound(
+            logicalGeometry.top() *
+            devicePixelRatio),
+        frameWidth_,
+        frameHeight_);
 
     POINT cursorPoint{};
 
@@ -454,8 +467,21 @@ void WindowsDesktopBackend::movePointerTo(
         return;
     }
 
-    const QRect geometry =
+    const QRect logicalGeometry =
         screen->geometry();
+
+    const qreal devicePixelRatio =
+        screen->devicePixelRatio();
+
+    const QRect geometry(
+        qRound(
+            logicalGeometry.left() *
+            devicePixelRatio),
+        qRound(
+            logicalGeometry.top() *
+            devicePixelRatio),
+        frameWidth_,
+        frameHeight_);
 
     const int boundedX =
         std::clamp(
