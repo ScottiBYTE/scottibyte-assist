@@ -1017,8 +1017,33 @@ void populateAudioCombo(
             : 0);
 }
 
+QString validatedAudioNode(
+    const QString &savedNodeName,
+    const QList<AudioDevice> &devices)
+{
+    const QString nodeName =
+        savedNodeName.trimmed();
+
+    if (nodeName.isEmpty()) {
+        return QString();
+    }
+
+    for (const AudioDevice &device : devices) {
+        if (device.nodeName == nodeName) {
+            return nodeName;
+        }
+    }
+
+    return QString();
+}
+
 void showSettingsDialog(
-    QWidget *parent)
+    QWidget *parent,
+    const std::function<
+        void(
+            const QString &,
+            const QString &)> &
+        audioDevicesChanged = {})
 {
     QSettings settings(
         QStringLiteral("ScottiBYTE"),
@@ -1942,7 +1967,8 @@ QMessageBox QPushButton:default {
             &settings,
             serverUrl,
             inputDevice,
-            outputDevice
+            outputDevice,
+            audioDevicesChanged
         ]()
         {
             QString normalizedServerUrl =
@@ -1954,6 +1980,28 @@ QMessageBox QPushButton:default {
                 normalizedServerUrl.chop(1);
             }
 
+            const QString previousInputNode =
+                settings.value(
+                    QStringLiteral(
+                        "voice/inputNode"))
+                    .toString();
+
+            const QString previousOutputNode =
+                settings.value(
+                    QStringLiteral(
+                        "voice/outputNode"))
+                    .toString();
+
+            const QString inputNode =
+                inputDevice
+                    ->currentData()
+                    .toString();
+
+            const QString outputNode =
+                outputDevice
+                    ->currentData()
+                    .toString();
+
             settings.setValue(
                 QStringLiteral(
                     "connection/serverUrl"),
@@ -1962,20 +2010,30 @@ QMessageBox QPushButton:default {
             settings.setValue(
                 QStringLiteral(
                     "voice/inputNode"),
-                inputDevice
-                    ->currentData()
-                    .toString());
+                inputNode);
 
             settings.setValue(
                 QStringLiteral(
                     "voice/outputNode"),
-                outputDevice
-                    ->currentData()
-                    .toString());
+                outputNode);
 
             settings.sync();
 
             dialog.accept();
+
+            if (
+                audioDevicesChanged &&
+                (
+                    inputNode !=
+                        previousInputNode ||
+                    outputNode !=
+                        previousOutputNode
+                )
+            ) {
+                audioDevicesChanged(
+                    inputNode,
+                    outputNode);
+            }
         });
 
     QObject::connect(
@@ -5568,10 +5626,81 @@ providerScreenDismissFilter->
         settingsButton,
         &QPushButton::clicked,
         window,
-        [window]()
+        [
+            window,
+            customerVoiceAudio,
+            customerStopVoiceButton,
+            providerStopVoiceButton,
+            receiveButton,
+            receiveStatus,
+            provideStatus
+        ]()
         {
             showSettingsDialog(
-                window);
+                window,
+                [
+                    customerVoiceAudio,
+                    customerStopVoiceButton,
+                    providerStopVoiceButton,
+                    receiveButton,
+                    receiveStatus,
+                    provideStatus
+                ](
+                    const QString &inputNode,
+                    const QString &outputNode)
+                {
+                    const bool voiceActive =
+                        customerStopVoiceButton->
+                            isEnabled() ||
+                        providerStopVoiceButton->
+                            isEnabled();
+
+                    if (!voiceActive) {
+                        return;
+                    }
+
+                    const bool receiverStarted =
+                        customerVoiceAudio->
+                            startPacketReceiver(
+                                outputNode);
+
+                    const bool senderStarted =
+                        receiverStarted &&
+                        customerVoiceAudio->
+                            startPacketSender(
+                                inputNode);
+
+                    if (
+                        !receiverStarted ||
+                        !senderStarted
+                    ) {
+                        customerVoiceAudio->stop();
+
+                        if (receiveButton->isChecked()) {
+                            receiveStatus->setText(
+                                QStringLiteral(
+                                    "Audio device switch failed."));
+                        } else {
+                            provideStatus->setText(
+                                QStringLiteral(
+                                    "Audio device switch failed."));
+                        }
+
+                        return;
+                    }
+
+                    if (receiveButton->isChecked()) {
+                        receiveStatus->setText(
+                            QStringLiteral(
+                                "Audio devices changed. "
+                                "Full-duplex voice is active."));
+                    } else {
+                        provideStatus->setText(
+                            QStringLiteral(
+                                "Audio devices changed. "
+                                "Full-duplex voice is active."));
+                    }
+                });
         });
 
 
@@ -7459,13 +7588,38 @@ QObject::connect(
 
             QSettings settings(
                 QStringLiteral("ScottiBYTE"),
-                QStringLiteral("ScottiBYTE Assist"));
+                QStringLiteral("Assist"));
 
-            const QString outputNode =
+            QString outputNode =
                 settings.value(
                     QStringLiteral(
                         "voice/outputNode"))
                     .toString();
+
+            const AudioDeviceInventory inventory =
+                queryAudioDevices();
+
+            if (inventory.error.isEmpty()) {
+                const QString validatedOutputNode =
+                    validatedAudioNode(
+                        outputNode,
+                        inventory.outputs);
+
+                if (
+                    validatedOutputNode !=
+                    outputNode
+                ) {
+                    outputNode =
+                        validatedOutputNode;
+
+                    settings.setValue(
+                        QStringLiteral(
+                            "voice/outputNode"),
+                        outputNode);
+
+                    settings.sync();
+                }
+            }
 
             if (
                 !remoteDesktopAudio->
@@ -7540,19 +7694,57 @@ QObject::connect(
         {
             QSettings settings(
                 QStringLiteral("ScottiBYTE"),
-                QStringLiteral("ScottiBYTE Assist"));
+                QStringLiteral("Assist"));
 
-            const QString inputNode =
+            QString inputNode =
                 settings.value(
                     QStringLiteral(
                         "voice/inputNode"))
                     .toString();
 
-            const QString outputNode =
+            QString outputNode =
                 settings.value(
                     QStringLiteral(
                         "voice/outputNode"))
                     .toString();
+
+            const AudioDeviceInventory inventory =
+                queryAudioDevices();
+
+            if (inventory.error.isEmpty()) {
+                const QString validatedInputNode =
+                    validatedAudioNode(
+                        inputNode,
+                        inventory.inputs);
+
+                const QString validatedOutputNode =
+                    validatedAudioNode(
+                        outputNode,
+                        inventory.outputs);
+
+                if (
+                    validatedInputNode != inputNode ||
+                    validatedOutputNode != outputNode
+                ) {
+                    inputNode =
+                        validatedInputNode;
+
+                    outputNode =
+                        validatedOutputNode;
+
+                    settings.setValue(
+                        QStringLiteral(
+                            "voice/inputNode"),
+                        inputNode);
+
+                    settings.setValue(
+                        QStringLiteral(
+                            "voice/outputNode"),
+                        outputNode);
+
+                    settings.sync();
+                }
+            }
 
             if (receiveButton->isChecked()) {
                 const bool receiverStarted =
