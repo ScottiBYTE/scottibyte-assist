@@ -5252,6 +5252,7 @@ providerScreenDismissFilter->
         [
             lanSession,
             customerSignaling,
+            providerSignaling,
             supportCode,
             receiveStatus,
             progressHeading,
@@ -5273,7 +5274,17 @@ providerScreenDismissFilter->
             customerCodeConsumed = false;
 
             lanSession->disconnectSession();
+
+            /*
+             * A single Assist process can change roles between
+             * sessions. Tear down both WAN signaling clients so
+             * state from a previous provider session cannot
+             * survive when this computer becomes the customer.
+             */
             customerSignaling->
+                disconnectFromServer();
+
+            providerSignaling->
                 disconnectFromServer();
 
             supportCode->setText(
@@ -5385,8 +5396,55 @@ providerScreenDismissFilter->
     QObject::connect(
         modeGroup,
         &QButtonGroup::idClicked,
-        pages,
-        &QStackedWidget::setCurrentIndex);
+        window,
+        [
+            pages,
+            receiveButton,
+            provideButton,
+            lanSession,
+            customerSignaling,
+            startCustomerSession
+        ](
+            int id)
+        {
+            /*
+             * Do not allow a mode-tab click to terminate
+             * an active support session.
+             */
+            if (lanSession->isConnected()) {
+                const int activeMode =
+                    pages->currentIndex();
+
+                receiveButton->setChecked(
+                    activeMode == 0);
+
+                provideButton->setChecked(
+                    activeMode == 1);
+
+                return;
+            }
+
+            pages->setCurrentIndex(id);
+
+            if (id == 0) {
+                /*
+                 * Entering Receive Support without an
+                 * active session establishes a fresh
+                 * customer subscription and support code.
+                 */
+                startCustomerSession(true);
+                return;
+            }
+
+            /*
+             * Entering Provide Support while idle
+             * invalidates the background customer
+             * session. A fresh one will be created if
+             * the user returns to Receive Support.
+             */
+            customerSignaling->
+                disconnectFromServer();
+        });
 
     QObject::connect(
         newCodeButton,
@@ -6586,6 +6644,7 @@ QDialog#settingsDialog QPushButton#declineFileButton {
         window,
         [
             lanSession,
+            customerSignaling,
             providerSignaling,
             codeEntry,
             connectButton,
@@ -6620,6 +6679,14 @@ QDialog#settingsDialog QPushButton#declineFileButton {
 
             const QUrl serverUrl =
                 configuredAssistServerUrl();
+
+            /*
+             * A single Assist process can change roles between
+             * sessions. Tear down customer signaling before this
+             * computer claims a session as the provider.
+             */
+            customerSignaling->
+                disconnectFromServer();
 
             providerSignaling->
                 claimSupportSession(

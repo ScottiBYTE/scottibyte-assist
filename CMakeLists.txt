@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   scottibyte-assist
-  VERSION 0.4.3
+  VERSION 0.4.4
   LANGUAGES CXX
 )
 
