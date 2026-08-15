@@ -1823,12 +1823,6 @@ QMessageBox QPushButton:default {
                     "from this computer."));
         });
 
-    QObject::connect(
-        serverUrl,
-        &QLineEdit::editingFinished,
-        &dialog,
-        refreshProviderStatus);
-
     layout->addWidget(providerTitle);
     layout->addWidget(providerStatus);
 
@@ -2884,6 +2878,53 @@ QPushButton#secondaryButton:checked {
     );
 }
 
+QPushButton#muteButton {
+    min-width: 170px;
+    min-height: 38px;
+    padding: 0 22px;
+    border: 1px solid #28c7f7;
+    border-radius: 12px;
+    color: #ffffff;
+    font-weight: 700;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #159ed0,
+        stop: 0.48 #2378d4,
+        stop: 1 #7130d5
+    );
+}
+
+QPushButton#muteButton:hover {
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #24c7ed,
+        stop: 0.48 #328de5,
+        stop: 1 #913ee8
+    );
+}
+
+QPushButton#muteButton:checked {
+    border: 1px solid #ff6b86;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #c53e5b,
+        stop: 1 #691128
+    );
+}
+
+QPushButton#muteButton:checked:hover {
+    border: 1px solid #ff9fb1;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 0, y2: 1,
+        stop: 0 #e05373,
+        stop: 1 #922348
+    );
+}
+
 QFrame#modeBar {
     background: #03142b;
     border-bottom: 1px solid #1a5d89;
@@ -3055,6 +3096,7 @@ QPushButton:disabled,
 QPushButton#primaryButton:disabled,
 QPushButton#dangerButton:disabled,
 QPushButton#secondaryButton:disabled,
+QPushButton#muteButton:disabled,
 QPushButton#settingsButton:disabled {
     color: #7d8998;
     border-color: #465363;
@@ -3595,7 +3637,7 @@ QLabel#remotePlaceholder {
     auto *customerMuteButton =
         makeButton(
             QStringLiteral("Mute Microphone"),
-            QStringLiteral("secondaryButton"));
+            QStringLiteral("muteButton"));
 
     customerMuteButton->setCheckable(true);
     customerMuteButton->setEnabled(false);
@@ -4041,7 +4083,7 @@ QLabel#remotePlaceholder {
     auto *providerMuteButton =
         makeButton(
             QStringLiteral("Mute Microphone"),
-            QStringLiteral("secondaryButton"));
+            QStringLiteral("muteButton"));
 
     providerMuteButton->setCheckable(true);
     providerMuteButton->setEnabled(false);
@@ -7484,12 +7526,6 @@ QObject::connect(
                     : QStringLiteral(
                           "Mute Microphone"));
 
-            receiveStatus->setText(
-                muted
-                    ? QStringLiteral(
-                          "Microphone muted.")
-                    : QStringLiteral(
-                          "Microphone unmuted."));
         });
 
     QObject::connect(
@@ -7512,12 +7548,6 @@ QObject::connect(
                     : QStringLiteral(
                           "Mute Microphone"));
 
-            provideStatus->setText(
-                muted
-                    ? QStringLiteral(
-                          "Microphone muted.")
-                    : QStringLiteral(
-                          "Microphone unmuted."));
         });
 
     QObject::connect(
