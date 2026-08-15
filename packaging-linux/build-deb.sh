@@ -18,6 +18,37 @@ fi
 
 binary="$project_root/build/scottibyte-assist"
 icon="$project_root/assets/scottibyte-assist.png"
+
+echo
+echo "=== Configure Linux build ==="
+cmake \
+  -S "$project_root" \
+  -B "$project_root/build"
+
+echo
+echo "=== Build Linux client ==="
+cmake \
+  --build "$project_root/build" \
+  --target scottibyte-assist \
+  -j"$(nproc)"
+
+echo
+echo "=== Verify executable version ==="
+
+binary_version="$(
+  strings -el "$binary" \
+    | grep -E '^0\.[0-9]+\.[0-9]+$' \
+    | head -n 1
+)"
+
+if [[ "$binary_version" != "$version" ]]; then
+  echo \
+    "Executable version mismatch: expected $version, found ${binary_version:-none}" \
+    >&2
+  exit 1
+fi
+
+echo "Executable version: $binary_version"
 control="$project_root/packaging-linux/control"
 desktop="$project_root/packaging-linux/scottibyte-assist.desktop"
 webrtc_apm="/usr/local/lib/x86_64-linux-gnu/libwebrtc-audio-processing-1.so.3"
