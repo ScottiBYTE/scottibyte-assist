@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   scottibyte-assist
-  VERSION 0.4.5
+  VERSION 0.4.6
   LANGUAGES CXX
 )
 
@@ -76,6 +76,7 @@ if(WIN32)
     src/windows_desktop_backend.h
     src/windows_remote_desktop_audio.cpp
     assets/scottibyte-assist.rc
+    assets/scottibyte-assist-version.rc
     src/remote_desktop_audio.h
   )
 else()
@@ -175,6 +176,7 @@ if(WIN32)
   add_executable(
     scottibyte-assist-service
     src/windows_uac_service.cpp
+    assets/scottibyte-assist-version.rc
   )
 
   target_link_libraries(
@@ -213,6 +215,7 @@ if(WIN32)
   add_executable(
     scottibyte-assist-helper
     src/windows_uac_helper.cpp
+    assets/scottibyte-assist-version.rc
   )
 
   target_link_options(

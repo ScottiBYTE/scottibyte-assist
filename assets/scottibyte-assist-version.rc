@@ -1,0 +1,33 @@
+#include <windows.h>
+
+1 VERSIONINFO
+FILEVERSION 0,4,6,0
+PRODUCTVERSION 0,4,6,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#else
+FILEFLAGS 0
+#endif
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "ScottiBYTE\0"
+            VALUE "FileDescription", "ScottiBYTE Assist\0"
+            VALUE "FileVersion", "0.4.6.0\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 ScottiBYTE\0"
+            VALUE "ProductName", "ScottiBYTE Assist\0"
+            VALUE "ProductVersion", "0.4.6\0"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

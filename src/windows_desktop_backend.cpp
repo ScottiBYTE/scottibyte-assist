@@ -150,15 +150,31 @@ void sendMouseButton(
         sizeof(INPUT));
 }
 
-bool sendElevatedBrokerCommand(
-    const std::string &command)
+HANDLE openElevatedBrokerPipe()
 {
     constexpr wchar_t pipeName[] =
         L"\\\\.\\pipe\\ScottiBYTEAssistElevatedInput";
 
-    HANDLE pipe =
+    return
         CreateFileW(
             pipeName,
+            GENERIC_READ |
+                GENERIC_WRITE,
+            0,
+            nullptr,
+            OPEN_EXISTING,
+            0,
+            nullptr);
+}
+
+bool requestElevatedBrokerLaunch()
+{
+    constexpr wchar_t servicePipeName[] =
+        L"\\\\.\\pipe\\ScottiBYTEAssistPrivileged";
+
+    HANDLE pipe =
+        CreateFileW(
+            servicePipeName,
             GENERIC_READ |
                 GENERIC_WRITE,
             0,
@@ -170,6 +186,108 @@ bool sendElevatedBrokerCommand(
     if (pipe ==
         INVALID_HANDLE_VALUE) {
         return false;
+    }
+
+    constexpr char request[] =
+        "LAUNCH_ELEVATED_HELPER";
+
+    DWORD bytesWritten = 0;
+
+    if (!WriteFile(
+            pipe,
+            request,
+            sizeof(request) - 1,
+            &bytesWritten,
+            nullptr)) {
+        CloseHandle(pipe);
+        return false;
+    }
+
+    char response[256]{};
+    DWORD bytesRead = 0;
+
+    const BOOL readResult =
+        ReadFile(
+            pipe,
+            response,
+            sizeof(response) - 1,
+            &bytesRead,
+            nullptr);
+
+    CloseHandle(pipe);
+
+    if (!readResult) {
+        return false;
+    }
+
+    const std::string reply(
+        response,
+        response + bytesRead);
+
+    return
+        reply.rfind(
+            "ELEVATED_HELPER_LAUNCHED",
+            0) == 0;
+}
+
+bool sendElevatedBrokerCommand(
+    const std::string &command)
+{
+    HANDLE pipe =
+        openElevatedBrokerPipe();
+
+    if (pipe ==
+        INVALID_HANDLE_VALUE) {
+        /*
+         * Avoid repeatedly asking the service to
+         * launch a helper for every mouse-move event
+         * when the service is unavailable.
+         */
+        static ULONGLONG lastLaunchAttempt = 0;
+
+        const ULONGLONG now =
+            GetTickCount64();
+
+        const bool mayAttemptLaunch =
+            lastLaunchAttempt == 0 ||
+            now - lastLaunchAttempt >= 5000;
+
+        if (!mayAttemptLaunch) {
+            return false;
+        }
+
+        lastLaunchAttempt =
+            now;
+
+        if (!requestElevatedBrokerLaunch()) {
+            return false;
+        }
+
+        /*
+         * CreateProcessAsUser() returns before the
+         * helper necessarily has its named pipe ready.
+         * Give it up to roughly one second.
+         */
+        for (
+            int attempt = 0;
+            attempt < 40;
+            ++attempt
+        ) {
+            Sleep(25);
+
+            pipe =
+                openElevatedBrokerPipe();
+
+            if (pipe !=
+                INVALID_HANDLE_VALUE) {
+                break;
+            }
+        }
+
+        if (pipe ==
+            INVALID_HANDLE_VALUE) {
+            return false;
+        }
     }
 
     DWORD bytesWritten = 0;
