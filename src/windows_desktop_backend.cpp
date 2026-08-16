@@ -7,6 +7,7 @@
 #include <Qt>
 
 #include <algorithm>
+#include <string>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -147,6 +148,65 @@ void sendMouseButton(
         1,
         &input,
         sizeof(INPUT));
+}
+
+bool sendElevatedBrokerCommand(
+    const std::string &command)
+{
+    constexpr wchar_t pipeName[] =
+        L"\\\\.\\pipe\\ScottiBYTEAssistElevatedInput";
+
+    HANDLE pipe =
+        CreateFileW(
+            pipeName,
+            GENERIC_READ |
+                GENERIC_WRITE,
+            0,
+            nullptr,
+            OPEN_EXISTING,
+            0,
+            nullptr);
+
+    if (pipe ==
+        INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD bytesWritten = 0;
+
+    if (!WriteFile(
+            pipe,
+            command.data(),
+            static_cast<DWORD>(
+                command.size()),
+            &bytesWritten,
+            nullptr)) {
+        CloseHandle(pipe);
+        return false;
+    }
+
+    char response[64]{};
+    DWORD bytesRead = 0;
+
+    const BOOL readResult =
+        ReadFile(
+            pipe,
+            response,
+            sizeof(response) - 1,
+            &bytesRead,
+            nullptr);
+
+    CloseHandle(pipe);
+
+    if (!readResult) {
+        return false;
+    }
+
+    return
+        std::string(
+            response,
+            response + bytesRead) ==
+        "OK";
 }
 
 void sendVirtualKey(
@@ -605,15 +665,53 @@ void WindowsDesktopBackend::clickRightAt(
 void WindowsDesktopBackend::pressKey(
     int qtKey)
 {
+    const WORD virtualKey =
+        virtualKeyForQtKey(
+            qtKey);
+
+    if (virtualKey == 0) {
+        return;
+    }
+
+    const std::string command =
+        "KEYDOWN " +
+        std::to_string(
+            static_cast<unsigned int>(
+                virtualKey));
+
+    if (sendElevatedBrokerCommand(
+            command)) {
+        return;
+    }
+
     sendVirtualKey(
-        virtualKeyForQtKey(qtKey),
+        virtualKey,
         true);
 }
 
 void WindowsDesktopBackend::releaseKey(
     int qtKey)
 {
+    const WORD virtualKey =
+        virtualKeyForQtKey(
+            qtKey);
+
+    if (virtualKey == 0) {
+        return;
+    }
+
+    const std::string command =
+        "KEYUP " +
+        std::to_string(
+            static_cast<unsigned int>(
+                virtualKey));
+
+    if (sendElevatedBrokerCommand(
+            command)) {
+        return;
+    }
+
     sendVirtualKey(
-        virtualKeyForQtKey(qtKey),
+        virtualKey,
         false);
 }
