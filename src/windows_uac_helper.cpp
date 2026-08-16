@@ -1305,6 +1305,42 @@ std::string processBrokerCommand(
         return "OK";
     }
 
+    if (
+        command == "LDOWNAT" ||
+        command == "LUPAT"
+    ) {
+        int x = 0;
+        int y = 0;
+
+        if (!(input >> x >> y)) {
+            return "ERROR BAD_LEFT_AT";
+        }
+
+        if (!SetCursorPos(
+                x,
+                y)) {
+            return
+                "ERROR MOVE " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        const DWORD flags =
+            command == "LDOWNAT"
+                ? MOUSEEVENTF_LEFTDOWN
+                : MOUSEEVENTF_LEFTUP;
+
+        if (!sendBrokerMouseButton(
+                flags)) {
+            return
+                "ERROR LEFT_AT " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        return "OK";
+    }
+
     if (command == "LDOWN") {
         return
             sendBrokerMouseButton(

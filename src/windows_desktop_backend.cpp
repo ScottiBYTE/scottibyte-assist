@@ -511,6 +511,83 @@ void WindowsDesktopBackend::captureFrame()
     emit frameReady(frame);
 }
 
+bool WindowsDesktopBackend::desktopPointForFramePoint(
+    int x,
+    int y,
+    int &desktopX,
+    int &desktopY) const
+{
+    if (
+        frameWidth_ <= 0 ||
+        frameHeight_ <= 0
+    ) {
+        return false;
+    }
+
+    QScreen *screen =
+        selectedScreen();
+
+    if (screen == nullptr) {
+        return false;
+    }
+
+    const QRect logicalGeometry =
+        screen->geometry();
+
+    const qreal devicePixelRatio =
+        screen->devicePixelRatio();
+
+    const QRect geometry(
+        qRound(
+            logicalGeometry.left() *
+            devicePixelRatio),
+        qRound(
+            logicalGeometry.top() *
+            devicePixelRatio),
+        frameWidth_,
+        frameHeight_);
+
+    const int boundedX =
+        std::clamp(
+            x,
+            0,
+            frameWidth_ - 1);
+
+    const int boundedY =
+        std::clamp(
+            y,
+            0,
+            frameHeight_ - 1);
+
+    desktopX =
+        geometry.left();
+
+    desktopY =
+        geometry.top();
+
+    if (
+        frameWidth_ > 1 &&
+        geometry.width() > 1
+    ) {
+        desktopX +=
+            boundedX *
+            (geometry.width() - 1) /
+            (frameWidth_ - 1);
+    }
+
+    if (
+        frameHeight_ > 1 &&
+        geometry.height() > 1
+    ) {
+        desktopY +=
+            boundedY *
+            (geometry.height() - 1) /
+            (frameHeight_ - 1);
+    }
+
+    return true;
+}
+
 void WindowsDesktopBackend::movePointerTo(
     int x,
     int y)
@@ -574,6 +651,17 @@ void WindowsDesktopBackend::movePointerTo(
             (frameHeight_ - 1);
     }
 
+    const std::string command =
+        "MOVE " +
+        std::to_string(desktopX) +
+        " " +
+        std::to_string(desktopY);
+
+    if (sendElevatedBrokerCommand(
+            command)) {
+        return;
+    }
+
     SetCursorPos(
         desktopX,
         desktopY);
@@ -587,6 +675,15 @@ void WindowsDesktopBackend::clickLeftAt(
         x,
         y);
 
+    if (
+        sendElevatedBrokerCommand(
+            "LDOWN") &&
+        sendElevatedBrokerCommand(
+            "LUP")
+    ) {
+        return;
+    }
+
     sendMouseButton(
         MOUSEEVENTF_LEFTDOWN);
 
@@ -598,6 +695,28 @@ void WindowsDesktopBackend::pressLeftAt(
     int x,
     int y)
 {
+    int desktopX = 0;
+    int desktopY = 0;
+
+    if (
+        desktopPointForFramePoint(
+            x,
+            y,
+            desktopX,
+            desktopY)
+    ) {
+        const std::string command =
+            "LDOWNAT " +
+            std::to_string(desktopX) +
+            " " +
+            std::to_string(desktopY);
+
+        if (sendElevatedBrokerCommand(
+                command)) {
+            return;
+        }
+    }
+
     movePointerTo(
         x,
         y);
@@ -631,6 +750,11 @@ void WindowsDesktopBackend::pressLeftAt(
         }
     }
 
+    if (sendElevatedBrokerCommand(
+            "LDOWN")) {
+        return;
+    }
+
     sendMouseButton(
         MOUSEEVENTF_LEFTDOWN);
 }
@@ -639,6 +763,28 @@ void WindowsDesktopBackend::releaseLeftAt(
     int x,
     int y)
 {
+    int desktopX = 0;
+    int desktopY = 0;
+
+    if (
+        desktopPointForFramePoint(
+            x,
+            y,
+            desktopX,
+            desktopY)
+    ) {
+        const std::string command =
+            "LUPAT " +
+            std::to_string(desktopX) +
+            " " +
+            std::to_string(desktopY);
+
+        if (sendElevatedBrokerCommand(
+                command)) {
+            return;
+        }
+    }
+
     movePointerTo(
         x,
         y);
@@ -654,6 +800,15 @@ void WindowsDesktopBackend::clickRightAt(
     movePointerTo(
         x,
         y);
+
+    if (
+        sendElevatedBrokerCommand(
+            "RDOWN") &&
+        sendElevatedBrokerCommand(
+            "RUP")
+    ) {
+        return;
+    }
 
     sendMouseButton(
         MOUSEEVENTF_RIGHTDOWN);

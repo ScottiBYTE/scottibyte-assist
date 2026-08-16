@@ -59,6 +59,12 @@ private slots:
 private:
     QScreen *selectedScreen() const;
 
+    bool desktopPointForFramePoint(
+        int x,
+        int y,
+        int &desktopX,
+        int &desktopY) const;
+
     QTimer captureTimer_;
     bool running_ = false;
 
