@@ -415,127 +415,6 @@ std::string captureWinlogonDesktop()
         std::to_string(height);
 }
 
-std::string testDefaultDesktopInput()
-{
-    /*
-     * Do not open or switch desktops here.
-     *
-     * This process/thread is already attached to
-     * WinSta0\Default.  Exercise SendInput exactly
-     * like the known-working Windows desktop backend.
-     */
-
-    INPUT down{};
-    down.type =
-        INPUT_KEYBOARD;
-
-    down.ki.wVk =
-        'A';
-
-    SetLastError(
-        ERROR_SUCCESS);
-
-    const UINT downSent =
-        SendInput(
-            1,
-            &down,
-            sizeof(INPUT));
-
-    const DWORD downError =
-        GetLastError();
-
-    Sleep(50);
-
-    INPUT up{};
-    up.type =
-        INPUT_KEYBOARD;
-
-    up.ki.wVk =
-        'A';
-
-    up.ki.dwFlags =
-        KEYEVENTF_KEYUP;
-
-    SetLastError(
-        ERROR_SUCCESS);
-
-    const UINT upSent =
-        SendInput(
-            1,
-            &up,
-            sizeof(INPUT));
-
-    const DWORD upError =
-        GetLastError();
-
-    return
-        "KEY_A DOWN_SENT=" +
-        std::to_string(downSent) +
-        " DOWN_ERROR=" +
-        std::to_string(downError) +
-        " UP_SENT=" +
-        std::to_string(upSent) +
-        " UP_ERROR=" +
-        std::to_string(upError);
-}
-
-DWORD WINAPI defaultInputProbeThread(
-    LPVOID)
-{
-    /*
-     * Give the tester time to approve UAC,
-     * focus the Administrator terminal,
-     * and leave it ready for input.
-     */
-    Sleep(10000);
-
-    const std::string result =
-        testDefaultDesktopInput();
-
-    HANDLE file =
-        CreateFileW(
-            L"C:\\ProgramData\\ScottiBYTE-Assist-Admin-Input.txt",
-            GENERIC_WRITE,
-            FILE_SHARE_READ |
-                FILE_SHARE_WRITE,
-            nullptr,
-            CREATE_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL,
-            nullptr);
-
-    if (file != INVALID_HANDLE_VALUE) {
-        DWORD written = 0;
-
-        WriteFile(
-            file,
-            result.data(),
-            static_cast<DWORD>(
-                result.size()),
-            &written,
-            nullptr);
-
-        CloseHandle(file);
-    }
-
-    return 0;
-}
-
-void startDefaultInputProbeThread()
-{
-    HANDLE thread =
-        CreateThread(
-            nullptr,
-            0,
-            defaultInputProbeThread,
-            nullptr,
-            0,
-            nullptr);
-
-    if (thread != nullptr) {
-        CloseHandle(thread);
-    }
-}
-
 DWORD WINAPI winlogonCaptureThread(
     LPVOID)
 {
@@ -1652,7 +1531,6 @@ int main()
     output.flush();
 
     startWinlogonCaptureThread();
-    startDefaultInputProbeThread();
 
     std::string previousDesktop;
 
