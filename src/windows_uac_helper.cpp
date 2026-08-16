@@ -1184,6 +1184,50 @@ std::string processBrokerCommand(
         return "OK";
     }
 
+    if (command == "CLICKAT") {
+        int x = 0;
+        int y = 0;
+
+        if (!(input >> x >> y)) {
+            return "ERROR BAD_CLICK_AT";
+        }
+
+        if (!SetCursorPos(
+                x,
+                y)) {
+            return
+                "ERROR MOVE " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        INPUT inputs[2]{};
+
+        inputs[0].type =
+            INPUT_MOUSE;
+
+        inputs[0].mi.dwFlags =
+            MOUSEEVENTF_LEFTDOWN;
+
+        inputs[1].type =
+            INPUT_MOUSE;
+
+        inputs[1].mi.dwFlags =
+            MOUSEEVENTF_LEFTUP;
+
+        if (SendInput(
+                2,
+                inputs,
+                sizeof(INPUT)) != 2) {
+            return
+                "ERROR CLICK_AT " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        return "OK";
+    }
+
     if (
         command == "LDOWNAT" ||
         command == "LUPAT"

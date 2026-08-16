@@ -8,6 +8,7 @@
 #include <Qt>
 
 #include <algorithm>
+#include <cwchar>
 #include <string>
 
 #define WIN32_LEAN_AND_MEAN
@@ -357,6 +358,51 @@ void sendVirtualKey(
         sizeof(INPUT));
 }
 
+struct MonitorDeviceSearch
+{
+    std::wstring deviceName;
+    RECT monitorRect{};
+    bool found = false;
+};
+
+BOOL CALLBACK findMonitorByDeviceName(
+    HMONITOR monitor,
+    HDC,
+    LPRECT,
+    LPARAM parameter)
+{
+    auto *search =
+        reinterpret_cast<MonitorDeviceSearch *>(
+            parameter);
+
+    if (search == nullptr) {
+        return TRUE;
+    }
+
+    MONITORINFOEXW monitorInfo{};
+    monitorInfo.cbSize =
+        sizeof(monitorInfo);
+
+    if (!GetMonitorInfoW(
+            monitor,
+            &monitorInfo)) {
+        return TRUE;
+    }
+
+    if (_wcsicmp(
+            monitorInfo.szDevice,
+            search->deviceName.c_str()) != 0) {
+        return TRUE;
+    }
+
+    search->monitorRect =
+        monitorInfo.rcMonitor;
+
+    search->found = true;
+
+    return FALSE;
+}
+
 bool nativeMonitorGeometryForScreen(
     QScreen *screen,
     QRect &geometry)
@@ -365,15 +411,52 @@ bool nativeMonitorGeometryForScreen(
         return false;
     }
 
+    const QString qtName =
+        screen->name().trimmed();
+
+    if (!qtName.isEmpty()) {
+        MonitorDeviceSearch search;
+        search.deviceName =
+            qtName.toStdWString();
+
+        EnumDisplayMonitors(
+            nullptr,
+            nullptr,
+            findMonitorByDeviceName,
+            reinterpret_cast<LPARAM>(
+                &search));
+
+        if (search.found) {
+            const int width =
+                search.monitorRect.right -
+                search.monitorRect.left;
+
+            const int height =
+                search.monitorRect.bottom -
+                search.monitorRect.top;
+
+            if (
+                width > 0 &&
+                height > 0
+            ) {
+                geometry =
+                    QRect(
+                        search.monitorRect.left,
+                        search.monitorRect.top,
+                        width,
+                        height);
+
+                return true;
+            }
+        }
+    }
+
     /*
-     * QScreen::geometry() is expressed in Qt logical
-     * coordinates on a mixed-DPI desktop.
+     * Fallback for systems where Qt's screen name does
+     * not match MONITORINFOEXW::szDevice.
      *
-     * Use a point near the center only to identify the
-     * Windows monitor.  Once we have the HMONITOR,
-     * GetMonitorInfoW() gives us the authoritative
-     * native virtual-desktop rectangle used by
-     * GetCursorPos() and SetCursorPos().
+     * This preserves the previous behavior rather than
+     * disabling input completely.
      */
     const QRect qtGeometry =
         screen->geometry();
@@ -844,18 +927,31 @@ void WindowsDesktopBackend::clickLeftAt(
     int x,
     int y)
 {
+    int desktopX = 0;
+    int desktopY = 0;
+
+    if (
+        desktopPointForFramePoint(
+            x,
+            y,
+            desktopX,
+            desktopY)
+    ) {
+        const std::string command =
+            "CLICKAT " +
+            std::to_string(desktopX) +
+            " " +
+            std::to_string(desktopY);
+
+        if (sendElevatedBrokerCommand(
+                command)) {
+            return;
+        }
+    }
+
     movePointerTo(
         x,
         y);
-
-    if (
-        sendElevatedBrokerCommand(
-            "LDOWN") &&
-        sendElevatedBrokerCommand(
-            "LUP")
-    ) {
-        return;
-    }
 
     sendMouseButton(
         MOUSEEVENTF_LEFTDOWN);
