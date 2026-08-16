@@ -181,6 +181,7 @@ if(WIN32)
     scottibyte-assist-service
     PRIVATE
       advapi32
+      wtsapi32
   )
 
   target_link_options(

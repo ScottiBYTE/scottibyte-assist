@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <wtsapi32.h>
 #include <sddl.h>
 
 #include <cstring>
@@ -299,6 +300,200 @@ std::wstring helperExecutablePath()
     return path;
 }
 
+std::string launchUserTokenHelper()
+{
+    const DWORD sessionId =
+        WTSGetActiveConsoleSessionId();
+
+    if (sessionId == 0xffffffff) {
+        return
+            "ERROR NO_ACTIVE_CONSOLE_SESSION";
+    }
+
+    HANDLE userToken =
+        nullptr;
+
+    if (!WTSQueryUserToken(
+            sessionId,
+            &userToken)) {
+        return
+            "ERROR WTS_QUERY_USER_TOKEN " +
+            std::to_string(
+                GetLastError());
+    }
+
+    const std::wstring helperPath =
+        helperExecutablePath();
+
+    if (helperPath.empty()) {
+        CloseHandle(userToken);
+
+        return
+            "ERROR HELPER_PATH";
+    }
+
+    STARTUPINFOW startupInfo{};
+    startupInfo.cb =
+        sizeof(startupInfo);
+
+    wchar_t desktopName[] =
+        L"winsta0\\default";
+
+    startupInfo.lpDesktop =
+        desktopName;
+
+    PROCESS_INFORMATION processInformation{};
+
+    const BOOL created =
+        CreateProcessAsUserW(
+            userToken,
+            helperPath.c_str(),
+            nullptr,
+            nullptr,
+            nullptr,
+            FALSE,
+            CREATE_NO_WINDOW,
+            nullptr,
+            nullptr,
+            &startupInfo,
+            &processInformation);
+
+    const DWORD error =
+        created
+            ? ERROR_SUCCESS
+            : GetLastError();
+
+    CloseHandle(userToken);
+
+    if (!created) {
+        return
+            "ERROR CREATE_USER_HELPER " +
+            std::to_string(error);
+    }
+
+    CloseHandle(
+        processInformation.hThread);
+
+    CloseHandle(
+        processInformation.hProcess);
+
+    return
+        "USER_HELPER_LAUNCHED SESSION=" +
+        std::to_string(
+            sessionId);
+}
+
+
+std::string launchElevatedUserHelper()
+{
+    const DWORD sessionId =
+        WTSGetActiveConsoleSessionId();
+
+    if (sessionId == 0xffffffff) {
+        return
+            "ERROR NO_ACTIVE_CONSOLE_SESSION";
+    }
+
+    HANDLE userToken =
+        nullptr;
+
+    if (!WTSQueryUserToken(
+            sessionId,
+            &userToken)) {
+        return
+            "ERROR WTS_QUERY_USER_TOKEN " +
+            std::to_string(
+                GetLastError());
+    }
+
+    TOKEN_LINKED_TOKEN linkedToken{};
+    DWORD linkedTokenBytes = 0;
+
+    if (!GetTokenInformation(
+            userToken,
+            TokenLinkedToken,
+            &linkedToken,
+            sizeof(linkedToken),
+            &linkedTokenBytes)) {
+        const DWORD error =
+            GetLastError();
+
+        CloseHandle(userToken);
+
+        return
+            "ERROR LINKED_TOKEN " +
+            std::to_string(error);
+    }
+
+    CloseHandle(userToken);
+
+    if (linkedToken.LinkedToken == nullptr) {
+        return
+            "ERROR NO_LINKED_TOKEN";
+    }
+
+    const std::wstring helperPath =
+        helperExecutablePath();
+
+    if (helperPath.empty()) {
+        CloseHandle(
+            linkedToken.LinkedToken);
+
+        return
+            "ERROR HELPER_PATH";
+    }
+
+    STARTUPINFOW startupInfo{};
+    startupInfo.cb =
+        sizeof(startupInfo);
+
+    wchar_t desktopName[] =
+        L"winsta0\\default";
+
+    startupInfo.lpDesktop =
+        desktopName;
+
+    PROCESS_INFORMATION processInformation{};
+
+    const BOOL created =
+        CreateProcessAsUserW(
+            linkedToken.LinkedToken,
+            helperPath.c_str(),
+            nullptr,
+            nullptr,
+            nullptr,
+            FALSE,
+            CREATE_NO_WINDOW,
+            nullptr,
+            nullptr,
+            &startupInfo,
+            &processInformation);
+
+    const DWORD error =
+        created
+            ? ERROR_SUCCESS
+            : GetLastError();
+
+    CloseHandle(
+        linkedToken.LinkedToken);
+
+    if (!created) {
+        return
+            "ERROR CREATE_ELEVATED_HELPER " +
+            std::to_string(error);
+    }
+
+    CloseHandle(
+        processInformation.hThread);
+
+    CloseHandle(
+        processInformation.hProcess);
+
+    return
+        "ELEVATED_HELPER_LAUNCHED SESSION=" +
+        std::to_string(sessionId);
+}
+
 std::string launchInteractiveHelper()
 {
     DWORD sessionId =
@@ -455,6 +650,22 @@ void handlePipeClient(
         writePipeResponse(
             pipe,
             inputDesktopStatus());
+
+        return;
+    }
+
+    if (request == "LAUNCH_ELEVATED_HELPER") {
+        writePipeResponse(
+            pipe,
+            launchElevatedUserHelper());
+
+        return;
+    }
+
+    if (request == "LAUNCH_USER_HELPER") {
+        writePipeResponse(
+            pipe,
+            launchUserTokenHelper());
 
         return;
     }

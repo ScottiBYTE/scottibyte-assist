@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <sddl.h>
 
 #include <fstream>
 #include <string>
@@ -413,6 +414,127 @@ std::string captureWinlogonDesktop()
         std::to_string(height);
 }
 
+std::string testDefaultDesktopInput()
+{
+    /*
+     * Do not open or switch desktops here.
+     *
+     * This process/thread is already attached to
+     * WinSta0\Default.  Exercise SendInput exactly
+     * like the known-working Windows desktop backend.
+     */
+
+    INPUT down{};
+    down.type =
+        INPUT_KEYBOARD;
+
+    down.ki.wVk =
+        'A';
+
+    SetLastError(
+        ERROR_SUCCESS);
+
+    const UINT downSent =
+        SendInput(
+            1,
+            &down,
+            sizeof(INPUT));
+
+    const DWORD downError =
+        GetLastError();
+
+    Sleep(50);
+
+    INPUT up{};
+    up.type =
+        INPUT_KEYBOARD;
+
+    up.ki.wVk =
+        'A';
+
+    up.ki.dwFlags =
+        KEYEVENTF_KEYUP;
+
+    SetLastError(
+        ERROR_SUCCESS);
+
+    const UINT upSent =
+        SendInput(
+            1,
+            &up,
+            sizeof(INPUT));
+
+    const DWORD upError =
+        GetLastError();
+
+    return
+        "KEY_A DOWN_SENT=" +
+        std::to_string(downSent) +
+        " DOWN_ERROR=" +
+        std::to_string(downError) +
+        " UP_SENT=" +
+        std::to_string(upSent) +
+        " UP_ERROR=" +
+        std::to_string(upError);
+}
+
+DWORD WINAPI defaultInputProbeThread(
+    LPVOID)
+{
+    /*
+     * Give the tester time to approve UAC,
+     * focus the Administrator terminal,
+     * and leave it ready for input.
+     */
+    Sleep(10000);
+
+    const std::string result =
+        testDefaultDesktopInput();
+
+    HANDLE file =
+        CreateFileW(
+            L"C:\\ProgramData\\ScottiBYTE-Assist-Admin-Input.txt",
+            GENERIC_WRITE,
+            FILE_SHARE_READ |
+                FILE_SHARE_WRITE,
+            nullptr,
+            CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+
+    if (file != INVALID_HANDLE_VALUE) {
+        DWORD written = 0;
+
+        WriteFile(
+            file,
+            result.data(),
+            static_cast<DWORD>(
+                result.size()),
+            &written,
+            nullptr);
+
+        CloseHandle(file);
+    }
+
+    return 0;
+}
+
+void startDefaultInputProbeThread()
+{
+    HANDLE thread =
+        CreateThread(
+            nullptr,
+            0,
+            defaultInputProbeThread,
+            nullptr,
+            0,
+            nullptr);
+
+    if (thread != nullptr) {
+        CloseHandle(thread);
+    }
+}
+
 DWORD WINAPI winlogonCaptureThread(
     LPVOID)
 {
@@ -662,6 +784,321 @@ std::string currentInputDesktop()
         wideToUtf8(name);
 }
 
+std::string userObjectName(
+    HANDLE object)
+{
+    DWORD requiredBytes = 0;
+
+    GetUserObjectInformationW(
+        object,
+        UOI_NAME,
+        nullptr,
+        0,
+        &requiredBytes);
+
+    if (requiredBytes == 0) {
+        return
+            "UNKNOWN ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    std::wstring name(
+        requiredBytes /
+            sizeof(wchar_t),
+        L'\0');
+
+    if (!GetUserObjectInformationW(
+            object,
+            UOI_NAME,
+            name.data(),
+            requiredBytes,
+            &requiredBytes)) {
+        return
+            "UNKNOWN ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    while (
+        !name.empty() &&
+        name.back() == L'\0'
+    ) {
+        name.pop_back();
+    }
+
+    return wideToUtf8(name);
+}
+
+std::string processWindowStationName()
+{
+    HWINSTA station =
+        GetProcessWindowStation();
+
+    if (station == nullptr) {
+        return
+            "UNAVAILABLE ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    return userObjectName(
+        station);
+}
+
+std::string currentThreadDesktopName()
+{
+    HDESK desktop =
+        GetThreadDesktop(
+            GetCurrentThreadId());
+
+    if (desktop == nullptr) {
+        return
+            "UNAVAILABLE ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    return userObjectName(
+        desktop);
+}
+
+std::string sidToString(
+    PSID sid)
+{
+    if (
+        sid == nullptr ||
+        !IsValidSid(sid)
+    ) {
+        return "INVALID";
+    }
+
+    LPWSTR value =
+        nullptr;
+
+    if (!ConvertSidToStringSidW(
+            sid,
+            &value)) {
+        return
+            "ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    const std::string result =
+        wideToUtf8(
+            std::wstring(value));
+
+    LocalFree(value);
+
+    return result;
+}
+
+std::string tokenDiagnostics()
+{
+    HANDLE token =
+        nullptr;
+
+    if (!OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY,
+            &token)) {
+        return
+            "TOKEN_OPEN_ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    std::string result;
+
+    DWORD sessionId = 0;
+    DWORD size = 0;
+
+    if (GetTokenInformation(
+            token,
+            TokenSessionId,
+            &sessionId,
+            sizeof(sessionId),
+            &size)) {
+        result +=
+            "TOKEN_SESSION=" +
+            std::to_string(
+                sessionId);
+    } else {
+        result +=
+            "TOKEN_SESSION_ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    DWORD uiAccess = 0;
+    size = 0;
+
+    if (GetTokenInformation(
+            token,
+            TokenUIAccess,
+            &uiAccess,
+            sizeof(uiAccess),
+            &size)) {
+        result +=
+            " TOKEN_UIACCESS=" +
+            std::to_string(
+                uiAccess);
+    } else {
+        result +=
+            " TOKEN_UIACCESS_ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    DWORD userBytes = 0;
+
+    GetTokenInformation(
+        token,
+        TokenUser,
+        nullptr,
+        0,
+        &userBytes);
+
+    if (
+        userBytes > 0 &&
+        GetLastError() ==
+            ERROR_INSUFFICIENT_BUFFER
+    ) {
+        std::string buffer(
+            static_cast<std::size_t>(
+                userBytes),
+            '\0');
+
+        auto *tokenUser =
+            reinterpret_cast<TOKEN_USER *>(
+                buffer.data());
+
+        if (GetTokenInformation(
+                token,
+                TokenUser,
+                tokenUser,
+                userBytes,
+                &userBytes)) {
+            result +=
+                " TOKEN_USER=" +
+                sidToString(
+                    tokenUser->
+                        User.Sid);
+        }
+    }
+
+    DWORD integrityBytes = 0;
+
+    GetTokenInformation(
+        token,
+        TokenIntegrityLevel,
+        nullptr,
+        0,
+        &integrityBytes);
+
+    if (
+        integrityBytes > 0 &&
+        GetLastError() ==
+            ERROR_INSUFFICIENT_BUFFER
+    ) {
+        std::string buffer(
+            static_cast<std::size_t>(
+                integrityBytes),
+            '\0');
+
+        auto *label =
+            reinterpret_cast<
+                TOKEN_MANDATORY_LABEL *>(
+                    buffer.data());
+
+        if (GetTokenInformation(
+                token,
+                TokenIntegrityLevel,
+                label,
+                integrityBytes,
+                &integrityBytes)) {
+            result +=
+                " TOKEN_INTEGRITY_SID=" +
+                sidToString(
+                    label->
+                        Label.Sid);
+        }
+    }
+
+    DWORD groupsBytes = 0;
+
+    GetTokenInformation(
+        token,
+        TokenGroups,
+        nullptr,
+        0,
+        &groupsBytes);
+
+    bool logonSidFound =
+        false;
+
+    if (
+        groupsBytes > 0 &&
+        GetLastError() ==
+            ERROR_INSUFFICIENT_BUFFER
+    ) {
+        std::string buffer(
+            static_cast<std::size_t>(
+                groupsBytes),
+            '\0');
+
+        auto *groups =
+            reinterpret_cast<
+                TOKEN_GROUPS *>(
+                    buffer.data());
+
+        if (GetTokenInformation(
+                token,
+                TokenGroups,
+                groups,
+                groupsBytes,
+                &groupsBytes)) {
+            for (
+                DWORD index = 0;
+                index <
+                    groups->GroupCount;
+                ++index
+            ) {
+                const SID_AND_ATTRIBUTES &group =
+                    groups->Groups[index];
+
+                if (
+                    (
+                        group.Attributes &
+                        SE_GROUP_LOGON_ID
+                    ) ==
+                    SE_GROUP_LOGON_ID
+                ) {
+                    result +=
+                        " TOKEN_LOGON_SID=" +
+                        sidToString(
+                            group.Sid);
+
+                    logonSidFound =
+                        true;
+
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!logonSidFound) {
+        result +=
+            " TOKEN_LOGON_SID=MISSING";
+    }
+
+    CloseHandle(token);
+
+    return result;
+}
+
 std::string currentUser()
 {
     wchar_t userName[256]{};
@@ -713,6 +1150,21 @@ int main()
         << '\n';
 
     output
+        << "WINDOW_STATION="
+        << processWindowStationName()
+        << '\n';
+
+    output
+        << "THREAD_DESKTOP="
+        << currentThreadDesktopName()
+        << '\n';
+
+    output
+        << "TOKEN="
+        << tokenDiagnostics()
+        << '\n';
+
+    output
         << "WINLOGON_DESKTOP="
         << winlogonDesktopStatus()
         << '\n';
@@ -725,6 +1177,7 @@ int main()
     output.flush();
 
     startWinlogonCaptureThread();
+    startDefaultInputProbeThread();
 
     std::string previousDesktop;
 
