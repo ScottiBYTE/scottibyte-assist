@@ -215,6 +215,7 @@ if(WIN32)
   add_executable(
     scottibyte-assist-helper
     src/windows_uac_helper.cpp
+    assets/scottibyte-assist.rc
     assets/scottibyte-assist-version.rc
   )
 

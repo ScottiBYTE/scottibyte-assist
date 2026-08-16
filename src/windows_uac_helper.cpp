@@ -1172,7 +1172,7 @@ std::string processBrokerCommand(
             return "ERROR BAD_MOVE";
         }
 
-        if (!SetCursorPos(
+        if (!SetPhysicalCursorPos(
                 x,
                 y)) {
             return
@@ -1192,7 +1192,7 @@ std::string processBrokerCommand(
             return "ERROR BAD_CLICK_AT";
         }
 
-        if (!SetCursorPos(
+        if (!SetPhysicalCursorPos(
                 x,
                 y)) {
             return
@@ -1239,7 +1239,7 @@ std::string processBrokerCommand(
             return "ERROR BAD_LEFT_AT";
         }
 
-        if (!SetCursorPos(
+        if (!SetPhysicalCursorPos(
                 x,
                 y)) {
             return

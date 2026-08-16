@@ -357,6 +357,74 @@ void sendVirtualKey(
 }
 
 
+bool nativeMonitorGeometryForScreen(
+    QScreen *screen,
+    QRect &geometry)
+{
+    if (screen == nullptr) {
+        return false;
+    }
+
+    /*
+     * On Windows Qt scales each screen's size for DPI,
+     * but preserves its virtual-desktop position.
+     *
+     * Use that position only to identify the native
+     * HMONITOR. All subsequent geometry comes directly
+     * from Windows in native virtual-screen coordinates.
+     */
+    const QRect qtGeometry =
+        screen->geometry();
+
+    POINT point{
+        qtGeometry.left() + 1,
+        qtGeometry.top() + 1
+    };
+
+    HMONITOR monitor =
+        MonitorFromPoint(
+            point,
+            MONITOR_DEFAULTTONEAREST);
+
+    if (monitor == nullptr) {
+        return false;
+    }
+
+    MONITORINFO info{};
+    info.cbSize =
+        sizeof(info);
+
+    if (!GetMonitorInfoW(
+            monitor,
+            &info)) {
+        return false;
+    }
+
+    const int width =
+        info.rcMonitor.right -
+        info.rcMonitor.left;
+
+    const int height =
+        info.rcMonitor.bottom -
+        info.rcMonitor.top;
+
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
+        return false;
+    }
+
+    geometry =
+        QRect(
+            info.rcMonitor.left,
+            info.rcMonitor.top,
+            width,
+            height);
+
+    return true;
+}
+
 }
 
 WindowsDesktopBackend::WindowsDesktopBackend(
@@ -574,35 +642,79 @@ void WindowsDesktopBackend::captureFrame()
     frameWidth_ = frame.width();
     frameHeight_ = frame.height();
 
-    const QRect screenGeometry =
-        screen->geometry();
+    QRect nativeGeometry;
+
+    if (!nativeMonitorGeometryForScreen(
+            screen,
+            nativeGeometry)) {
+        emit cursorPositionChanged(
+            -1,
+            -1);
+
+        emit frameReady(frame);
+        return;
+    }
 
     POINT cursorPoint{};
 
-    const int frameLeft =
-        screenGeometry.left();
-
-    const int frameTop =
-        screenGeometry.top();
-
-    const int frameRight =
-        frameLeft +
-        frameWidth_;
-
-    const int frameBottom =
-        frameTop +
-        frameHeight_;
-
     if (
-        GetCursorPos(&cursorPoint) &&
-        cursorPoint.x >= frameLeft &&
-        cursorPoint.x < frameRight &&
-        cursorPoint.y >= frameTop &&
-        cursorPoint.y < frameBottom
+        GetPhysicalCursorPos(
+            &cursorPoint) &&
+        cursorPoint.x >=
+            nativeGeometry.left() &&
+        cursorPoint.x <
+            nativeGeometry.left() +
+            nativeGeometry.width() &&
+        cursorPoint.y >=
+            nativeGeometry.top() &&
+        cursorPoint.y <
+            nativeGeometry.top() +
+            nativeGeometry.height()
     ) {
+        const int relativeX =
+            cursorPoint.x -
+            nativeGeometry.left();
+
+        const int relativeY =
+            cursorPoint.y -
+            nativeGeometry.top();
+
+        int frameX = 0;
+        int frameY = 0;
+
+        if (
+            nativeGeometry.width() > 1 &&
+            frameWidth_ > 1
+        ) {
+            frameX =
+                relativeX *
+                (frameWidth_ - 1) /
+                (nativeGeometry.width() - 1);
+        }
+
+        if (
+            nativeGeometry.height() > 1 &&
+            frameHeight_ > 1
+        ) {
+            frameY =
+                relativeY *
+                (frameHeight_ - 1) /
+                (nativeGeometry.height() - 1);
+        }
+
         emit cursorPositionChanged(
-            cursorPoint.x - frameLeft,
-            cursorPoint.y - frameTop);
+            std::clamp(
+                frameX,
+                0,
+                frameWidth_ - 1),
+            std::clamp(
+                frameY,
+                0,
+                frameHeight_ - 1));
+    } else {
+        emit cursorPositionChanged(
+            -1,
+            -1);
     }
 
     emit frameReady(frame);
@@ -628,8 +740,13 @@ bool WindowsDesktopBackend::desktopPointForFramePoint(
         return false;
     }
 
-    const QRect screenGeometry =
-        screen->geometry();
+    QRect nativeGeometry;
+
+    if (!nativeMonitorGeometryForScreen(
+            screen,
+            nativeGeometry)) {
+        return false;
+    }
 
     const int boundedX =
         std::clamp(
@@ -643,22 +760,31 @@ bool WindowsDesktopBackend::desktopPointForFramePoint(
             0,
             frameHeight_ - 1);
 
-    /*
-     * On Windows Qt keeps QScreen's virtual-desktop
-     * position in the native desktop coordinate system,
-     * while grabWindow() returns the monitor's raw
-     * device pixels.
-     *
-     * The remote x/y values are coordinates in that
-     * captured frame, so no DPI conversion is needed.
-     */
     desktopX =
-        screenGeometry.left() +
-        boundedX;
+        nativeGeometry.left();
 
     desktopY =
-        screenGeometry.top() +
-        boundedY;
+        nativeGeometry.top();
+
+    if (
+        frameWidth_ > 1 &&
+        nativeGeometry.width() > 1
+    ) {
+        desktopX +=
+            boundedX *
+            (nativeGeometry.width() - 1) /
+            (frameWidth_ - 1);
+    }
+
+    if (
+        frameHeight_ > 1 &&
+        nativeGeometry.height() > 1
+    ) {
+        desktopY +=
+            boundedY *
+            (nativeGeometry.height() - 1) /
+            (frameHeight_ - 1);
+    }
 
     return true;
 }
@@ -689,7 +815,7 @@ void WindowsDesktopBackend::movePointerTo(
         return;
     }
 
-    SetCursorPos(
+    SetPhysicalCursorPos(
         desktopX,
         desktopY);
 }
