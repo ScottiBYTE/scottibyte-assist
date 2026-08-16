@@ -183,6 +183,14 @@ if(WIN32)
       advapi32
   )
 
+  target_link_options(
+    scottibyte-assist-service
+    PRIVATE
+      -static-libgcc
+      -static-libstdc++
+      -static
+  )
+
   add_executable(
     windows-uac-pipe-test
     src/windows_uac_pipe_test.cpp

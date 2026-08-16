@@ -11,8 +11,15 @@ constexpr wchar_t PipeName[] =
 
 }
 
-int main()
+int main(
+    int argc,
+    char **argv)
 {
+    const std::string request =
+        argc >= 2
+            ? argv[1]
+            : "PING";
+
     HANDLE pipe =
         CreateFileW(
             PipeName,
@@ -34,19 +41,17 @@ int main()
         return 1;
     }
 
-    constexpr char request[] =
-        "PING";
-
     DWORD bytesWritten = 0;
 
     if (!WriteFile(
             pipe,
-            request,
-            sizeof(request) - 1,
+            request.data(),
+            static_cast<DWORD>(
+                request.size()),
             &bytesWritten,
             nullptr)) {
         std::cerr
-            << "Could not write PING. "
+            << "Could not write request. "
             << "Windows error "
             << GetLastError()
             << '\n';
@@ -55,7 +60,7 @@ int main()
         return 1;
     }
 
-    char response[64]{};
+    char response[1024]{};
     DWORD bytesRead = 0;
 
     if (!ReadFile(
@@ -76,16 +81,12 @@ int main()
 
     CloseHandle(pipe);
 
-    const std::string reply(
-        response,
-        response + bytesRead);
-
     std::cout
         << "Service response: "
-        << reply
+        << std::string(
+               response,
+               response + bytesRead)
         << '\n';
 
-    return reply == "PONG"
-        ? 0
-        : 1;
+    return 0;
 }

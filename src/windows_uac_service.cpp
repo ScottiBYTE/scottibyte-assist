@@ -2,6 +2,7 @@
 #include <sddl.h>
 
 #include <cstring>
+#include <string>
 
 namespace
 {
@@ -117,51 +118,185 @@ bool createPipeSecurity(
     return true;
 }
 
+void writePipeResponse(
+    HANDLE pipe,
+    const std::string &response)
+{
+    DWORD bytesWritten = 0;
+
+    WriteFile(
+        pipe,
+        response.data(),
+        static_cast<DWORD>(
+            response.size()),
+        &bytesWritten,
+        nullptr);
+
+    FlushFileBuffers(pipe);
+}
+
+std::string inputDesktopStatus()
+{
+    DWORD serviceSessionId =
+        0xffffffff;
+
+    ProcessIdToSessionId(
+        GetCurrentProcessId(),
+        &serviceSessionId);
+
+    const DWORD activeConsoleSessionId =
+        WTSGetActiveConsoleSessionId();
+
+    std::string response =
+        "SERVICE_SESSION=" +
+        std::to_string(
+            serviceSessionId) +
+        " ACTIVE_CONSOLE_SESSION=" +
+        std::to_string(
+            activeConsoleSessionId);
+
+    HDESK desktop =
+        OpenInputDesktop(
+            0,
+            FALSE,
+            DESKTOP_READOBJECTS);
+
+    if (desktop == nullptr) {
+        response +=
+            " INPUT_DESKTOP=UNAVAILABLE"
+            " ERROR=" +
+            std::to_string(
+                GetLastError());
+
+        return response;
+    }
+
+    DWORD requiredBytes = 0;
+
+    GetUserObjectInformationW(
+        desktop,
+        UOI_NAME,
+        nullptr,
+        0,
+        &requiredBytes);
+
+    if (requiredBytes == 0) {
+        response +=
+            " INPUT_DESKTOP=OPEN"
+            " NAME=UNKNOWN";
+
+        CloseDesktop(desktop);
+        return response;
+    }
+
+    std::wstring desktopName(
+        requiredBytes /
+            sizeof(wchar_t),
+        L'\0');
+
+    if (!GetUserObjectInformationW(
+            desktop,
+            UOI_NAME,
+            desktopName.data(),
+            requiredBytes,
+            &requiredBytes)) {
+        response +=
+            " INPUT_DESKTOP=OPEN"
+            " NAME_ERROR=" +
+            std::to_string(
+                GetLastError());
+
+        CloseDesktop(desktop);
+        return response;
+    }
+
+    CloseDesktop(desktop);
+
+    while (
+        !desktopName.empty() &&
+        desktopName.back() == L'\0'
+    ) {
+        desktopName.pop_back();
+    }
+
+    const int utf8Length =
+        WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            desktopName.c_str(),
+            static_cast<int>(
+                desktopName.size()),
+            nullptr,
+            0,
+            nullptr,
+            nullptr);
+
+    std::string utf8Name;
+
+    if (utf8Length > 0) {
+        utf8Name.resize(
+            static_cast<std::size_t>(
+                utf8Length));
+
+        WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            desktopName.c_str(),
+            static_cast<int>(
+                desktopName.size()),
+            utf8Name.data(),
+            utf8Length,
+            nullptr,
+            nullptr);
+    }
+
+    response +=
+        " INPUT_DESKTOP=OPEN"
+        " NAME=" +
+        utf8Name;
+
+    return response;
+}
+
 void handlePipeClient(
     HANDLE pipe)
 {
-    char request[64]{};
+    char requestBuffer[64]{};
 
     DWORD bytesRead = 0;
 
     if (!ReadFile(
             pipe,
-            request,
-            sizeof(request) - 1,
+            requestBuffer,
+            sizeof(requestBuffer) - 1,
             &bytesRead,
             nullptr)) {
         return;
     }
 
-    request[bytesRead] = '\0';
+    const std::string request(
+        requestBuffer,
+        requestBuffer + bytesRead);
 
-    constexpr char ping[] =
-        "PING";
+    if (request == "PING") {
+        writePipeResponse(
+            pipe,
+            "PONG");
 
-    if (
-        bytesRead !=
-            sizeof(ping) - 1 ||
-        std::memcmp(
-            request,
-            ping,
-            sizeof(ping) - 1) != 0
-    ) {
         return;
     }
 
-    constexpr char response[] =
-        "PONG";
+    if (request == "STATUS") {
+        writePipeResponse(
+            pipe,
+            inputDesktopStatus());
 
-    DWORD bytesWritten = 0;
+        return;
+    }
 
-    WriteFile(
+    writePipeResponse(
         pipe,
-        response,
-        sizeof(response) - 1,
-        &bytesWritten,
-        nullptr);
-
-    FlushFileBuffers(pipe);
+        "ERROR UNKNOWN_COMMAND");
 }
 
 void runPipeServer()
