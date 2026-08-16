@@ -1,5 +1,5 @@
 #define MyAppName "ScottiBYTE Assist"
-#define MyAppVersion "0.4.8"
+#define MyAppVersion "0.4.9"
 #define MyAppPublisher "ScottiBYTE"
 #define MyAppExeName "scottibyte-assist.exe"
 
