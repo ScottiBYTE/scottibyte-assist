@@ -113,6 +113,132 @@ std::string winlogonDesktopStatus()
     return result;
 }
 
+DWORD WINAPI winlogonThreadProbe(
+    LPVOID parameter)
+{
+    auto *result =
+        static_cast<std::string *>(
+            parameter);
+
+    HDESK desktop =
+        OpenDesktopW(
+            L"Winlogon",
+            0,
+            FALSE,
+            DESKTOP_READOBJECTS |
+                DESKTOP_WRITEOBJECTS |
+                DESKTOP_SWITCHDESKTOP);
+
+    if (desktop == nullptr) {
+        *result =
+            "OPEN_FAILED ERROR=" +
+            std::to_string(
+                GetLastError());
+
+        return 1;
+    }
+
+    if (!SetThreadDesktop(
+            desktop)) {
+        *result =
+            "SET_THREAD_DESKTOP_FAILED ERROR=" +
+            std::to_string(
+                GetLastError());
+
+        CloseDesktop(desktop);
+
+        return 2;
+    }
+
+    HDESK threadDesktop =
+        GetThreadDesktop(
+            GetCurrentThreadId());
+
+    DWORD requiredBytes = 0;
+
+    GetUserObjectInformationW(
+        threadDesktop,
+        UOI_NAME,
+        nullptr,
+        0,
+        &requiredBytes);
+
+    if (requiredBytes == 0) {
+        *result =
+            "ATTACHED NAME=UNKNOWN";
+
+        CloseDesktop(desktop);
+
+        return 0;
+    }
+
+    std::wstring name(
+        requiredBytes /
+            sizeof(wchar_t),
+        L'\0');
+
+    if (!GetUserObjectInformationW(
+            threadDesktop,
+            UOI_NAME,
+            name.data(),
+            requiredBytes,
+            &requiredBytes)) {
+        *result =
+            "ATTACHED NAME_ERROR=" +
+            std::to_string(
+                GetLastError());
+
+        CloseDesktop(desktop);
+
+        return 0;
+    }
+
+    while (
+        !name.empty() &&
+        name.back() == L'\0'
+    ) {
+        name.pop_back();
+    }
+
+    *result =
+        "ATTACHED NAME=" +
+        wideToUtf8(name);
+
+    CloseDesktop(desktop);
+
+    return 0;
+}
+
+std::string winlogonThreadStatus()
+{
+    std::string result =
+        "NOT_RUN";
+
+    HANDLE thread =
+        CreateThread(
+            nullptr,
+            0,
+            winlogonThreadProbe,
+            &result,
+            0,
+            nullptr);
+
+    if (thread == nullptr) {
+        return
+            "CREATE_THREAD_FAILED ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    WaitForSingleObject(
+        thread,
+        INFINITE);
+
+    CloseHandle(thread);
+
+    return result;
+}
+
 std::string currentInputDesktop()
 {
     HDESK desktop =
@@ -232,6 +358,11 @@ int main()
     output
         << "WINLOGON_DESKTOP="
         << winlogonDesktopStatus()
+        << '\n';
+
+    output
+        << "WINLOGON_THREAD="
+        << winlogonThreadStatus()
         << '\n';
 
     output.flush();
