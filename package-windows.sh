@@ -38,6 +38,14 @@ cp \
   "$BUILD/scottibyte-assist.exe" \
   "$DEPLOY/scottibyte-assist.exe"
 
+cp \
+  "$BUILD/scottibyte-assist-service.exe" \
+  "$DEPLOY/scottibyte-assist-service.exe"
+
+cp \
+  "$BUILD/scottibyte-assist-helper.exe" \
+  "$DEPLOY/scottibyte-assist-helper.exe"
+
 echo "== Deploy Qt runtime =="
 "$UCRT_BIN/windeployqt.exe" \
   --release \
