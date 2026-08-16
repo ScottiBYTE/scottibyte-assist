@@ -198,6 +198,19 @@ if(WIN32)
   )
 
   add_executable(
+    windows-uac-input-test
+    src/windows_uac_input_test.cpp
+  )
+
+  target_link_options(
+    windows-uac-input-test
+    PRIVATE
+      -static-libgcc
+      -static-libstdc++
+      -static
+  )
+
+  add_executable(
     scottibyte-assist-helper
     src/windows_uac_helper.cpp
   )

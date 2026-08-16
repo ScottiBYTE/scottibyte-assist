@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <string>
+#include <sstream>
 
 namespace
 {
@@ -1120,10 +1121,448 @@ std::string currentUser()
         std::wstring(userName));
 }
 
+bool currentUserIsSystem()
+{
+    HANDLE token = nullptr;
+
+    if (!OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY,
+            &token)) {
+        return false;
+    }
+
+    DWORD bytes = 0;
+
+    GetTokenInformation(
+        token,
+        TokenUser,
+        nullptr,
+        0,
+        &bytes);
+
+    if (
+        bytes == 0 ||
+        GetLastError() !=
+            ERROR_INSUFFICIENT_BUFFER
+    ) {
+        CloseHandle(token);
+        return false;
+    }
+
+    std::string buffer(
+        static_cast<std::size_t>(bytes),
+        '\0');
+
+    auto *user =
+        reinterpret_cast<TOKEN_USER *>(
+            buffer.data());
+
+    if (!GetTokenInformation(
+            token,
+            TokenUser,
+            user,
+            bytes,
+            &bytes)) {
+        CloseHandle(token);
+        return false;
+    }
+
+    BYTE systemSidBuffer[
+        SECURITY_MAX_SID_SIZE]{};
+
+    DWORD systemSidSize =
+        sizeof(systemSidBuffer);
+
+    const BOOL created =
+        CreateWellKnownSid(
+            WinLocalSystemSid,
+            nullptr,
+            systemSidBuffer,
+            &systemSidSize);
+
+    const bool isSystem =
+        created &&
+        EqualSid(
+            user->User.Sid,
+            systemSidBuffer);
+
+    CloseHandle(token);
+
+    return isSystem;
+}
+
+bool isExtendedVirtualKey(
+    WORD virtualKey)
+{
+    switch (virtualKey) {
+    case VK_LEFT:
+    case VK_RIGHT:
+    case VK_UP:
+    case VK_DOWN:
+    case VK_HOME:
+    case VK_END:
+    case VK_PRIOR:
+    case VK_NEXT:
+    case VK_INSERT:
+    case VK_DELETE:
+    case VK_LWIN:
+    case VK_RWIN:
+    case VK_APPS:
+    case VK_SNAPSHOT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool sendBrokerVirtualKey(
+    WORD virtualKey,
+    bool pressed)
+{
+    if (virtualKey == 0) {
+        return false;
+    }
+
+    INPUT input{};
+    input.type =
+        INPUT_KEYBOARD;
+
+    input.ki.wVk =
+        virtualKey;
+
+    if (isExtendedVirtualKey(
+            virtualKey)) {
+        input.ki.dwFlags |=
+            KEYEVENTF_EXTENDEDKEY;
+    }
+
+    if (!pressed) {
+        input.ki.dwFlags |=
+            KEYEVENTF_KEYUP;
+    }
+
+    return
+        SendInput(
+            1,
+            &input,
+            sizeof(INPUT)) == 1;
+}
+
+bool sendBrokerMouseButton(
+    DWORD flags)
+{
+    INPUT input{};
+    input.type =
+        INPUT_MOUSE;
+
+    input.mi.dwFlags =
+        flags;
+
+    return
+        SendInput(
+            1,
+            &input,
+            sizeof(INPUT)) == 1;
+}
+
+std::string processBrokerCommand(
+    const std::string &request,
+    bool &quit)
+{
+    std::istringstream input(
+        request);
+
+    std::string command;
+    input >> command;
+
+    if (command == "PING") {
+        return "PONG";
+    }
+
+    if (command == "QUIT") {
+        quit = true;
+        return "OK";
+    }
+
+    if (command == "MOVE") {
+        int x = 0;
+        int y = 0;
+
+        if (!(input >> x >> y)) {
+            return "ERROR BAD_MOVE";
+        }
+
+        if (!SetCursorPos(
+                x,
+                y)) {
+            return
+                "ERROR MOVE " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        return "OK";
+    }
+
+    if (command == "LDOWN") {
+        return
+            sendBrokerMouseButton(
+                MOUSEEVENTF_LEFTDOWN)
+                ? "OK"
+                : "ERROR LDOWN";
+    }
+
+    if (command == "LUP") {
+        return
+            sendBrokerMouseButton(
+                MOUSEEVENTF_LEFTUP)
+                ? "OK"
+                : "ERROR LUP";
+    }
+
+    if (command == "RDOWN") {
+        return
+            sendBrokerMouseButton(
+                MOUSEEVENTF_RIGHTDOWN)
+                ? "OK"
+                : "ERROR RDOWN";
+    }
+
+    if (command == "RUP") {
+        return
+            sendBrokerMouseButton(
+                MOUSEEVENTF_RIGHTUP)
+                ? "OK"
+                : "ERROR RUP";
+    }
+
+    if (
+        command == "KEYDOWN" ||
+        command == "KEYUP"
+    ) {
+        unsigned int virtualKey = 0;
+
+        if (!(input >> virtualKey) ||
+            virtualKey > 0xffff) {
+            return "ERROR BAD_KEY";
+        }
+
+        const bool pressed =
+            command == "KEYDOWN";
+
+        if (!sendBrokerVirtualKey(
+                static_cast<WORD>(
+                    virtualKey),
+                pressed)) {
+            return
+                "ERROR KEY " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        return "OK";
+    }
+
+    return "ERROR UNKNOWN_COMMAND";
+}
+
+bool createElevatedInputPipeSecurity(
+    SECURITY_ATTRIBUTES &attributes,
+    PSECURITY_DESCRIPTOR &descriptor)
+{
+    HANDLE token = nullptr;
+
+    if (!OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY,
+            &token)) {
+        return false;
+    }
+
+    DWORD bytes = 0;
+
+    GetTokenInformation(
+        token,
+        TokenUser,
+        nullptr,
+        0,
+        &bytes);
+
+    if (
+        bytes == 0 ||
+        GetLastError() !=
+            ERROR_INSUFFICIENT_BUFFER
+    ) {
+        CloseHandle(token);
+        return false;
+    }
+
+    std::string buffer(
+        static_cast<std::size_t>(bytes),
+        '\0');
+
+    auto *user =
+        reinterpret_cast<TOKEN_USER *>(
+            buffer.data());
+
+    if (!GetTokenInformation(
+            token,
+            TokenUser,
+            user,
+            bytes,
+            &bytes)) {
+        CloseHandle(token);
+        return false;
+    }
+
+    LPWSTR userSidString = nullptr;
+
+    if (!ConvertSidToStringSidW(
+            user->User.Sid,
+            &userSidString)) {
+        CloseHandle(token);
+        return false;
+    }
+
+    CloseHandle(token);
+
+    const std::wstring sddl =
+        std::wstring(
+            L"D:"
+            L"(A;;GA;;;SY)"
+            L"(A;;GA;;;BA)"
+            L"(A;;GRGW;;;") +
+        userSidString +
+        L")";
+
+    LocalFree(
+        userSidString);
+
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.c_str(),
+            SDDL_REVISION_1,
+            &descriptor,
+            nullptr)) {
+        return false;
+    }
+
+    attributes.nLength =
+        sizeof(SECURITY_ATTRIBUTES);
+
+    attributes.lpSecurityDescriptor =
+        descriptor;
+
+    attributes.bInheritHandle =
+        FALSE;
+
+    return true;
+}
+
+int runElevatedInputBroker()
+{
+    constexpr wchar_t pipeName[] =
+        L"\\\\.\\pipe\\ScottiBYTEAssistElevatedInput";
+
+    SECURITY_ATTRIBUTES securityAttributes{};
+    PSECURITY_DESCRIPTOR securityDescriptor =
+        nullptr;
+
+    if (!createElevatedInputPipeSecurity(
+            securityAttributes,
+            securityDescriptor)) {
+        return 20;
+    }
+
+    bool quit = false;
+
+    while (!quit) {
+        HANDLE pipe =
+            CreateNamedPipeW(
+                pipeName,
+                PIPE_ACCESS_DUPLEX,
+                PIPE_TYPE_MESSAGE |
+                    PIPE_READMODE_MESSAGE |
+                    PIPE_WAIT |
+                    PIPE_REJECT_REMOTE_CLIENTS,
+                1,
+                4096,
+                4096,
+                0,
+                &securityAttributes);
+
+        if (pipe ==
+            INVALID_HANDLE_VALUE) {
+            LocalFree(
+                securityDescriptor);
+
+            return 21;
+        }
+
+        const BOOL connected =
+            ConnectNamedPipe(
+                pipe,
+                nullptr)
+            ? TRUE
+            : (
+                GetLastError() ==
+                ERROR_PIPE_CONNECTED
+            );
+
+        if (connected) {
+            char requestBuffer[512]{};
+            DWORD bytesRead = 0;
+
+            if (ReadFile(
+                    pipe,
+                    requestBuffer,
+                    sizeof(requestBuffer) - 1,
+                    &bytesRead,
+                    nullptr)) {
+                const std::string request(
+                    requestBuffer,
+                    requestBuffer +
+                        bytesRead);
+
+                const std::string response =
+                    processBrokerCommand(
+                        request,
+                        quit);
+
+                DWORD bytesWritten = 0;
+
+                WriteFile(
+                    pipe,
+                    response.data(),
+                    static_cast<DWORD>(
+                        response.size()),
+                    &bytesWritten,
+                    nullptr);
+
+                FlushFileBuffers(pipe);
+            }
+
+            DisconnectNamedPipe(
+                pipe);
+        }
+
+        CloseHandle(pipe);
+    }
+
+    LocalFree(
+        securityDescriptor);
+
+    return 0;
+}
+
 }
 
 int main()
 {
+    if (!currentUserIsSystem()) {
+        return runElevatedInputBroker();
+    }
+
     DWORD sessionId =
         0xffffffff;
 
