@@ -1,10 +1,16 @@
 #include <windows.h>
+#include <sddl.h>
+
+#include <cstring>
 
 namespace
 {
 
 constexpr wchar_t ServiceName[] =
     L"ScottiBYTEAssistService";
+
+constexpr wchar_t PipeName[] =
+    L"\\\\.\\pipe\\ScottiBYTEAssistPrivileged";
 
 SERVICE_STATUS_HANDLE serviceStatusHandle =
     nullptr;
@@ -72,6 +78,176 @@ DWORD WINAPI serviceControlHandler(
     }
 }
 
+bool createPipeSecurity(
+    SECURITY_ATTRIBUTES &attributes,
+    PSECURITY_DESCRIPTOR &descriptor)
+{
+    /*
+     * SYSTEM: full access
+     * Administrators: full access
+     * Interactive users: read/write
+     *
+     * This is sufficient for the harmless PING/PONG
+     * proof. Privileged commands will require
+     * additional client authentication later.
+     */
+    constexpr wchar_t sddl[] =
+        L"D:"
+        L"(A;;GA;;;SY)"
+        L"(A;;GA;;;BA)"
+        L"(A;;GRGW;;;IU)";
+
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl,
+            SDDL_REVISION_1,
+            &descriptor,
+            nullptr)) {
+        return false;
+    }
+
+    attributes.nLength =
+        sizeof(SECURITY_ATTRIBUTES);
+
+    attributes.lpSecurityDescriptor =
+        descriptor;
+
+    attributes.bInheritHandle =
+        FALSE;
+
+    return true;
+}
+
+void handlePipeClient(
+    HANDLE pipe)
+{
+    char request[64]{};
+
+    DWORD bytesRead = 0;
+
+    if (!ReadFile(
+            pipe,
+            request,
+            sizeof(request) - 1,
+            &bytesRead,
+            nullptr)) {
+        return;
+    }
+
+    request[bytesRead] = '\0';
+
+    constexpr char ping[] =
+        "PING";
+
+    if (
+        bytesRead !=
+            sizeof(ping) - 1 ||
+        std::memcmp(
+            request,
+            ping,
+            sizeof(ping) - 1) != 0
+    ) {
+        return;
+    }
+
+    constexpr char response[] =
+        "PONG";
+
+    DWORD bytesWritten = 0;
+
+    WriteFile(
+        pipe,
+        response,
+        sizeof(response) - 1,
+        &bytesWritten,
+        nullptr);
+
+    FlushFileBuffers(pipe);
+}
+
+void runPipeServer()
+{
+    SECURITY_ATTRIBUTES securityAttributes{};
+    PSECURITY_DESCRIPTOR securityDescriptor =
+        nullptr;
+
+    if (!createPipeSecurity(
+            securityAttributes,
+            securityDescriptor)) {
+        return;
+    }
+
+    while (
+        WaitForSingleObject(
+            stopEvent,
+            0) != WAIT_OBJECT_0
+    ) {
+        HANDLE pipe =
+            CreateNamedPipeW(
+                PipeName,
+                PIPE_ACCESS_DUPLEX,
+                PIPE_TYPE_MESSAGE |
+                    PIPE_READMODE_MESSAGE |
+                    PIPE_NOWAIT,
+                1,
+                4096,
+                4096,
+                0,
+                &securityAttributes);
+
+        if (pipe == INVALID_HANDLE_VALUE) {
+            Sleep(250);
+            continue;
+        }
+
+        bool connected = false;
+
+        while (
+            WaitForSingleObject(
+                stopEvent,
+                0) != WAIT_OBJECT_0
+        ) {
+            if (ConnectNamedPipe(
+                    pipe,
+                    nullptr)) {
+                connected = true;
+                break;
+            }
+
+            const DWORD error =
+                GetLastError();
+
+            if (
+                error ==
+                ERROR_PIPE_CONNECTED
+            ) {
+                connected = true;
+                break;
+            }
+
+            if (
+                error !=
+                ERROR_PIPE_LISTENING
+            ) {
+                break;
+            }
+
+            Sleep(50);
+        }
+
+        if (connected) {
+            handlePipeClient(pipe);
+
+            DisconnectNamedPipe(pipe);
+        }
+
+        CloseHandle(pipe);
+    }
+
+    if (securityDescriptor != nullptr) {
+        LocalFree(securityDescriptor);
+    }
+}
+
 void WINAPI serviceMain(
     DWORD,
     wchar_t **)
@@ -109,9 +285,7 @@ void WINAPI serviceMain(
     reportServiceStatus(
         SERVICE_RUNNING);
 
-    WaitForSingleObject(
-        stopEvent,
-        INFINITE);
+    runPipeServer();
 
     CloseHandle(stopEvent);
     stopEvent = nullptr;
