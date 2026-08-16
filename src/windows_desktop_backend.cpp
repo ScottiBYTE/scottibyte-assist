@@ -1,6 +1,7 @@
 #include "windows_desktop_backend.h"
 
 #include <QGuiApplication>
+#include <QDebug>
 #include <QImage>
 #include <QPixmap>
 #include <QScreen>
@@ -356,6 +357,76 @@ void sendVirtualKey(
         sizeof(INPUT));
 }
 
+bool nativeMonitorGeometryForScreen(
+    QScreen *screen,
+    QRect &geometry)
+{
+    if (screen == nullptr) {
+        return false;
+    }
+
+    /*
+     * QScreen::geometry() is expressed in Qt logical
+     * coordinates on a mixed-DPI desktop.
+     *
+     * Use a point near the center only to identify the
+     * Windows monitor.  Once we have the HMONITOR,
+     * GetMonitorInfoW() gives us the authoritative
+     * native virtual-desktop rectangle used by
+     * GetCursorPos() and SetCursorPos().
+     */
+    const QRect qtGeometry =
+        screen->geometry();
+
+    POINT monitorPoint{
+        qtGeometry.center().x(),
+        qtGeometry.center().y()
+    };
+
+    HMONITOR monitor =
+        MonitorFromPoint(
+            monitorPoint,
+            MONITOR_DEFAULTTONEAREST);
+
+    if (monitor == nullptr) {
+        return false;
+    }
+
+    MONITORINFO monitorInfo{};
+    monitorInfo.cbSize =
+        sizeof(monitorInfo);
+
+    if (!GetMonitorInfoW(
+            monitor,
+            &monitorInfo)) {
+        return false;
+    }
+
+    const int width =
+        monitorInfo.rcMonitor.right -
+        monitorInfo.rcMonitor.left;
+
+    const int height =
+        monitorInfo.rcMonitor.bottom -
+        monitorInfo.rcMonitor.top;
+
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
+        return false;
+    }
+
+    geometry =
+        QRect(
+            monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.top,
+            width,
+            height);
+
+    return true;
+}
+
 }
 
 WindowsDesktopBackend::WindowsDesktopBackend(
@@ -405,6 +476,54 @@ availableRemoteControlDisplays() const
 
         const QRect geometry =
             screen->geometry();
+
+        const qreal devicePixelRatio =
+            screen->devicePixelRatio();
+
+        POINT monitorPoint{
+            geometry.center().x(),
+            geometry.center().y()
+        };
+
+        HMONITOR monitor =
+            MonitorFromPoint(
+                monitorPoint,
+                MONITOR_DEFAULTTONEAREST);
+
+        MONITORINFO monitorInfo{};
+        monitorInfo.cbSize =
+            sizeof(monitorInfo);
+
+        if (
+            monitor != nullptr &&
+            GetMonitorInfoW(
+                monitor,
+                &monitorInfo)
+        ) {
+            qInfo().noquote()
+                << QStringLiteral(
+                       "WINDOWS_DISPLAY_DIAG "
+                       "index=%1 "
+                       "name=%2 "
+                       "qt=(%3,%4 %5x%6) "
+                       "dpr=%7 "
+                       "native=(%8,%9 %10x%11)")
+                       .arg(index)
+                       .arg(screen->name())
+                       .arg(geometry.left())
+                       .arg(geometry.top())
+                       .arg(geometry.width())
+                       .arg(geometry.height())
+                       .arg(devicePixelRatio)
+                       .arg(monitorInfo.rcMonitor.left)
+                       .arg(monitorInfo.rcMonitor.top)
+                       .arg(
+                           monitorInfo.rcMonitor.right -
+                           monitorInfo.rcMonitor.left)
+                       .arg(
+                           monitorInfo.rcMonitor.bottom -
+                           monitorInfo.rcMonitor.top);
+        }
 
         QString name =
             screen->name().trimmed();
@@ -573,21 +692,13 @@ void WindowsDesktopBackend::captureFrame()
     frameWidth_ = frame.width();
     frameHeight_ = frame.height();
 
-    const QRect logicalGeometry =
-        screen->geometry();
+    QRect geometry;
 
-    const qreal devicePixelRatio =
-        screen->devicePixelRatio();
-
-    const QRect geometry(
-        qRound(
-            logicalGeometry.left() *
-            devicePixelRatio),
-        qRound(
-            logicalGeometry.top() *
-            devicePixelRatio),
-        frameWidth_,
-        frameHeight_);
+    if (!nativeMonitorGeometryForScreen(
+            screen,
+            geometry)) {
+        return;
+    }
 
     POINT cursorPoint{};
 
@@ -649,21 +760,13 @@ bool WindowsDesktopBackend::desktopPointForFramePoint(
         return false;
     }
 
-    const QRect logicalGeometry =
-        screen->geometry();
+    QRect geometry;
 
-    const qreal devicePixelRatio =
-        screen->devicePixelRatio();
-
-    const QRect geometry(
-        qRound(
-            logicalGeometry.left() *
-            devicePixelRatio),
-        qRound(
-            logicalGeometry.top() *
-            devicePixelRatio),
-        frameWidth_,
-        frameHeight_);
+    if (!nativeMonitorGeometryForScreen(
+            screen,
+            geometry)) {
+        return false;
+    }
 
     const int boundedX =
         std::clamp(
@@ -710,63 +813,15 @@ void WindowsDesktopBackend::movePointerTo(
     int x,
     int y)
 {
-    if (frameWidth_ <= 0 ||
-        frameHeight_ <= 0) {
-        return;
-    }
+    int desktopX = 0;
+    int desktopY = 0;
 
-    QScreen *screen =
-        selectedScreen();
-
-    if (screen == nullptr) {
-        return;
-    }
-
-    const QRect logicalGeometry =
-        screen->geometry();
-
-    const qreal devicePixelRatio =
-        screen->devicePixelRatio();
-
-    const QRect geometry(
-        qRound(
-            logicalGeometry.left() *
-            devicePixelRatio),
-        qRound(
-            logicalGeometry.top() *
-            devicePixelRatio),
-        frameWidth_,
-        frameHeight_);
-
-    const int boundedX =
-        std::clamp(
+    if (!desktopPointForFramePoint(
             x,
-            0,
-            frameWidth_ - 1);
-
-    const int boundedY =
-        std::clamp(
             y,
-            0,
-            frameHeight_ - 1);
-
-    int desktopX = geometry.left();
-    int desktopY = geometry.top();
-
-    if (frameWidth_ > 1 &&
-        geometry.width() > 1) {
-        desktopX +=
-            boundedX *
-            (geometry.width() - 1) /
-            (frameWidth_ - 1);
-    }
-
-    if (frameHeight_ > 1 &&
-        geometry.height() > 1) {
-        desktopY +=
-            boundedY *
-            (geometry.height() - 1) /
-            (frameHeight_ - 1);
+            desktopX,
+            desktopY)) {
+        return;
     }
 
     const std::string command =
@@ -838,35 +893,6 @@ void WindowsDesktopBackend::pressLeftAt(
     movePointerTo(
         x,
         y);
-
-    POINT cursorPoint {};
-
-    if (GetCursorPos(&cursorPoint)) {
-        HWND targetWindow =
-            WindowFromPoint(
-                cursorPoint);
-
-        if (targetWindow != nullptr) {
-            const LRESULT hitTest =
-                SendMessage(
-                    targetWindow,
-                    WM_NCHITTEST,
-                    0,
-                    MAKELPARAM(
-                        cursorPoint.x,
-                        cursorPoint.y));
-
-            if (hitTest == HTCLOSE) {
-                PostMessage(
-                    targetWindow,
-                    WM_CLOSE,
-                    0,
-                    0);
-
-                return;
-            }
-        }
-    }
 
     if (sendElevatedBrokerCommand(
             "LDOWN")) {
