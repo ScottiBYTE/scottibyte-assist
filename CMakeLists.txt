@@ -171,6 +171,17 @@ if(WIN32)
       ole32
       uuid
   )
+
+  add_executable(
+    scottibyte-assist-service
+    src/windows_uac_service.cpp
+  )
+
+  target_link_libraries(
+    scottibyte-assist-service
+    PRIVATE
+      advapi32
+  )
 else()
   target_link_libraries(
     scottibyte-assist
