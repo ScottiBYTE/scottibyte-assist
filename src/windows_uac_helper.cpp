@@ -6,7 +6,114 @@
 namespace
 {
 
-std::string desktopName()
+std::string wideToUtf8(
+    const std::wstring &value)
+{
+    if (value.empty()) {
+        return {};
+    }
+
+    const int length =
+        WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            value.c_str(),
+            static_cast<int>(
+                value.size()),
+            nullptr,
+            0,
+            nullptr,
+            nullptr);
+
+    if (length <= 0) {
+        return {};
+    }
+
+    std::string result(
+        static_cast<std::size_t>(
+            length),
+        '\0');
+
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        value.c_str(),
+        static_cast<int>(
+            value.size()),
+        result.data(),
+        length,
+        nullptr,
+        nullptr);
+
+    return result;
+}
+
+std::string winlogonDesktopStatus()
+{
+    HDESK desktop =
+        OpenDesktopW(
+            L"Winlogon",
+            0,
+            FALSE,
+            DESKTOP_READOBJECTS |
+                DESKTOP_WRITEOBJECTS |
+                DESKTOP_SWITCHDESKTOP);
+
+    if (desktop == nullptr) {
+        return
+            "UNAVAILABLE ERROR=" +
+            std::to_string(
+                GetLastError());
+    }
+
+    DWORD requiredBytes = 0;
+
+    GetUserObjectInformationW(
+        desktop,
+        UOI_NAME,
+        nullptr,
+        0,
+        &requiredBytes);
+
+    std::string result =
+        "OPEN";
+
+    if (requiredBytes > 0) {
+        std::wstring name(
+            requiredBytes /
+                sizeof(wchar_t),
+            L'\0');
+
+        if (GetUserObjectInformationW(
+                desktop,
+                UOI_NAME,
+                name.data(),
+                requiredBytes,
+                &requiredBytes)) {
+            while (
+                !name.empty() &&
+                name.back() == L'\0'
+            ) {
+                name.pop_back();
+            }
+
+            result +=
+                " NAME=" +
+                wideToUtf8(name);
+        } else {
+            result +=
+                " NAME_ERROR=" +
+                std::to_string(
+                    GetLastError());
+        }
+    }
+
+    CloseDesktop(desktop);
+
+    return result;
+}
+
+std::string currentInputDesktop()
 {
     HDESK desktop =
         OpenInputDesktop(
@@ -15,7 +122,8 @@ std::string desktopName()
             DESKTOP_READOBJECTS);
 
     if (desktop == nullptr) {
-        return "UNAVAILABLE ERROR=" +
+        return
+            "UNAVAILABLE ERROR=" +
             std::to_string(
                 GetLastError());
     }
@@ -31,7 +139,9 @@ std::string desktopName()
 
     if (requiredBytes == 0) {
         CloseDesktop(desktop);
-        return "OPEN NAME=UNKNOWN";
+
+        return
+            "OPEN NAME=UNKNOWN";
     }
 
     std::wstring name(
@@ -50,7 +160,8 @@ std::string desktopName()
 
         CloseDesktop(desktop);
 
-        return "OPEN NAME_ERROR=" +
+        return
+            "OPEN NAME_ERROR=" +
             std::to_string(error);
     }
 
@@ -63,38 +174,30 @@ std::string desktopName()
         name.pop_back();
     }
 
-    const int utf8Length =
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            name.c_str(),
-            static_cast<int>(
-                name.size()),
-            nullptr,
-            0,
-            nullptr,
-            nullptr);
+    return
+        "OPEN NAME=" +
+        wideToUtf8(name);
+}
 
-    std::string utf8Name;
+std::string currentUser()
+{
+    wchar_t userName[256]{};
 
-    if (utf8Length > 0) {
-        utf8Name.resize(
-            static_cast<std::size_t>(
-                utf8Length));
+    DWORD length =
+        static_cast<DWORD>(
+            std::size(userName));
 
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            name.c_str(),
-            static_cast<int>(
-                name.size()),
-            utf8Name.data(),
-            utf8Length,
-            nullptr,
-            nullptr);
+    if (!GetUserNameW(
+            userName,
+            &length)) {
+        return
+            "UNKNOWN ERROR=" +
+            std::to_string(
+                GetLastError());
     }
 
-    return "OPEN NAME=" + utf8Name;
+    return wideToUtf8(
+        std::wstring(userName));
 }
 
 }
@@ -108,18 +211,13 @@ int main()
         GetCurrentProcessId(),
         &sessionId);
 
-    wchar_t userName[256]{};
-    DWORD userNameLength =
-        static_cast<DWORD>(
-            std::size(userName));
-
-    GetUserNameW(
-        userName,
-        &userNameLength);
-
     std::ofstream output(
         "C:\\ProgramData\\ScottiBYTE-Assist-UAC-Helper.txt",
         std::ios::trunc);
+
+    if (!output) {
+        return 1;
+    }
 
     output
         << "PROCESS_SESSION="
@@ -127,49 +225,51 @@ int main()
         << '\n';
 
     output
-        << "INPUT_DESKTOP="
-        << desktopName()
+        << "USER="
+        << currentUser()
         << '\n';
 
-    const int utf8Length =
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            userName,
-            -1,
-            nullptr,
-            0,
-            nullptr,
-            nullptr);
+    output
+        << "WINLOGON_DESKTOP="
+        << winlogonDesktopStatus()
+        << '\n';
 
-    if (utf8Length > 1) {
-        std::string userBuffer(
-            static_cast<std::size_t>(
-                utf8Length),
-            '\0');
+    output.flush();
 
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            userName,
-            -1,
-            userBuffer.data(),
-            utf8Length,
-            nullptr,
-            nullptr);
+    std::string previousDesktop;
 
-        if (
-            !userBuffer.empty() &&
-            userBuffer.back() == '\0'
-        ) {
-            userBuffer.pop_back();
+    constexpr int sampleCount =
+        120;
+
+    for (
+        int sample = 0;
+        sample < sampleCount;
+        ++sample
+    ) {
+        const std::string desktop =
+            currentInputDesktop();
+
+        if (desktop != previousDesktop) {
+            output
+                << "TICK_MS="
+                << sample * 250
+                << " INPUT_DESKTOP="
+                << desktop
+                << '\n';
+
+            output.flush();
+
+            previousDesktop =
+                desktop;
         }
 
-        output
-            << "USER="
-            << userBuffer
-            << '\n';
+        Sleep(250);
     }
+
+    output
+        << "WATCH_COMPLETE\n";
+
+    output.flush();
 
     return 0;
 }
