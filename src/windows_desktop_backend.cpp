@@ -1,14 +1,12 @@
 #include "windows_desktop_backend.h"
 
 #include <QGuiApplication>
-#include <QDebug>
 #include <QImage>
 #include <QPixmap>
 #include <QScreen>
 #include <Qt>
 
 #include <algorithm>
-#include <cwchar>
 #include <string>
 
 #define WIN32_LEAN_AND_MEAN
@@ -358,157 +356,6 @@ void sendVirtualKey(
         sizeof(INPUT));
 }
 
-struct MonitorDeviceSearch
-{
-    std::wstring deviceName;
-    RECT monitorRect{};
-    bool found = false;
-};
-
-BOOL CALLBACK findMonitorByDeviceName(
-    HMONITOR monitor,
-    HDC,
-    LPRECT,
-    LPARAM parameter)
-{
-    auto *search =
-        reinterpret_cast<MonitorDeviceSearch *>(
-            parameter);
-
-    if (search == nullptr) {
-        return TRUE;
-    }
-
-    MONITORINFOEXW monitorInfo{};
-    monitorInfo.cbSize =
-        sizeof(monitorInfo);
-
-    if (!GetMonitorInfoW(
-            monitor,
-            &monitorInfo)) {
-        return TRUE;
-    }
-
-    if (_wcsicmp(
-            monitorInfo.szDevice,
-            search->deviceName.c_str()) != 0) {
-        return TRUE;
-    }
-
-    search->monitorRect =
-        monitorInfo.rcMonitor;
-
-    search->found = true;
-
-    return FALSE;
-}
-
-bool nativeMonitorGeometryForScreen(
-    QScreen *screen,
-    QRect &geometry)
-{
-    if (screen == nullptr) {
-        return false;
-    }
-
-    const QString qtName =
-        screen->name().trimmed();
-
-    if (!qtName.isEmpty()) {
-        MonitorDeviceSearch search;
-        search.deviceName =
-            qtName.toStdWString();
-
-        EnumDisplayMonitors(
-            nullptr,
-            nullptr,
-            findMonitorByDeviceName,
-            reinterpret_cast<LPARAM>(
-                &search));
-
-        if (search.found) {
-            const int width =
-                search.monitorRect.right -
-                search.monitorRect.left;
-
-            const int height =
-                search.monitorRect.bottom -
-                search.monitorRect.top;
-
-            if (
-                width > 0 &&
-                height > 0
-            ) {
-                geometry =
-                    QRect(
-                        search.monitorRect.left,
-                        search.monitorRect.top,
-                        width,
-                        height);
-
-                return true;
-            }
-        }
-    }
-
-    /*
-     * Fallback for systems where Qt's screen name does
-     * not match MONITORINFOEXW::szDevice.
-     *
-     * This preserves the previous behavior rather than
-     * disabling input completely.
-     */
-    const QRect qtGeometry =
-        screen->geometry();
-
-    POINT monitorPoint{
-        qtGeometry.center().x(),
-        qtGeometry.center().y()
-    };
-
-    HMONITOR monitor =
-        MonitorFromPoint(
-            monitorPoint,
-            MONITOR_DEFAULTTONEAREST);
-
-    if (monitor == nullptr) {
-        return false;
-    }
-
-    MONITORINFO monitorInfo{};
-    monitorInfo.cbSize =
-        sizeof(monitorInfo);
-
-    if (!GetMonitorInfoW(
-            monitor,
-            &monitorInfo)) {
-        return false;
-    }
-
-    const int width =
-        monitorInfo.rcMonitor.right -
-        monitorInfo.rcMonitor.left;
-
-    const int height =
-        monitorInfo.rcMonitor.bottom -
-        monitorInfo.rcMonitor.top;
-
-    if (
-        width <= 0 ||
-        height <= 0
-    ) {
-        return false;
-    }
-
-    geometry =
-        QRect(
-            monitorInfo.rcMonitor.left,
-            monitorInfo.rcMonitor.top,
-            width,
-            height);
-
-    return true;
-}
 
 }
 
@@ -559,54 +406,6 @@ availableRemoteControlDisplays() const
 
         const QRect geometry =
             screen->geometry();
-
-        const qreal devicePixelRatio =
-            screen->devicePixelRatio();
-
-        POINT monitorPoint{
-            geometry.center().x(),
-            geometry.center().y()
-        };
-
-        HMONITOR monitor =
-            MonitorFromPoint(
-                monitorPoint,
-                MONITOR_DEFAULTTONEAREST);
-
-        MONITORINFO monitorInfo{};
-        monitorInfo.cbSize =
-            sizeof(monitorInfo);
-
-        if (
-            monitor != nullptr &&
-            GetMonitorInfoW(
-                monitor,
-                &monitorInfo)
-        ) {
-            qInfo().noquote()
-                << QStringLiteral(
-                       "WINDOWS_DISPLAY_DIAG "
-                       "index=%1 "
-                       "name=%2 "
-                       "qt=(%3,%4 %5x%6) "
-                       "dpr=%7 "
-                       "native=(%8,%9 %10x%11)")
-                       .arg(index)
-                       .arg(screen->name())
-                       .arg(geometry.left())
-                       .arg(geometry.top())
-                       .arg(geometry.width())
-                       .arg(geometry.height())
-                       .arg(devicePixelRatio)
-                       .arg(monitorInfo.rcMonitor.left)
-                       .arg(monitorInfo.rcMonitor.top)
-                       .arg(
-                           monitorInfo.rcMonitor.right -
-                           monitorInfo.rcMonitor.left)
-                       .arg(
-                           monitorInfo.rcMonitor.bottom -
-                           monitorInfo.rcMonitor.top);
-        }
 
         QString name =
             screen->name().trimmed();
@@ -775,49 +574,35 @@ void WindowsDesktopBackend::captureFrame()
     frameWidth_ = frame.width();
     frameHeight_ = frame.height();
 
-    QRect geometry;
-
-    if (!nativeMonitorGeometryForScreen(
-            screen,
-            geometry)) {
-        return;
-    }
+    const QRect screenGeometry =
+        screen->geometry();
 
     POINT cursorPoint{};
 
-    if (GetCursorPos(&cursorPoint) &&
-        geometry.contains(
-            cursorPoint.x,
-            cursorPoint.y) &&
-        geometry.width() > 0 &&
-        geometry.height() > 0) {
-        const int relativeX =
-            cursorPoint.x -
-            geometry.left();
+    const int frameLeft =
+        screenGeometry.left();
 
-        const int relativeY =
-            cursorPoint.y -
-            geometry.top();
+    const int frameTop =
+        screenGeometry.top();
 
-        const int frameX =
-            std::clamp(
-                relativeX *
-                    frameWidth_ /
-                    geometry.width(),
-                0,
-                frameWidth_ - 1);
+    const int frameRight =
+        frameLeft +
+        frameWidth_;
 
-        const int frameY =
-            std::clamp(
-                relativeY *
-                    frameHeight_ /
-                    geometry.height(),
-                0,
-                frameHeight_ - 1);
+    const int frameBottom =
+        frameTop +
+        frameHeight_;
 
+    if (
+        GetCursorPos(&cursorPoint) &&
+        cursorPoint.x >= frameLeft &&
+        cursorPoint.x < frameRight &&
+        cursorPoint.y >= frameTop &&
+        cursorPoint.y < frameBottom
+    ) {
         emit cursorPositionChanged(
-            frameX,
-            frameY);
+            cursorPoint.x - frameLeft,
+            cursorPoint.y - frameTop);
     }
 
     emit frameReady(frame);
@@ -843,13 +628,8 @@ bool WindowsDesktopBackend::desktopPointForFramePoint(
         return false;
     }
 
-    QRect geometry;
-
-    if (!nativeMonitorGeometryForScreen(
-            screen,
-            geometry)) {
-        return false;
-    }
+    const QRect screenGeometry =
+        screen->geometry();
 
     const int boundedX =
         std::clamp(
@@ -863,31 +643,22 @@ bool WindowsDesktopBackend::desktopPointForFramePoint(
             0,
             frameHeight_ - 1);
 
+    /*
+     * On Windows Qt keeps QScreen's virtual-desktop
+     * position in the native desktop coordinate system,
+     * while grabWindow() returns the monitor's raw
+     * device pixels.
+     *
+     * The remote x/y values are coordinates in that
+     * captured frame, so no DPI conversion is needed.
+     */
     desktopX =
-        geometry.left();
+        screenGeometry.left() +
+        boundedX;
 
     desktopY =
-        geometry.top();
-
-    if (
-        frameWidth_ > 1 &&
-        geometry.width() > 1
-    ) {
-        desktopX +=
-            boundedX *
-            (geometry.width() - 1) /
-            (frameWidth_ - 1);
-    }
-
-    if (
-        frameHeight_ > 1 &&
-        geometry.height() > 1
-    ) {
-        desktopY +=
-            boundedY *
-            (geometry.height() - 1) /
-            (frameHeight_ - 1);
-    }
+        screenGeometry.top() +
+        boundedY;
 
     return true;
 }

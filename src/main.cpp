@@ -1037,6 +1037,81 @@ QString validatedAudioNode(
     return QString();
 }
 
+class SettingsTitleBar final
+    : public QFrame
+{
+public:
+    explicit SettingsTitleBar(
+        QDialog *dialog)
+        : QFrame(dialog),
+          dialog_(dialog)
+    {
+    }
+
+protected:
+    void mousePressEvent(
+        QMouseEvent *event) override
+    {
+        if (
+            event->button() ==
+            Qt::LeftButton
+        ) {
+            dragging_ = true;
+
+            dragOffset_ =
+                event->globalPosition()
+                    .toPoint() -
+                dialog_->frameGeometry()
+                    .topLeft();
+
+            event->accept();
+            return;
+        }
+
+        QFrame::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(
+        QMouseEvent *event) override
+    {
+        if (
+            dragging_ &&
+            (event->buttons() &
+             Qt::LeftButton)
+        ) {
+            dialog_->move(
+                event->globalPosition()
+                    .toPoint() -
+                dragOffset_);
+
+            event->accept();
+            return;
+        }
+
+        QFrame::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(
+        QMouseEvent *event) override
+    {
+        if (
+            event->button() ==
+            Qt::LeftButton
+        ) {
+            dragging_ = false;
+            event->accept();
+            return;
+        }
+
+        QFrame::mouseReleaseEvent(event);
+    }
+
+private:
+    QDialog *dialog_ = nullptr;
+    bool dragging_ = false;
+    QPoint dragOffset_;
+};
+
 void showSettingsDialog(
     QWidget *parent,
     const std::function<
@@ -1057,6 +1132,10 @@ void showSettingsDialog(
     dialog.setWindowTitle(
         QStringLiteral(
             "ScottiBYTE Assist Settings"));
+
+    dialog.setWindowFlags(
+        Qt::Dialog |
+        Qt::FramelessWindowHint);
 
     dialog.setMinimumWidth(620);
 
@@ -1170,12 +1249,203 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         new QVBoxLayout(&dialog);
 
     layout->setContentsMargins(
+        0,
+        0,
+        0,
+        0);
+
+    layout->setSpacing(0);
+
+    auto *settingsTitleBar =
+        new SettingsTitleBar(
+            &dialog);
+
+    settingsTitleBar->setObjectName(
+        QStringLiteral(
+            "settingsTitleBar"));
+
+    settingsTitleBar->setFixedHeight(
+        38);
+
+    settingsTitleBar->setStyleSheet(
+        QStringLiteral(
+            "QFrame#settingsTitleBar {"
+            "  background: #242424;"
+            "  border: none;"
+            "  border-bottom: 1px solid #111111;"
+            "}"));
+
+    auto *titleLayout =
+        new QHBoxLayout(
+            settingsTitleBar);
+
+    titleLayout->setContentsMargins(
+        8,
+        3,
+        8,
+        3);
+
+    titleLayout->setSpacing(7);
+
+    auto makeTitleButton =
+        [
+            settingsTitleBar
+        ](
+            const QString &text,
+            const QString &name)
+        {
+            auto *button =
+                new QPushButton(
+                    text,
+                    settingsTitleBar);
+
+            button->setObjectName(name);
+
+            button->setFixedSize(
+                26,
+                26);
+
+            button->setCursor(
+                Qt::PointingHandCursor);
+
+            button->setStyleSheet(
+                QStringLiteral(
+                    "QPushButton {"
+                    "  min-height: 0;"
+                    "  padding: 0;"
+                    "  color: #dddddd;"
+                    "  background: #383838;"
+                    "  border: none;"
+                    "  border-radius: 13px;"
+                    "  font-size: 15px;"
+                    "  font-weight: 700;"
+                    "}"
+                    "QPushButton:hover {"
+                    "  background: #505050;"
+                    "  color: white;"
+                    "}"));
+
+            return button;
+        };
+
+    auto *settingsCloseButton =
+        makeTitleButton(
+            QStringLiteral("×"),
+            QStringLiteral(
+                "settingsCloseButton"));
+
+    auto *settingsMinimizeButton =
+        makeTitleButton(
+            QStringLiteral("−"),
+            QStringLiteral(
+                "settingsMinimizeButton"));
+
+    auto *settingsMaximizeButton =
+        makeTitleButton(
+            QStringLiteral("□"),
+            QStringLiteral(
+                "settingsMaximizeButton"));
+
+    auto *titleLabel =
+        new QLabel(
+            QStringLiteral(
+                "ScottiBYTE Assist Settings"),
+            settingsTitleBar);
+
+    titleLabel->setAlignment(
+        Qt::AlignCenter);
+
+    titleLabel->setStyleSheet(
+        QStringLiteral(
+            "color: #e6e6e6;"
+            "font-size: 14px;"
+            "font-weight: 700;"
+            "background: transparent;"));
+
+    titleLabel->setAttribute(
+        Qt::WA_TransparentForMouseEvents);
+
+    auto *leftSpacer =
+        new QWidget(
+            settingsTitleBar);
+
+    leftSpacer->setFixedWidth(
+        92);
+
+    auto *rightControls =
+        new QWidget(
+            settingsTitleBar);
+
+    auto *rightLayout =
+        new QHBoxLayout(
+            rightControls);
+
+    rightLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        0);
+
+    rightLayout->setSpacing(7);
+
+    rightLayout->addWidget(
+        settingsMinimizeButton);
+
+    rightLayout->addWidget(
+        settingsMaximizeButton);
+
+    rightLayout->addWidget(
+        settingsCloseButton);
+
+    rightControls->setFixedWidth(
+        92);
+
+    titleLayout->addWidget(
+        leftSpacer);
+
+    titleLayout->addWidget(
+        titleLabel,
+        1);
+
+    titleLayout->addWidget(
+        rightControls);
+
+    layout->addWidget(
+        settingsTitleBar);
+
+    auto *settingsContent =
+        new QWidget(
+            &dialog);
+
+    auto *contentLayout =
+        new QVBoxLayout(
+            settingsContent);
+
+    contentLayout->setContentsMargins(
         20,
         20,
         20,
         20);
 
-    layout->setSpacing(12);
+    contentLayout->setSpacing(
+        12);
+
+    layout->addWidget(
+        settingsContent);
+
+    QObject::connect(
+        settingsCloseButton,
+        &QPushButton::clicked,
+        &dialog,
+        &QDialog::reject);
+
+    QObject::connect(
+        settingsMinimizeButton,
+        &QPushButton::clicked,
+        &dialog,
+        &QWidget::showMinimized);
+
+    settingsMaximizeButton->setEnabled(false);
 
     auto *form =
         new QFormLayout;
@@ -1337,9 +1607,9 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             "Audio output"),
         outputDevice);
 
-    layout->addLayout(form);
-    layout->addWidget(refreshDevices);
-    layout->addWidget(deviceStatus);
+    contentLayout->addLayout(form);
+    contentLayout->addWidget(refreshDevices);
+    contentLayout->addWidget(deviceStatus);
 
     auto *providerTitle =
         new QLabel(
@@ -1895,8 +2165,8 @@ QMessageBox QPushButton:default {
                     "from this computer."));
         });
 
-    layout->addWidget(providerTitle);
-    layout->addWidget(providerStatus);
+    contentLayout->addWidget(providerTitle);
+    contentLayout->addWidget(providerStatus);
 
     layout->addWidget(
         bootstrapInstructions);
@@ -2042,7 +2312,7 @@ QMessageBox QPushButton:default {
         &dialog,
         &QDialog::reject);
 
-    layout->addWidget(buttons);
+    contentLayout->addWidget(buttons);
 
     refresh();
 
