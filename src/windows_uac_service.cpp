@@ -258,6 +258,171 @@ std::string inputDesktopStatus()
     return response;
 }
 
+std::wstring helperExecutablePath()
+{
+    wchar_t modulePath[MAX_PATH]{};
+
+    const DWORD length =
+        GetModuleFileNameW(
+            nullptr,
+            modulePath,
+            static_cast<DWORD>(
+                std::size(modulePath)));
+
+    if (
+        length == 0 ||
+        length >=
+            static_cast<DWORD>(
+                std::size(modulePath))
+    ) {
+        return {};
+    }
+
+    std::wstring path(
+        modulePath,
+        modulePath + length);
+
+    const std::size_t slash =
+        path.find_last_of(
+            L"\\/");
+
+    if (slash == std::wstring::npos) {
+        return {};
+    }
+
+    path.resize(
+        slash + 1);
+
+    path +=
+        L"scottibyte-assist-helper.exe";
+
+    return path;
+}
+
+std::string launchInteractiveHelper()
+{
+    DWORD sessionId =
+        WTSGetActiveConsoleSessionId();
+
+    if (sessionId == 0xffffffff) {
+        return
+            "ERROR NO_ACTIVE_CONSOLE_SESSION";
+    }
+
+    HANDLE processToken =
+        nullptr;
+
+    if (!OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_DUPLICATE |
+                TOKEN_QUERY |
+                TOKEN_ASSIGN_PRIMARY,
+            &processToken)) {
+        return
+            "ERROR OPEN_PROCESS_TOKEN " +
+            std::to_string(
+                GetLastError());
+    }
+
+    HANDLE primaryToken =
+        nullptr;
+
+    if (!DuplicateTokenEx(
+            processToken,
+            MAXIMUM_ALLOWED,
+            nullptr,
+            SecurityImpersonation,
+            TokenPrimary,
+            &primaryToken)) {
+        const DWORD error =
+            GetLastError();
+
+        CloseHandle(processToken);
+
+        return
+            "ERROR DUPLICATE_TOKEN " +
+            std::to_string(error);
+    }
+
+    CloseHandle(processToken);
+
+    if (!SetTokenInformation(
+            primaryToken,
+            TokenSessionId,
+            &sessionId,
+            sizeof(sessionId))) {
+        const DWORD error =
+            GetLastError();
+
+        CloseHandle(primaryToken);
+
+        return
+            "ERROR SET_SESSION " +
+            std::to_string(error);
+    }
+
+    const std::wstring helperPath =
+        helperExecutablePath();
+
+    if (helperPath.empty()) {
+        CloseHandle(primaryToken);
+
+        return
+            "ERROR HELPER_PATH";
+    }
+
+    STARTUPINFOW startupInfo{};
+    startupInfo.cb =
+        sizeof(startupInfo);
+
+    wchar_t desktopName[] =
+        L"winsta0\\default";
+
+    startupInfo.lpDesktop =
+        desktopName;
+
+    PROCESS_INFORMATION processInformation{};
+
+    const BOOL created =
+        CreateProcessAsUserW(
+            primaryToken,
+            helperPath.c_str(),
+            nullptr,
+            nullptr,
+            nullptr,
+            FALSE,
+            CREATE_NO_WINDOW,
+            nullptr,
+            nullptr,
+            &startupInfo,
+            &processInformation);
+
+    const DWORD createError =
+        created
+            ? ERROR_SUCCESS
+            : GetLastError();
+
+    CloseHandle(primaryToken);
+
+    if (!created) {
+        return
+            "ERROR CREATE_PROCESS " +
+            std::to_string(
+                createError);
+    }
+
+    CloseHandle(
+        processInformation.hThread);
+
+    CloseHandle(
+        processInformation.hProcess);
+
+    return
+        "HELPER_LAUNCHED SESSION=" +
+        std::to_string(
+            sessionId);
+}
+
 void handlePipeClient(
     HANDLE pipe)
 {
@@ -290,6 +455,14 @@ void handlePipeClient(
         writePipeResponse(
             pipe,
             inputDesktopStatus());
+
+        return;
+    }
+
+    if (request == "LAUNCH_HELPER") {
+        writePipeResponse(
+            pipe,
+            launchInteractiveHelper());
 
         return;
     }

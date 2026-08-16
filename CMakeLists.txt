@@ -195,6 +195,25 @@ if(WIN32)
     windows-uac-pipe-test
     src/windows_uac_pipe_test.cpp
   )
+
+  add_executable(
+    scottibyte-assist-helper
+    src/windows_uac_helper.cpp
+  )
+
+  target_link_options(
+    scottibyte-assist-helper
+    PRIVATE
+      -static-libgcc
+      -static-libstdc++
+      -static
+  )
+
+  target_link_libraries(
+    scottibyte-assist-helper
+    PRIVATE
+      advapi32
+  )
 else()
   target_link_libraries(
     scottibyte-assist
