@@ -3191,13 +3191,18 @@ QLabel#remotePlaceholder {
     window->setWindowIcon(
         applicationIcon);
 
-    window->resize(
+    /*
+     * The main Assist control window uses a deliberately
+     * fixed layout. Keep its geometry fixed so controls
+     * cannot be compressed into overlapping arrangements
+     * by user resizing.
+     *
+     * Remote desktop/view windows remain independently
+     * resizable.
+     */
+    window->setFixedSize(
         780,
-        820);
-
-    window->setMinimumSize(
-        720,
-        790);
+        860);
 
     auto *rootLayout =
         new QVBoxLayout(window);
@@ -3728,6 +3733,34 @@ QLabel#remotePlaceholder {
     customerVoiceControls->addWidget(
         customerMuteButton);
 
+    auto *customerMicrophoneMeter =
+        new QProgressBar;
+
+    customerMicrophoneMeter->setRange(
+        0,
+        1000);
+
+    customerMicrophoneMeter->setValue(0);
+    customerMicrophoneMeter->setTextVisible(false);
+    customerMicrophoneMeter->setFixedHeight(18);
+    customerMicrophoneMeter->setMinimumWidth(260);
+    customerMicrophoneMeter->setMaximumWidth(430);
+
+    customerMicrophoneMeter->setStyleSheet(
+        QStringLiteral(
+            "QProgressBar {"
+            " background-color: #102b4a;"
+            " border: 1px solid #25c9ef;"
+            " border-radius: 8px;"
+            "}"
+            "QProgressBar::chunk {"
+            " border-radius: 7px;"
+            " background: qlineargradient("
+            "x1:0, y1:0, x2:1, y2:0,"
+            "stop:0 #16bde8,"
+            "stop:1 #7138e8);"
+            "}"));
+
     receiveActions->addWidget(newCodeButton);
     receiveActions->addWidget(customerSendFileButton);
     receiveActions->addWidget(endSupportButton);
@@ -3843,6 +3876,11 @@ QLabel#remotePlaceholder {
 
     receiveLayout->addLayout(
         customerVoiceControls);
+
+    receiveLayout->addWidget(
+        customerMicrophoneMeter,
+        0,
+        Qt::AlignHCenter);
 
     receiveLayout->addWidget(
         progressCard,
@@ -4153,6 +4191,35 @@ QLabel#remotePlaceholder {
     providerVoiceControls->addWidget(
         providerMuteButton);
 
+    auto *providerMicrophoneMeter =
+        new QProgressBar;
+
+    providerMicrophoneMeter->setRange(
+        0,
+        1000);
+
+    providerMicrophoneMeter->setValue(0);
+    providerMicrophoneMeter->setTextVisible(false);
+    providerMicrophoneMeter->setFixedHeight(12);
+    providerMicrophoneMeter->setMinimumWidth(220);
+    providerMicrophoneMeter->setMaximumWidth(320);
+
+    providerMicrophoneMeter->setStyleSheet(
+        QStringLiteral(
+            "QProgressBar {"
+            " background-color: #102b4a;"
+            " border: 1px solid #25c9ef;"
+            " border-radius: 6px;"
+            "}"
+            "QProgressBar::chunk {"
+            " border-radius: 5px;"
+            " background: qlineargradient("
+            "x1:0, y1:0, x2:1, y2:0,"
+            "stop:0 #16bde8,"
+            "stop:1 #7138e8);"
+            "}"));
+
+
 auto *providerRemoteAudioButton =
     makeButton(
         QStringLiteral("Hear Remote Desktop Audio"),
@@ -4403,6 +4470,11 @@ providerRemoteAudioButton->setToolTip(
         Qt::AlignHCenter);
     provideLayout->addLayout(
         providerVoiceControls);
+
+    provideLayout->addWidget(
+        providerMicrophoneMeter,
+        0,
+        Qt::AlignHCenter);
 
     provideLayout->addWidget(
         providerRemoteAudioButton,
@@ -7378,6 +7450,72 @@ QDialog#settingsDialog QPushButton#declineFileButton {
         }
     });
 
+    QObject::connect(
+        customerVoiceAudio,
+        &CustomerVoiceAudio::
+            microphoneLevelChanged,
+        window,
+        [
+            receiveButton,
+            customerStopVoiceButton,
+            customerMuteButton,
+            providerStopVoiceButton,
+            providerMuteButton,
+            customerMicrophoneMeter,
+            providerMicrophoneMeter
+        ](
+            float level)
+        {
+            const int value =
+                qBound(
+                    0,
+                    qRound(
+                        static_cast<double>(
+                            level) *
+                        1000.0),
+                    1000);
+
+            if (receiveButton->isChecked()) {
+                providerMicrophoneMeter->
+                    setValue(0);
+
+                if (
+                    !customerStopVoiceButton->
+                        isEnabled() ||
+                    customerMuteButton->
+                        isChecked()
+                ) {
+                    customerMicrophoneMeter->
+                        setValue(0);
+
+                    return;
+                }
+
+                customerMicrophoneMeter->
+                    setValue(value);
+
+                return;
+            }
+
+            customerMicrophoneMeter->
+                setValue(0);
+
+            if (
+                !providerStopVoiceButton->
+                    isEnabled() ||
+                providerMuteButton->
+                    isChecked()
+            ) {
+                providerMicrophoneMeter->
+                    setValue(0);
+
+                return;
+            }
+
+            providerMicrophoneMeter->
+                setValue(value);
+        });
+
 QObject::connect(
         customerVoiceAudio,
         &CustomerVoiceAudio::
@@ -7637,15 +7775,20 @@ QObject::connect(
             customerStartVoiceButton,
             customerStopVoiceButton,
             customerMuteButton,
+            customerMicrophoneMeter,
             providerStartVoiceButton,
             providerStopVoiceButton,
             providerMuteButton,
+            providerMicrophoneMeter,
             receiveStatus,
             provideStatus
         ]()
         {
             customerVoiceAudio->stop();
             customerVoiceAudio->setMuted(false);
+
+            customerMicrophoneMeter->setValue(0);
+            providerMicrophoneMeter->setValue(0);
 
             customerMuteButton->blockSignals(true);
             customerMuteButton->setChecked(false);
@@ -7689,11 +7832,17 @@ QObject::connect(
         [
             customerVoiceAudio,
             customerMuteButton,
+            customerMicrophoneMeter,
             receiveStatus
         ](
             bool muted)
         {
             customerVoiceAudio->setMuted(muted);
+
+            if (muted) {
+                customerMicrophoneMeter->
+                    setValue(0);
+            }
 
             customerMuteButton->setText(
                 muted
@@ -7711,11 +7860,17 @@ QObject::connect(
         [
             customerVoiceAudio,
             providerMuteButton,
+            providerMicrophoneMeter,
             provideStatus
         ](
             bool muted)
         {
             customerVoiceAudio->setMuted(muted);
+
+            if (muted) {
+                providerMicrophoneMeter->
+                    setValue(0);
+            }
 
             providerMuteButton->setText(
                 muted

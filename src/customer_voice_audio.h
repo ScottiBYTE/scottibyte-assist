@@ -59,6 +59,9 @@ signals:
     void voicePacketReady(
         const QByteArray &packet);
 
+    void microphoneLevelChanged(
+        float level);
+
 private:
     static bool initializeGStreamer();
 
