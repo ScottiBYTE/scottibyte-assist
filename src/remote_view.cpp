@@ -28,8 +28,15 @@ void RemoteView::setFrame(
 {
     frame_ = image;
 
+    /*
+     * The remote cursor is painted into RemoteView from
+     * the customer's transmitted cursor image. Hide the
+     * provider's local Qt cursor so it cannot obscure the
+     * actual remote arrow, I-beam, hand, resize cursor,
+     * or other cursor shape.
+     */
     setCursor(
-        Qt::ArrowCursor);
+        Qt::BlankCursor);
 
     update();
 }
@@ -40,6 +47,10 @@ void RemoteView::clearFrame()
     remoteCursorPosition_ = QPoint(-1, -1);
     remoteCursorImage_ = {};
     remoteCursorHotspot_ = QPoint(0, 0);
+
+    setCursor(
+        Qt::ArrowCursor);
+
     update();
 }
 
@@ -278,6 +289,22 @@ void RemoteView::mouseMoveEvent(
                 .toPoint());
 
     if (position.x() >= 0) {
+        /*
+         * Render provider mouse movement immediately.
+         *
+         * Waiting for the pointer move to travel to the
+         * remote machine and for the resulting cursor
+         * position to travel back creates visible
+         * round-trip cursor latency.
+         *
+         * The remote cursor-position messages remain
+         * authoritative and will correct this predicted
+         * position when they arrive.
+         */
+        setRemoteCursorPosition(
+            position.x(),
+            position.y());
+
         emit pointerMoveRequested(
             position.x(),
             position.y());
