@@ -6,7 +6,9 @@
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <mutex>
 
@@ -29,6 +31,59 @@ QString errorText(
 
     return QString::fromUtf8(
         error->message);
+}
+
+float microphoneLevelForPcm(
+    const int16_t *samples,
+    int sampleCount)
+{
+    if (
+        samples == nullptr ||
+        sampleCount <= 0
+    ) {
+        return 0.0f;
+    }
+
+    double sumSquares = 0.0;
+
+    for (int index = 0;
+         index < sampleCount;
+         ++index) {
+        const double sample =
+            static_cast<double>(
+                samples[index]) /
+            32768.0;
+
+        sumSquares +=
+            sample * sample;
+    }
+
+    const double rms =
+        std::sqrt(
+            sumSquares /
+            static_cast<double>(
+                sampleCount));
+
+    if (rms <= 0.000001) {
+        return 0.0f;
+    }
+
+    const double db =
+        20.0 *
+        std::log10(rms);
+
+    constexpr double floorDb =
+        -60.0;
+
+    const double level =
+        (db - floorDb) /
+        -floorDb;
+
+    return static_cast<float>(
+        std::clamp(
+            level,
+            0.0,
+            1.0));
 }
 
 }
@@ -386,6 +441,13 @@ bool CustomerVoiceAudio::startPacketSender(
 
                         return GST_FLOW_ERROR;
                     }
+
+                    emit self->
+                        microphoneLevelChanged(
+                            microphoneLevelForPcm(
+                                output.data(),
+                                static_cast<int>(
+                                    output.size())));
 
                     GstBuffer *processedBuffer =
                         gst_buffer_new_allocate(
