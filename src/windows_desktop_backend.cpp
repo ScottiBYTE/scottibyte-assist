@@ -15,6 +15,213 @@
 namespace
 {
 
+bool currentWindowsCursorImage(
+    QImage &image,
+    int &hotspotX,
+    int &hotspotY,
+    HCURSOR &cursorHandle)
+{
+    CURSORINFO cursorInfo {};
+    cursorInfo.cbSize =
+        sizeof(cursorInfo);
+
+    if (!GetCursorInfo(
+            &cursorInfo) ||
+        !(cursorInfo.flags &
+          CURSOR_SHOWING) ||
+        cursorInfo.hCursor == nullptr) {
+        return false;
+    }
+
+    ICONINFO iconInfo {};
+
+    if (!GetIconInfo(
+            cursorInfo.hCursor,
+            &iconInfo)) {
+        return false;
+    }
+
+    hotspotX =
+        static_cast<int>(
+            iconInfo.xHotspot);
+
+    hotspotY =
+        static_cast<int>(
+            iconInfo.yHotspot);
+
+    BITMAP colorBitmap {};
+    BITMAP maskBitmap {};
+
+    int width = 0;
+    int height = 0;
+
+    if (iconInfo.hbmColor != nullptr &&
+        GetObjectW(
+            iconInfo.hbmColor,
+            sizeof(colorBitmap),
+            &colorBitmap) != 0) {
+        width =
+            colorBitmap.bmWidth;
+
+        height =
+            colorBitmap.bmHeight;
+    } else if (
+        iconInfo.hbmMask != nullptr &&
+        GetObjectW(
+            iconInfo.hbmMask,
+            sizeof(maskBitmap),
+            &maskBitmap) != 0
+    ) {
+        width =
+            maskBitmap.bmWidth;
+
+        height =
+            maskBitmap.bmHeight / 2;
+    }
+
+    if (width <= 0 ||
+        height <= 0) {
+        if (iconInfo.hbmColor != nullptr) {
+            DeleteObject(
+                iconInfo.hbmColor);
+        }
+
+        if (iconInfo.hbmMask != nullptr) {
+            DeleteObject(
+                iconInfo.hbmMask);
+        }
+
+        return false;
+    }
+
+    QImage cursorImage(
+        width,
+        height,
+        QImage::Format_ARGB32_Premultiplied);
+
+    cursorImage.fill(
+        Qt::transparent);
+
+    HDC screenDc =
+        GetDC(nullptr);
+
+    HDC memoryDc =
+        CreateCompatibleDC(
+            screenDc);
+
+    HBITMAP dib =
+        CreateCompatibleBitmap(
+            screenDc,
+            width,
+            height);
+
+    HGDIOBJ oldBitmap = nullptr;
+
+    bool success = false;
+
+    if (memoryDc != nullptr &&
+        dib != nullptr) {
+        oldBitmap =
+            SelectObject(
+                memoryDc,
+                dib);
+
+        RECT rect {
+            0,
+            0,
+            width,
+            height
+        };
+
+        FillRect(
+            memoryDc,
+            &rect,
+            static_cast<HBRUSH>(
+                GetStockObject(
+                    BLACK_BRUSH)));
+
+        if (DrawIconEx(
+                memoryDc,
+                0,
+                0,
+                cursorInfo.hCursor,
+                width,
+                height,
+                0,
+                nullptr,
+                DI_NORMAL)) {
+            BITMAPINFO bitmapInfo {};
+            bitmapInfo.bmiHeader.biSize =
+                sizeof(BITMAPINFOHEADER);
+            bitmapInfo.bmiHeader.biWidth =
+                width;
+            bitmapInfo.bmiHeader.biHeight =
+                -height;
+            bitmapInfo.bmiHeader.biPlanes =
+                1;
+            bitmapInfo.bmiHeader.biBitCount =
+                32;
+            bitmapInfo.bmiHeader.biCompression =
+                BI_RGB;
+
+            success =
+                GetDIBits(
+                    memoryDc,
+                    dib,
+                    0,
+                    static_cast<UINT>(
+                        height),
+                    cursorImage.bits(),
+                    &bitmapInfo,
+                    DIB_RGB_COLORS) != 0;
+        }
+    }
+
+    if (oldBitmap != nullptr) {
+        SelectObject(
+            memoryDc,
+            oldBitmap);
+    }
+
+    if (dib != nullptr) {
+        DeleteObject(
+            dib);
+    }
+
+    if (memoryDc != nullptr) {
+        DeleteDC(
+            memoryDc);
+    }
+
+    if (screenDc != nullptr) {
+        ReleaseDC(
+            nullptr,
+            screenDc);
+    }
+
+    if (iconInfo.hbmColor != nullptr) {
+        DeleteObject(
+            iconInfo.hbmColor);
+    }
+
+    if (iconInfo.hbmMask != nullptr) {
+        DeleteObject(
+            iconInfo.hbmMask);
+    }
+
+    if (!success) {
+        return false;
+    }
+
+    cursorHandle =
+        cursorInfo.hCursor;
+
+    image =
+        cursorImage;
+
+    return true;
+}
+
 WORD virtualKeyForQtKey(
     int qtKey)
 {
@@ -594,6 +801,7 @@ void WindowsDesktopBackend::stop()
     running_ = false;
     frameWidth_ = 0;
     frameHeight_ = 0;
+    lastCursorHandle_ = nullptr;
 
     emit statusChanged(
         QStringLiteral(
@@ -715,6 +923,33 @@ void WindowsDesktopBackend::captureFrame()
         emit cursorPositionChanged(
             -1,
             -1);
+    }
+
+    QImage cursorImage;
+    int cursorHotspotX = 0;
+    int cursorHotspotY = 0;
+    HCURSOR cursorHandle = nullptr;
+
+    if (currentWindowsCursorImage(
+            cursorImage,
+            cursorHotspotX,
+            cursorHotspotY,
+            cursorHandle)) {
+        const void *cursorIdentity =
+            static_cast<void *>(
+                cursorHandle);
+
+        if (cursorIdentity !=
+            lastCursorHandle_) {
+            lastCursorHandle_ =
+                const_cast<void *>(
+                    cursorIdentity);
+
+            emit cursorImageChanged(
+                cursorImage,
+                cursorHotspotX,
+                cursorHotspotY);
+        }
     }
 
     emit frameReady(frame);

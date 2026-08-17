@@ -71,4 +71,6 @@ private:
     int selectedScreenIndex_ = -1;
     int frameWidth_ = 0;
     int frameHeight_ = 0;
+
+    void *lastCursorHandle_ = nullptr;
 };
