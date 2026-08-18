@@ -29,7 +29,7 @@ void RemoteView::setFrame(
     frame_ = image;
 
     setCursor(
-        Qt::ArrowCursor);
+        Qt::BlankCursor);
 
     update();
 }
@@ -40,6 +40,10 @@ void RemoteView::clearFrame()
     remoteCursorPosition_ = QPoint(-1, -1);
     remoteCursorImage_ = {};
     remoteCursorHotspot_ = QPoint(0, 0);
+
+    setCursor(
+        Qt::ArrowCursor);
+
     update();
 }
 
@@ -278,6 +282,10 @@ void RemoteView::mouseMoveEvent(
                 .toPoint());
 
     if (position.x() >= 0) {
+        setRemoteCursorPosition(
+            position.x(),
+            position.y());
+
         emit pointerMoveRequested(
             position.x(),
             position.y());
