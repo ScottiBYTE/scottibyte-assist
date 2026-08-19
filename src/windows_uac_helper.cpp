@@ -1128,6 +1128,73 @@ bool sendBrokerVirtualKey(
             sizeof(INPUT)) == 1;
 }
 
+bool sendBrokerAbsoluteMouseMove(
+    int desktopX,
+    int desktopY)
+{
+    const int virtualLeft =
+        GetSystemMetrics(
+            SM_XVIRTUALSCREEN);
+
+    const int virtualTop =
+        GetSystemMetrics(
+            SM_YVIRTUALSCREEN);
+
+    const int virtualWidth =
+        GetSystemMetrics(
+            SM_CXVIRTUALSCREEN);
+
+    const int virtualHeight =
+        GetSystemMetrics(
+            SM_CYVIRTUALSCREEN);
+
+    if (
+        virtualWidth <= 1 ||
+        virtualHeight <= 1
+    ) {
+        return false;
+    }
+
+    const LONG normalizedX =
+        static_cast<LONG>(
+            (
+                static_cast<long long>(
+                    desktopX - virtualLeft) *
+                65535
+            ) /
+            (virtualWidth - 1));
+
+    const LONG normalizedY =
+        static_cast<LONG>(
+            (
+                static_cast<long long>(
+                    desktopY - virtualTop) *
+                65535
+            ) /
+            (virtualHeight - 1));
+
+    INPUT input{};
+    input.type =
+        INPUT_MOUSE;
+
+    input.mi.dx =
+        normalizedX;
+
+    input.mi.dy =
+        normalizedY;
+
+    input.mi.dwFlags =
+        MOUSEEVENTF_MOVE |
+        MOUSEEVENTF_ABSOLUTE |
+        MOUSEEVENTF_VIRTUALDESK;
+
+    return
+        SendInput(
+            1,
+            &input,
+            sizeof(INPUT)) == 1;
+}
+
 bool sendBrokerMouseButton(
     DWORD flags)
 {
@@ -1197,7 +1264,7 @@ std::string processBrokerCommand(
             return "ERROR BAD_MOVE";
         }
 
-        if (!SetPhysicalCursorPos(
+        if (!sendBrokerAbsoluteMouseMove(
                 x,
                 y)) {
             return

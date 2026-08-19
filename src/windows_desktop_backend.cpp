@@ -357,6 +357,73 @@ void sendMouseButton(
         sizeof(INPUT));
 }
 
+bool sendAbsoluteMouseMove(
+    int desktopX,
+    int desktopY)
+{
+    const int virtualLeft =
+        GetSystemMetrics(
+            SM_XVIRTUALSCREEN);
+
+    const int virtualTop =
+        GetSystemMetrics(
+            SM_YVIRTUALSCREEN);
+
+    const int virtualWidth =
+        GetSystemMetrics(
+            SM_CXVIRTUALSCREEN);
+
+    const int virtualHeight =
+        GetSystemMetrics(
+            SM_CYVIRTUALSCREEN);
+
+    if (
+        virtualWidth <= 1 ||
+        virtualHeight <= 1
+    ) {
+        return false;
+    }
+
+    const LONG normalizedX =
+        static_cast<LONG>(
+            (
+                static_cast<long long>(
+                    desktopX - virtualLeft) *
+                65535
+            ) /
+            (virtualWidth - 1));
+
+    const LONG normalizedY =
+        static_cast<LONG>(
+            (
+                static_cast<long long>(
+                    desktopY - virtualTop) *
+                65535
+            ) /
+            (virtualHeight - 1));
+
+    INPUT input{};
+    input.type =
+        INPUT_MOUSE;
+
+    input.mi.dx =
+        normalizedX;
+
+    input.mi.dy =
+        normalizedY;
+
+    input.mi.dwFlags =
+        MOUSEEVENTF_MOVE |
+        MOUSEEVENTF_ABSOLUTE |
+        MOUSEEVENTF_VIRTUALDESK;
+
+    return
+        SendInput(
+            1,
+            &input,
+            sizeof(INPUT)) == 1;
+}
+
 HANDLE openElevatedBrokerPipe()
 {
     constexpr wchar_t pipeName[] =
@@ -1050,9 +1117,13 @@ void WindowsDesktopBackend::movePointerTo(
         return;
     }
 
-    SetPhysicalCursorPos(
-        desktopX,
-        desktopY);
+    if (!sendAbsoluteMouseMove(
+            desktopX,
+            desktopY)) {
+        SetPhysicalCursorPos(
+            desktopX,
+            desktopY);
+    }
 }
 
 void WindowsDesktopBackend::clickLeftAt(
