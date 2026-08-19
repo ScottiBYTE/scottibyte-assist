@@ -8860,6 +8860,12 @@ QObject::connect(
 
     QObject::connect(
         fullScreenRemoteView,
+        &RemoteView::wheelRequested,
+        lanSession,
+        &LanSession::sendMouseWheel);
+
+    QObject::connect(
+        fullScreenRemoteView,
         &RemoteView::keyPressRequested,
         lanSession,
         &LanSession::sendKeyPress);
@@ -8899,6 +8905,12 @@ QObject::connect(
         &RemoteView::rightClickRequested,
         lanSession,
         &LanSession::sendRightClick);
+
+    QObject::connect(
+        remoteWindowView,
+        &RemoteView::wheelRequested,
+        lanSession,
+        &LanSession::sendMouseWheel);
 
     QObject::connect(
         remoteWindowView,

@@ -2,6 +2,7 @@
 
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QPainter>
 
 RemoteView::RemoteView(
@@ -346,6 +347,23 @@ void RemoteView::mouseReleaseEvent(
             position.x(),
             position.y());
     }
+}
+
+void RemoteView::wheelEvent(
+    QWheelEvent *event)
+{
+    const int delta =
+        event->angleDelta().y();
+
+    if (delta == 0) {
+        QWidget::wheelEvent(event);
+        return;
+    }
+
+    emit wheelRequested(
+        delta);
+
+    event->accept();
 }
 
 void RemoteView::keyPressEvent(

@@ -121,6 +121,9 @@ public:
         int x,
         int y);
 
+    void sendMouseWheel(
+        int delta);
+
     void sendKeyPress(
         int qtKey);
 

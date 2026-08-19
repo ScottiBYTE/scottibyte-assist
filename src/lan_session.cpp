@@ -1640,6 +1640,20 @@ void LanSession::sendRightClick(
         pointPayload(x, y));
 }
 
+void LanSession::sendMouseWheel(
+    int delta)
+{
+    if (delta == 0) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::MouseWheel,
+        pointPayload(
+            delta,
+            0));
+}
+
 void LanSession::sendKeyPress(
     int qtKey)
 {
