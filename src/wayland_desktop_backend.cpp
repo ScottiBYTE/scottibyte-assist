@@ -397,6 +397,18 @@ void WaylandDesktopBackend::releaseLeftAt(
     }
 }
 
+void WaylandDesktopBackend::scrollWheel(
+    int delta)
+{
+    if (delta == 0 ||
+        !libeiInput_->scrollReady()) {
+        return;
+    }
+
+    libeiInput_->scrollVertical(
+        delta);
+}
+
 void WaylandDesktopBackend::pressKey(
     int qtKey)
 {

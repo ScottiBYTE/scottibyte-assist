@@ -56,6 +56,9 @@ public slots:
         int x,
         int y) = 0;
 
+    virtual void scrollWheel(
+        int delta) = 0;
+
     virtual void pressKey(
         int qtKey) = 0;
 

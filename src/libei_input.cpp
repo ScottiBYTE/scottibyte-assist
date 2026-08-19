@@ -596,6 +596,42 @@ void LibeiInput::clickRightButton()
             "Right-click press and release sent"));
 }
 
+void LibeiInput::scrollVertical(
+    int delta)
+{
+    if (delta == 0) {
+        return;
+    }
+
+    if (!scrollReady() ||
+        ei_ == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "No active authorized scroll device."));
+        return;
+    }
+
+    ei_device_scroll_discrete(
+        scrollDevice_,
+        0,
+        -delta);
+
+    ei_device_frame(
+        scrollDevice_,
+        ei_now(ei_));
+
+    ei_device_scroll_stop(
+        scrollDevice_,
+        false,
+        true);
+
+    ei_device_frame(
+        scrollDevice_,
+        ei_now(ei_));
+
+    ei_dispatch(ei_);
+}
+
 void LibeiInput::scrollDown()
 {
     if (!scrollReady() ||

@@ -1207,6 +1207,53 @@ void X11DesktopBackend::clickRightAt(
     XCloseDisplay(display);
 }
 
+void X11DesktopBackend::scrollWheel(
+    int delta)
+{
+    if (delta == 0) {
+        return;
+    }
+
+    Display *display =
+        XOpenDisplay(nullptr);
+
+    if (display == nullptr) {
+        emit errorOccurred(
+            QStringLiteral(
+                "Could not access the X11 display."));
+        return;
+    }
+
+    const unsigned int button =
+        delta > 0
+            ? 4
+            : 5;
+
+    const int steps =
+        std::max(
+            1,
+            std::abs(delta) / 120);
+
+    for (int step = 0;
+         step < steps;
+         ++step) {
+        XTestFakeButtonEvent(
+            display,
+            button,
+            True,
+            CurrentTime);
+
+        XTestFakeButtonEvent(
+            display,
+            button,
+            False,
+            CurrentTime);
+    }
+
+    XFlush(display);
+    XCloseDisplay(display);
+}
+
 void X11DesktopBackend::pressLeftAt(
     int x,
     int y)

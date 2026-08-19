@@ -45,6 +45,10 @@ public slots:
     void pressLeftButton();
     void releaseLeftButton();
     void clickRightButton();
+
+    void scrollVertical(
+        int delta);
+
     void scrollDown();
 
     void pressKey(
