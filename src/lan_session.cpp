@@ -2222,6 +2222,11 @@ void LanSession::processIncomingBytes(
                 y);
         } else if (
             expectedMessageType_ ==
+            MessageType::MouseWheel) {
+            emit mouseWheelReceived(
+                x);
+        } else if (
+            expectedMessageType_ ==
             MessageType::LeftButtonPress) {
             desktopBackend_->pressLeftAt(
                 x,

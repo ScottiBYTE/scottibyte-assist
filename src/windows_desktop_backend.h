@@ -47,6 +47,9 @@ public slots:
         int x,
         int y) override;
 
+    void scrollWheel(
+        int delta);
+
     void pressKey(
         int qtKey) override;
 

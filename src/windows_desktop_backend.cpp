@@ -1189,6 +1189,44 @@ void WindowsDesktopBackend::clickRightAt(
         MOUSEEVENTF_RIGHTUP);
 }
 
+void WindowsDesktopBackend::scrollWheel(
+    int delta)
+{
+    if (delta == 0) {
+        return;
+    }
+
+    const std::string command =
+        "WHEEL " +
+        std::to_string(delta);
+
+    /*
+     * Elevated applications and secure/elevated input
+     * use the same broker as pointer, button and keyboard
+     * input.
+     */
+    if (sendElevatedBrokerCommand(
+            command)) {
+        return;
+    }
+
+    INPUT input{};
+    input.type =
+        INPUT_MOUSE;
+
+    input.mi.dwFlags =
+        MOUSEEVENTF_WHEEL;
+
+    input.mi.mouseData =
+        static_cast<DWORD>(
+            delta);
+
+    SendInput(
+        1,
+        &input,
+        sizeof(INPUT));
+}
+
 void WindowsDesktopBackend::pressKey(
     int qtKey)
 {

@@ -5485,6 +5485,12 @@ providerScreenDismissFilter->
     lanSession->setDesktopBackend(
         desktopBackend);
 
+    QObject::connect(
+        lanSession,
+        &LanSession::mouseWheelReceived,
+        windowsBackend,
+        &WindowsDesktopBackend::scrollWheel);
+
     shareSourceCombo->clear();
 
     shareSourceCombo->addItem(

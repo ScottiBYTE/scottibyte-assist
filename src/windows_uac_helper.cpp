@@ -1145,6 +1145,31 @@ bool sendBrokerMouseButton(
             sizeof(INPUT)) == 1;
 }
 
+bool sendBrokerMouseWheel(
+    int delta)
+{
+    if (delta == 0) {
+        return true;
+    }
+
+    INPUT input{};
+    input.type =
+        INPUT_MOUSE;
+
+    input.mi.dwFlags =
+        MOUSEEVENTF_WHEEL;
+
+    input.mi.mouseData =
+        static_cast<DWORD>(
+            delta);
+
+    return
+        SendInput(
+            1,
+            &input,
+            sizeof(INPUT)) == 1;
+}
+
 std::string processBrokerCommand(
     const std::string &request,
     bool &quit)
@@ -1294,6 +1319,24 @@ std::string processBrokerCommand(
                 MOUSEEVENTF_RIGHTUP)
                 ? "OK"
                 : "ERROR RUP";
+    }
+
+    if (command == "WHEEL") {
+        int delta = 0;
+
+        if (!(input >> delta)) {
+            return "ERROR BAD_WHEEL";
+        }
+
+        if (!sendBrokerMouseWheel(
+                delta)) {
+            return
+                "ERROR WHEEL " +
+                std::to_string(
+                    GetLastError());
+        }
+
+        return "OK";
     }
 
     if (

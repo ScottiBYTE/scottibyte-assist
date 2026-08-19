@@ -188,6 +188,9 @@ signals:
     void clipboardTextReceived(
         const QString &text);
 
+    void mouseWheelReceived(
+        int delta);
+
     void relayBytesReady(
         const QByteArray &bytes);
 
@@ -234,7 +237,8 @@ private:
         DesktopAudioPacket = 28,
         RemoteCursorImage = 29,
         ProviderCursorImage = 30,
-        SupportActivityStart = 31
+        SupportActivityStart = 31,
+        MouseWheel = 32
     };
 
     void startAdvertising();
