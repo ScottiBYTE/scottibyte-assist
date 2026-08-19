@@ -130,6 +130,32 @@
       line-height: 1.65;
     }
 
+    .release-note {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 18px;
+      padding: 12px 18px;
+      border: 1px solid rgba(54, 207, 255, 0.5);
+      border-radius: 14px;
+      color: var(--muted);
+      background:
+        linear-gradient(
+          135deg,
+          rgba(24, 104, 170, 0.22),
+          rgba(111, 54, 214, 0.20)
+        );
+      box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.16);
+      text-align: center;
+    }
+
+    .release-note strong {
+      color: var(--cyan);
+      white-space: nowrap;
+    }
+
     .version-pill {
       display: inline-flex;
       gap: 9px;
@@ -339,6 +365,11 @@
         padding:
           36px 12px
           30px;
+      }
+
+      .release-note {
+        flex-direction: column;
+        gap: 4px;
       }
 
       .downloads,
@@ -645,7 +676,7 @@
     </span>
 
     <span class="version">
-          Server v1.3.1
+          Assist Server v1.3.1
         </span>
 
     <a
@@ -675,12 +706,20 @@
       </h1>
 
       <p class="hero-copy">
-        Connect securely to another computer for desktop
-        viewing, remote control, clipboard and file sharing,
+        Connect securely to another computer for responsive
+        desktop viewing and control, clipboard and file sharing,
         and two-way voice communication.
       </p>
 
     </section>
+
+    <div class="release-note">
+      <strong>New in 0.6.0</strong>
+      <span>
+        Two-way mouse-wheel support and full Windows
+        drag-and-select control.
+      </span>
+    </div>
 
     <section
       class="downloads"
@@ -708,21 +747,21 @@
           <div>
             <h2>Windows</h2>
             <p>64-bit Windows installer</p>
-            <p>Version 0.5.0</p>
+            <p>Version 0.6.0</p>
           </div>
         </div>
 
         <ul class="feature-list">
           <li>Windows 10 or Windows 11</li>
-          <li>Includes the required runtime libraries</li>
-          <li>Installs system-wide with elevated support service</li>
-          <li>Optional desktop shortcut</li>
+          <li>Full mouse, keyboard, drag-and-scroll control</li>
+          <li>Elevated administrator and UAC support</li>
+          <li>Voice, clipboard, and file sharing</li>
         </ul>
 
         <div class="actions">
           <a
             class="download-button"
-            href="/downloads/0.5.0/ScottiBYTE-Assist-Setup-0.5.0.exe"
+            href="/downloads/0.6.0/ScottiBYTE-Assist-Setup-0.6.0.exe"
             download
           >
             Download for Windows
@@ -730,7 +769,7 @@
 
           <a
             class="checksum-link"
-            href="/downloads/0.5.0/ScottiBYTE-Assist-Setup-0.5.0.exe.sha256"
+            href="/downloads/0.6.0/ScottiBYTE-Assist-Setup-0.6.0.exe.sha256"
           >
             View SHA-256 checksum
           </a>
@@ -753,21 +792,21 @@
           <div>
             <h2>Ubuntu Linux</h2>
             <p>64-bit Debian package</p>
-            <p>Version 0.5.0</p>
+            <p>Version 0.6.0</p>
           </div>
         </div>
 
         <ul class="feature-list">
           <li>Designed for Ubuntu 24.04 LTS</li>
-          <li>Wayland screen-portal support</li>
-          <li>X11 multi-monitor support</li>
-          <li>Dependencies installed through APT</li>
+          <li>X11 and Wayland remote desktop support</li>
+          <li>Full mouse, keyboard, drag-and-scroll control</li>
+          <li>Voice, clipboard, and file sharing</li>
         </ul>
 
         <div class="actions">
           <a
             class="download-button"
-            href="/downloads/0.5.0/ScottiBYTE-Assist_0.5.0_amd64.deb"
+            href="/downloads/0.6.0/ScottiBYTE-Assist_0.6.0_amd64.deb"
             download
           >
             Download for Ubuntu
@@ -775,7 +814,7 @@
 
           <a
             class="checksum-link"
-            href="/downloads/0.5.0/ScottiBYTE-Assist_0.5.0_amd64.deb.sha256"
+            href="/downloads/0.6.0/ScottiBYTE-Assist_0.6.0_amd64.deb.sha256"
           >
             View SHA-256 checksum
           </a>
