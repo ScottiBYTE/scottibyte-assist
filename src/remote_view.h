@@ -4,6 +4,7 @@
 #include <QWidget>
 
 class QKeyEvent;
+class QWheelEvent;
 
 class RemoteView final : public QWidget
 {
@@ -49,6 +50,9 @@ signals:
         int x,
         int y);
 
+    void wheelRequested(
+        int delta);
+
     void keyPressRequested(
         int qtKey);
 
@@ -67,6 +71,9 @@ protected:
 
     void mouseReleaseEvent(
         QMouseEvent *event) override;
+
+    void wheelEvent(
+        QWheelEvent *event) override;
 
     void keyPressEvent(
         QKeyEvent *event) override;

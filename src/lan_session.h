@@ -121,6 +121,9 @@ public:
         int x,
         int y);
 
+    void sendMouseWheel(
+        int delta);
+
     void sendKeyPress(
         int qtKey);
 
@@ -234,7 +237,8 @@ private:
         DesktopAudioPacket = 28,
         RemoteCursorImage = 29,
         ProviderCursorImage = 30,
-        SupportActivityStart = 31
+        SupportActivityStart = 31,
+        MouseWheel = 32
     };
 
     void startAdvertising();
