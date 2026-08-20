@@ -8340,12 +8340,12 @@ QObject::connect(
             int y)
         {
             remoteWindowView->
-                setRemoteCursorPosition(
+                setRemoteCursorPositionFromPeer(
                     x,
                     y);
 
             fullScreenRemoteView->
-                setRemoteCursorPosition(
+                setRemoteCursorPositionFromPeer(
                     x,
                     y);
         });

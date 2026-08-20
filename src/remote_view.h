@@ -24,6 +24,10 @@ public slots:
         int x,
         int y);
 
+    void setRemoteCursorPositionFromPeer(
+        int x,
+        int y);
+
     void setRemoteCursorImage(
         const QImage &image,
         int hotspotX,
@@ -89,6 +93,7 @@ private:
 
     QImage frame_;
     QPoint remoteCursorPosition_{-1, -1};
+    bool remoteCursorPositionConfirmed_ = false;
     QImage remoteCursorImage_;
     QPoint remoteCursorHotspot_{0, 0};
 };
