@@ -51,6 +51,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
@@ -982,6 +983,7 @@ void showSettingsDialog(
         QStringLiteral("ScottiBYTE"),
         QStringLiteral("Assist"));
 
+
     QDialog dialog(parent);
 
     dialog.setObjectName(
@@ -1116,15 +1118,15 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     form->setFieldGrowthPolicy(
         QFormLayout::AllNonFixedFieldsGrow);
 
+    form->setVerticalSpacing(10);
+
     auto *serverUrl =
         new QLineEdit;
 
     serverUrl->setText(
         settings.value(
             QStringLiteral(
-                "connection/serverUrl"),
-            QStringLiteral(
-                "https://assist.scottibyte.com"))
+                "connection/serverUrl"))
             .toString());
 
     serverUrl->setPlaceholderText(
@@ -1271,6 +1273,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         outputDevice);
 
     layout->addLayout(form);
+    layout->addSpacing(8);
     layout->addWidget(refreshDevices);
     layout->addWidget(deviceStatus);
 
@@ -1416,7 +1419,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             enrollProvider,
             providerCredential,
             installProviderCredential,
-            removeProviderCredentialButton
+            removeProviderCredentialButton,
+            &dialog
         ](
             bool required)
         {
@@ -1438,6 +1442,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             createFirstAdministrator->
                 setVisible(required);
 
+
             providerEnrollmentCode->
                 setVisible(!required);
 
@@ -1452,6 +1457,26 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             removeProviderCredentialButton->
                 setVisible(!required);
+
+            /*
+             * Resize only after the bootstrap controls have
+             * been shown or hidden. Otherwise adjustSize()
+             * calculates the normal Settings size while the
+             * larger bootstrap controls are still visible.
+             */
+            if (required) {
+                dialog.setMinimumSize(
+                    660,
+                    780);
+                dialog.resize(
+                    660,
+                    780);
+            } else {
+                dialog.setMinimumSize(
+                    620,
+                    0);
+                dialog.adjustSize();
+            }
         };
 
     const auto refreshProviderStatus =
@@ -3160,7 +3185,8 @@ QLabel#smallText {
 }
 
 QLineEdit#codeEntry {
-    min-height: 64px;
+    min-height: 44px;
+    max-height: 44px;
     border: 1px solid #39dfff;
     border-radius: 14px;
     padding: 0 20px;
@@ -3427,10 +3453,10 @@ QLabel#remotePlaceholder {
         makeCard(
             QStringLiteral("codeCard"));
 
-    codeCard->setMaximumWidth(620);
+    codeCard->setFixedWidth(430);
 
     codeCard->setSizePolicy(
-        QSizePolicy::Expanding,
+        QSizePolicy::Fixed,
         QSizePolicy::Preferred);
 
     auto *codeLayout =
@@ -3493,7 +3519,7 @@ QLabel#remotePlaceholder {
         copyCodeIcon->font();
 
     copyIconFont.setPointSize(
-        copyIconFont.pointSize() + 3);
+        copyIconFont.pointSize() + 5);
 
     copyIconFont.setBold(true);
 
@@ -3515,7 +3541,7 @@ QLabel#remotePlaceholder {
      */
     supportCodeGrid->setColumnMinimumWidth(
         0,
-        28);
+        36);
 
     supportCodeGrid->setColumnStretch(
         1,
@@ -3523,7 +3549,7 @@ QLabel#remotePlaceholder {
 
     supportCodeGrid->setColumnMinimumWidth(
         2,
-        28);
+        36);
 
     supportCodeGrid->addWidget(
         supportCode,
@@ -3663,6 +3689,13 @@ QLabel#remotePlaceholder {
 
     customerSendFileButton->setEnabled(false);
 
+    auto *customerChatButton =
+        makeButton(
+            QStringLiteral("Chat"),
+            QStringLiteral("secondaryButton"));
+
+    customerChatButton->setEnabled(false);
+
     auto *customerStartVoiceButton =
         makeButton(
             QStringLiteral("Start Voice"),
@@ -3716,6 +3749,17 @@ QLabel#remotePlaceholder {
                 "padding-right: 22px;"));
     }
 
+    customerChatButton->setFixedWidth(
+        receiveButtonWidth);
+
+    customerChatButton->setFixedHeight(
+        44);
+
+    customerChatButton->setStyleSheet(
+        QStringLiteral(
+            "padding-left: 22px;"
+            "padding-right: 22px;"));
+
     auto *customerVoiceControls =
         new QHBoxLayout;
 
@@ -3762,8 +3806,8 @@ QLabel#remotePlaceholder {
             "}"));
 
     receiveActions->addWidget(newCodeButton);
+    receiveActions->addWidget(customerChatButton);
     receiveActions->addWidget(customerSendFileButton);
-    receiveActions->addWidget(endSupportButton);
 
     auto *progressCard =
         makeCard(
@@ -3864,10 +3908,22 @@ QLabel#remotePlaceholder {
 
     receiveLayout->addSpacing(10);
 
-    receiveLayout->addWidget(
-        codeCard,
-        0,
-        Qt::AlignHCenter);
+    auto *codeAndChatRow =
+        new QHBoxLayout;
+
+    codeAndChatRow->setAlignment(
+        Qt::AlignCenter);
+
+    codeAndChatRow->setSpacing(12);
+
+    codeAndChatRow->addWidget(
+        codeCard);
+
+    codeAndChatRow->addWidget(
+        endSupportButton);
+
+    receiveLayout->addLayout(
+        codeAndChatRow);
 
     receiveLayout->addSpacing(10);
 
@@ -4137,7 +4193,7 @@ QLabel#remotePlaceholder {
     auto *providerStartVoiceButton =
         makeButton(
             QStringLiteral("Start Voice"),
-            QStringLiteral("primaryButton"));
+            QStringLiteral("secondaryButton"));
 
     providerStartVoiceButton->setEnabled(false);
 
@@ -4173,6 +4229,21 @@ QLabel#remotePlaceholder {
             "Provider microphone transmission "
             "will be added with two-way voice."));
 
+    const QList<QPushButton *> providerVoiceButtons = {
+        providerStartVoiceButton,
+        providerStopVoiceButton,
+        providerMuteButton
+    };
+
+    const QSize providerVoiceButtonSize(
+        216,
+        44);
+
+    for (auto *button : providerVoiceButtons) {
+        button->setFixedSize(
+            providerVoiceButtonSize);
+    }
+
     auto *providerVoiceControls =
         new QHBoxLayout;
 
@@ -4182,8 +4253,7 @@ QLabel#remotePlaceholder {
         Qt::AlignCenter);
 
     providerVoiceControls->addWidget(
-        providerStartVoiceButton,
-        1);
+        providerStartVoiceButton);
 
     providerVoiceControls->addWidget(
         providerStopVoiceButton);
@@ -4200,9 +4270,9 @@ QLabel#remotePlaceholder {
 
     providerMicrophoneMeter->setValue(0);
     providerMicrophoneMeter->setTextVisible(false);
-    providerMicrophoneMeter->setFixedHeight(12);
-    providerMicrophoneMeter->setMinimumWidth(220);
-    providerMicrophoneMeter->setMaximumWidth(320);
+    providerMicrophoneMeter->setFixedHeight(18);
+    providerMicrophoneMeter->setMinimumWidth(260);
+    providerMicrophoneMeter->setMaximumWidth(430);
 
     providerMicrophoneMeter->setStyleSheet(
         QStringLiteral(
@@ -4439,6 +4509,646 @@ providerRemoteAudioButton->setToolTip(
 
     providerSendFileButton->setEnabled(false);
 
+    auto *providerChatButton =
+        makeButton(
+            QStringLiteral("Chat"),
+            QStringLiteral("secondaryButton"));
+
+    providerChatButton->setEnabled(false);
+
+    auto *chatWindow = new QWidget;
+    chatWindow->setObjectName(
+        QStringLiteral("chatWindow"));
+    chatWindow->setWindowTitle(
+        QStringLiteral("ScottiBYTE Assist — Chat"));
+    chatWindow->setWindowIcon(
+        applicationIcon);
+    chatWindow->resize(760, 620);
+    chatWindow->setMinimumSize(620, 420);
+    chatWindow->setAttribute(
+        Qt::WA_QuitOnClose,
+        false);
+
+    chatWindow->setStyleSheet(
+        QStringLiteral(
+            R"CSS(
+QWidget#chatWindow {
+    background: qlineargradient(
+        x1:0, y1:0,
+        x2:1, y2:1,
+        stop:0 #071d39,
+        stop:0.55 #09294c,
+        stop:1 #181044
+    );
+    color: #ffffff;
+}
+
+QFrame#chatHeader {
+    background: #071b35;
+    border-bottom: 1px solid #28d8ff;
+}
+
+QLabel#chatTitle {
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+QToolButton#chatFontButton {
+    min-width: 38px;
+    max-width: 38px;
+    min-height: 32px;
+    max-height: 32px;
+    color: #d9e8f5;
+    font-size: 16px;
+    font-weight: 800;
+    background: #123153;
+    border: 1px solid #397a9e;
+    border-radius: 7px;
+}
+
+QToolButton#chatFontButton:hover {
+    background: #17466f;
+    border-color: #36dfff;
+}
+
+QFrame#chatAppearanceControls {
+    background: #092748;
+    border: 1px solid #235d82;
+    border-radius: 10px;
+}
+
+QToolButton#chatColorButton {
+    min-height: 32px;
+    color: #d9e8f5;
+    background: #123153;
+    border: 1px solid #397a9e;
+    border-radius: 7px;
+    padding-left: 14px;
+    padding-right: 12px;
+}
+
+QToolButton#chatColorButton:hover {
+    background: #17466f;
+    border-color: #36dfff;
+}
+
+QToolButton#chatColorButton::menu-indicator {
+    subcontrol-origin: padding;
+    subcontrol-position: right center;
+}
+
+QMenu#chatColorMenu {
+    color: #e7f1fa;
+    background: #071d39;
+    border: 1px solid #28cfee;
+    padding: 5px;
+}
+
+QMenu#chatColorMenu::item {
+    min-height: 28px;
+    padding: 4px 26px 4px 8px;
+    border-radius: 5px;
+}
+
+QMenu#chatColorMenu::item:selected {
+    background: #17466f;
+}
+
+QPlainTextEdit#chatTranscript {
+
+    color: #f4f8ff;
+    background: #061a33;
+    border: 1px solid #28cfee;
+    border-radius: 12px;
+    padding: 12px;
+    selection-background-color: #7138e8;
+}
+
+QLineEdit#chatInput {
+    min-height: 40px;
+    color: #ffffff;
+    background: #061a33;
+    border: 1px solid #28cfee;
+    border-radius: 10px;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+QLineEdit#chatInput:focus {
+    border: 1px solid #61e4ff;
+}
+
+QLineEdit#chatInput:disabled {
+    color: #8798aa;
+    border-color: #426078;
+    background: #102438;
+}
+)CSS"));
+
+    auto *chatLayout =
+        new QVBoxLayout(chatWindow);
+
+    chatLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        14);
+    chatLayout->setSpacing(12);
+
+    auto *chatHeader =
+        new QFrame;
+    chatHeader->setObjectName(
+        QStringLiteral("chatHeader"));
+
+    auto *chatHeaderLayout =
+        new QHBoxLayout(chatHeader);
+
+    chatHeaderLayout->setContentsMargins(
+        18,
+        12,
+        18,
+        12);
+    chatHeaderLayout->setSpacing(12);
+
+    auto *chatLogo =
+        new QLabel;
+
+    chatLogo->setPixmap(
+        applicationIcon.pixmap(
+            46,
+            46));
+
+    chatLogo->setFixedSize(
+        46,
+        46);
+
+    auto *chatTitle =
+        new QLabel(
+            QStringLiteral(
+                "<span style='color:#ffffff;'>Scotti</span>"
+                "<span style='color:#55e0ff;'>BYTE</span>"
+                "<span style='color:#ffffff;'> Assist</span>"
+                "<span style='color:#c8d8e7;'> — Chat</span>"));
+
+    chatTitle->setObjectName(
+        QStringLiteral("chatTitle"));
+
+    chatTitle->setTextFormat(
+        Qt::RichText);
+
+
+    auto *chatFontDecrease =
+        new QToolButton;
+
+    chatFontDecrease->setObjectName(
+        QStringLiteral("chatFontButton"));
+    chatFontDecrease->setText(
+        QStringLiteral("A−"));
+    chatFontDecrease->setToolTip(
+        QStringLiteral(
+            "Decrease chat font size"));
+
+    auto *chatFontIncrease =
+        new QToolButton;
+
+    chatFontIncrease->setObjectName(
+        QStringLiteral("chatFontButton"));
+    chatFontIncrease->setText(
+        QStringLiteral("A+"));
+    chatFontIncrease->setToolTip(
+        QStringLiteral(
+            "Increase chat font size"));
+
+    auto *chatColorButton =
+        new QToolButton;
+
+    chatColorButton->setObjectName(
+        QStringLiteral("chatColorButton"));
+
+    chatColorButton->setText(
+        QStringLiteral("Deep Sky Blue"));
+
+    chatColorButton->setToolTip(
+        QStringLiteral(
+            "Choose chat text color"));
+
+    chatColorButton->setPopupMode(
+        QToolButton::InstantPopup);
+
+    chatColorButton->setToolButtonStyle(
+        Qt::ToolButtonTextBesideIcon);
+
+    chatColorButton->setFixedWidth(194);
+
+    auto *chatColorMenu =
+        new QMenu(chatColorButton);
+
+    chatColorMenu->setObjectName(
+        QStringLiteral("chatColorMenu"));
+
+    chatColorButton->setMenu(
+        chatColorMenu);
+
+    auto *chatSettings =
+        new QSettings(
+            QStringLiteral("ScottiBYTE"),
+            QStringLiteral("Assist"),
+            chatWindow);
+
+    QString chatTextColor =
+        chatSettings->value(
+            QStringLiteral("chat/textColor"),
+            QStringLiteral("#00BFFF"))
+            .toString();
+
+    auto *chatAppearanceControls =
+        new QFrame;
+
+    chatAppearanceControls->setObjectName(
+        QStringLiteral(
+            "chatAppearanceControls"));
+
+    auto *chatAppearanceLayout =
+        new QHBoxLayout(
+            chatAppearanceControls);
+
+    chatAppearanceLayout->setContentsMargins(
+        6,
+        5,
+        6,
+        5);
+
+    chatAppearanceLayout->setSpacing(5);
+
+    chatAppearanceLayout->addWidget(
+        chatColorButton);
+
+    auto *chatAppearanceSeparator =
+        new QFrame;
+
+    chatAppearanceSeparator->setFrameShape(
+        QFrame::VLine);
+
+    chatAppearanceSeparator->setStyleSheet(
+        QStringLiteral(
+            "color: #397a9e;"));
+
+    chatAppearanceSeparator->setFixedHeight(
+        24);
+
+    chatAppearanceLayout->addSpacing(4);
+
+    chatAppearanceLayout->addWidget(
+        chatAppearanceSeparator);
+
+    chatAppearanceLayout->addSpacing(4);
+
+    chatAppearanceLayout->addWidget(
+        chatFontDecrease);
+
+    chatAppearanceLayout->addWidget(
+        chatFontIncrease);
+
+    chatHeaderLayout->addWidget(
+        chatLogo);
+
+    chatHeaderLayout->addWidget(
+        chatTitle);
+
+    chatHeaderLayout->addStretch(1);
+
+    chatHeaderLayout->addWidget(
+        chatAppearanceControls);
+
+    auto *chatTranscript =
+        new QPlainTextEdit;
+
+    chatTranscript->setObjectName(
+        QStringLiteral("chatTranscript"));
+    chatTranscript->setReadOnly(true);
+
+    auto chatTranscriptFont =
+        chatTranscript->font();
+
+    chatTranscriptFont.setPointSize(14);
+    chatTranscript->setFont(
+        chatTranscriptFont);
+
+    auto *chatInput =
+        new QLineEdit;
+
+    chatInput->setObjectName(
+        QStringLiteral("chatInput"));
+
+    auto chatInputFont =
+        chatInput->font();
+
+    chatInputFont.setPointSize(14);
+    chatInput->setFont(
+        chatInputFont);
+    chatInput->setPlaceholderText(
+        QStringLiteral("Type a message..."));
+    chatInput->setEnabled(false);
+
+    const auto updateChatTextColor =
+        [
+            chatTranscript,
+            chatInput,
+            chatColorButton,
+            chatSettings,
+            &chatTextColor
+        ](
+            const QString &name,
+            const QString &color)
+        {
+            chatTextColor = color;
+
+            chatSettings->setValue(
+                QStringLiteral(
+                    "chat/textColor"),
+                chatTextColor);
+
+            QPixmap selectedSwatch(
+                18,
+                18);
+
+            selectedSwatch.fill(
+                QColor(color));
+
+            chatColorButton->setIcon(
+                QIcon(selectedSwatch));
+
+            chatColorButton->setIconSize(
+                QSize(
+                    18,
+                    18));
+
+            chatColorButton->setText(
+                QStringLiteral("  %1")
+                    .arg(name));
+
+            chatTranscript->setStyleSheet(
+                QStringLiteral(
+                    "color: %1;")
+                    .arg(
+                        chatTextColor));
+
+            chatInput->setStyleSheet(
+                QStringLiteral(
+                    "color: %1;")
+                    .arg(
+                        chatTextColor));
+        };
+
+    const QList<QPair<QString, QString>>
+        chatColors = {
+            {
+                QStringLiteral("White"),
+                QStringLiteral("#FFFFFF")
+            },
+            {
+                QStringLiteral("Light Gray"),
+                QStringLiteral("#D3D3D3")
+            },
+            {
+                QStringLiteral("Silver"),
+                QStringLiteral("#C0C0C0")
+            },
+            {
+                QStringLiteral("Deep Sky Blue"),
+                QStringLiteral("#00BFFF")
+            },
+            {
+                QStringLiteral("Cyan"),
+                QStringLiteral("#00FFFF")
+            },
+            {
+                QStringLiteral("Turquoise"),
+                QStringLiteral("#40E0D0")
+            },
+            {
+                QStringLiteral("Sea Green"),
+                QStringLiteral("#2E8B57")
+            },
+            {
+                QStringLiteral("Lime Green"),
+                QStringLiteral("#32CD32")
+            },
+            {
+                QStringLiteral("Yellow"),
+                QStringLiteral("#FFFF00")
+            },
+            {
+                QStringLiteral("Gold"),
+                QStringLiteral("#FFD700")
+            },
+            {
+                QStringLiteral("Orange"),
+                QStringLiteral("#FFA500")
+            },
+            {
+                QStringLiteral("Deep Orange"),
+                QStringLiteral("#FF5722")
+            },
+            {
+                QStringLiteral("Red"),
+                QStringLiteral("#FF0000")
+            },
+            {
+                QStringLiteral("Hot Pink"),
+                QStringLiteral("#FF69B4")
+            },
+            {
+                QStringLiteral("Magenta"),
+                QStringLiteral("#FF00FF")
+            },
+            {
+                QStringLiteral("Purple"),
+                QStringLiteral("#800080")
+            },
+            {
+                QStringLiteral("Violet"),
+                QStringLiteral("#EE82EE")
+            }
+        };
+
+    for (const auto &entry : chatColors) {
+        QPixmap swatch(
+            18,
+            18);
+
+        swatch.fill(
+            QColor(entry.second));
+
+        auto *action =
+            chatColorMenu->addAction(
+                QIcon(swatch),
+                entry.first);
+
+        QObject::connect(
+            action,
+            &QAction::triggered,
+            chatWindow,
+            [
+                updateChatTextColor,
+                entry
+            ]()
+            {
+                updateChatTextColor(
+                    entry.first,
+                    entry.second);
+            });
+    }
+
+    QString initialChatColorName =
+        QStringLiteral("Deep Sky Blue");
+
+    for (const auto &entry : chatColors) {
+        if (
+            entry.second.compare(
+                chatTextColor,
+                Qt::CaseInsensitive) == 0
+        ) {
+            initialChatColorName =
+                entry.first;
+            break;
+        }
+    }
+
+    updateChatTextColor(
+        initialChatColorName,
+        chatTextColor);
+
+    auto *chatSendButton =
+        makeButton(
+            QStringLiteral("Send"),
+            QStringLiteral("primaryButton"));
+
+    chatSendButton->setEnabled(false);
+    chatSendButton->setFixedHeight(44);
+
+    auto *chatInputRow =
+        new QHBoxLayout;
+
+    chatInputRow->setContentsMargins(
+        16,
+        0,
+        16,
+        0);
+
+    chatInputRow->setSpacing(10);
+
+    chatInputRow->addWidget(
+        chatInput,
+        1);
+
+    chatInputRow->addWidget(
+        chatSendButton);
+
+    chatLayout->addWidget(
+        chatHeader);
+
+    chatLayout->addWidget(
+        chatTranscript,
+        1);
+
+    chatLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        14);
+
+    chatLayout->addLayout(
+        chatInputRow);
+
+    int chatFontPointSize =
+        qBound(
+            9,
+            chatSettings->value(
+                QStringLiteral(
+                    "chat/fontPointSize"),
+                14)
+                .toInt(),
+            24);
+
+    int chatUnreadCount = 0;
+    bool chatWindowPositioned = false;
+
+    const auto updateChatFont =
+        [
+            chatTranscript,
+            chatInput,
+            &chatFontPointSize
+        ]()
+        {
+            QFont transcriptFont =
+                chatTranscript->font();
+
+            transcriptFont.setPointSize(
+                chatFontPointSize);
+
+            chatTranscript->setFont(
+                transcriptFont);
+
+            QFont inputFont =
+                chatInput->font();
+
+            inputFont.setPointSize(
+                chatFontPointSize);
+
+            chatInput->setFont(
+                inputFont);
+        };
+
+    updateChatFont();
+
+    QObject::connect(
+        chatFontDecrease,
+        &QToolButton::clicked,
+        chatWindow,
+        [
+            updateChatFont,
+            chatSettings,
+            &chatFontPointSize
+        ]()
+        {
+            chatFontPointSize =
+                qMax(
+                    9,
+                    chatFontPointSize - 1);
+
+            updateChatFont();
+
+            chatSettings->setValue(
+                QStringLiteral(
+                    "chat/fontPointSize"),
+                chatFontPointSize);
+        });
+
+    QObject::connect(
+        chatFontIncrease,
+        &QToolButton::clicked,
+        chatWindow,
+        [
+            updateChatFont,
+            chatSettings,
+            &chatFontPointSize
+        ]()
+        {
+            chatFontPointSize =
+                qMin(
+                    24,
+                    chatFontPointSize + 1);
+
+            updateChatFont();
+
+            chatSettings->setValue(
+                QStringLiteral(
+                    "chat/fontPointSize"),
+                chatFontPointSize);
+        });
+
     disconnectButton->setSizePolicy(
         QSizePolicy::Fixed,
         QSizePolicy::Fixed);
@@ -4480,10 +5190,34 @@ providerRemoteAudioButton->setToolTip(
         providerRemoteAudioButton,
         0,
         Qt::AlignHCenter);
-    provideLayout->addWidget(
-        providerSendFileButton,
-        0,
-        Qt::AlignHCenter);
+    auto *providerFileChatControls =
+        new QHBoxLayout;
+
+    providerFileChatControls->setSpacing(8);
+    providerFileChatControls->setAlignment(
+        Qt::AlignCenter);
+
+    const int providerFileChatWidth =
+        qMax(
+            providerSendFileButton->sizeHint().width(),
+            providerChatButton->sizeHint().width());
+
+    providerChatButton->setFixedWidth(
+        providerFileChatWidth);
+    providerSendFileButton->setFixedWidth(
+        providerFileChatWidth);
+
+    providerChatButton->setFixedHeight(44);
+    providerSendFileButton->setFixedHeight(44);
+
+    providerFileChatControls->addWidget(
+        providerChatButton);
+    providerFileChatControls->addWidget(
+        providerSendFileButton);
+
+    provideLayout->addLayout(
+        providerFileChatControls);
+
     provideLayout->addStretch(1);
     provideLayout->addWidget(
         disconnectButton,
@@ -4491,6 +5225,55 @@ providerRemoteAudioButton->setToolTip(
         Qt::AlignHCenter);
 
     pages->addWidget(providePage);
+
+    const auto openChatWindow =
+        [
+            window,
+            chatWindow,
+            customerChatButton,
+            providerChatButton,
+            chatInput,
+            &chatUnreadCount,
+            &chatWindowPositioned
+        ]()
+        {
+            chatUnreadCount = 0;
+
+            customerChatButton->setText(
+                QStringLiteral("Chat"));
+
+            providerChatButton->setText(
+                QStringLiteral("Chat"));
+
+            chatWindow->show();
+
+            if (!chatWindowPositioned) {
+                const QRect mainGeometry =
+                    window->frameGeometry();
+
+                chatWindow->move(
+                    mainGeometry.right() + 16,
+                    mainGeometry.top() + 36);
+
+                chatWindowPositioned = true;
+            }
+
+            chatWindow->raise();
+            chatWindow->activateWindow();
+            chatInput->setFocus();
+        };
+
+    QObject::connect(
+        customerChatButton,
+        &QPushButton::clicked,
+        window,
+        openChatWindow);
+
+    QObject::connect(
+        providerChatButton,
+        &QPushButton::clicked,
+        window,
+        openChatWindow);
 
     QElapsedTimer supportElapsedClock;
     bool supportElapsedRunning = false;
@@ -4728,6 +5511,138 @@ providerRemoteAudioButton->setToolTip(
 
     auto *lanSession =
         new LanSession(window);
+
+    const auto sendChatText =
+        [
+            lanSession,
+            chatInput,
+            chatTranscript
+        ]()
+        {
+            const QString text =
+                chatInput->text().trimmed();
+
+            if (text.isEmpty()) {
+                return;
+            }
+
+            chatTranscript->appendPlainText(
+                QStringLiteral("You: %1")
+                    .arg(text));
+
+            lanSession->sendChatMessage(
+                text);
+
+            chatInput->clear();
+            chatInput->setFocus();
+        };
+
+    QObject::connect(
+        chatSendButton,
+        &QPushButton::clicked,
+        window,
+        sendChatText);
+
+    QObject::connect(
+        chatInput,
+        &QLineEdit::returnPressed,
+        chatSendButton,
+        &QPushButton::click);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::chatMessageReceived,
+        window,
+        [
+            chatWindow,
+            chatTranscript,
+            customerChatButton,
+            providerChatButton,
+            receiveButton,
+            &chatUnreadCount
+        ](
+            const QString &text)
+        {
+            const QString peerName =
+                receiveButton->isChecked()
+                    ? QStringLiteral("Provider")
+                    : QStringLiteral("Customer");
+
+            chatTranscript->appendPlainText(
+                QStringLiteral("%1: %2")
+                    .arg(
+                        peerName,
+                        text));
+
+            if (
+                chatWindow->isVisible() &&
+                chatWindow->isActiveWindow()
+            ) {
+                return;
+            }
+
+            ++chatUnreadCount;
+
+            const QString buttonText =
+                QStringLiteral("Chat (%1)")
+                    .arg(chatUnreadCount);
+
+            customerChatButton->setText(
+                buttonText);
+
+            providerChatButton->setText(
+                buttonText);
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::connectedChanged,
+        window,
+        [
+            receiveButton,
+            customerChatButton,
+            providerChatButton,
+            chatWindow,
+            chatTranscript,
+            chatInput,
+            chatSendButton,
+            &chatUnreadCount
+        ](
+            bool connected)
+        {
+            const bool customerConnected =
+                connected &&
+                receiveButton->isChecked();
+
+            const bool providerConnected =
+                connected &&
+                !receiveButton->isChecked();
+
+            customerChatButton->setEnabled(
+                customerConnected);
+
+            providerChatButton->setEnabled(
+                providerConnected);
+
+            chatInput->setEnabled(connected);
+            chatSendButton->setEnabled(connected);
+
+            if (connected) {
+                return;
+            }
+
+            chatUnreadCount = 0;
+
+            customerChatButton->setText(
+                QStringLiteral("Chat"));
+
+            providerChatButton->setText(
+                QStringLiteral("Chat"));
+
+            chatInput->clear();
+            chatTranscript->clear();
+            chatWindow->hide();
+        });
 
     QObject::connect(
         lanSession,
