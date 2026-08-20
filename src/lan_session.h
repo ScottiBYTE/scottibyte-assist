@@ -133,6 +133,9 @@ public:
     void sendClipboardText(
         const QString &text);
 
+    void sendChatMessage(
+        const QString &text);
+
 signals:
     void statusChanged(
         const QString &status);
@@ -191,6 +194,9 @@ signals:
     void clipboardTextReceived(
         const QString &text);
 
+    void chatMessageReceived(
+        const QString &text);
+
     void mouseWheelReceived(
         int delta);
 
@@ -241,7 +247,8 @@ private:
         RemoteCursorImage = 29,
         ProviderCursorImage = 30,
         SupportActivityStart = 31,
-        MouseWheel = 32
+        MouseWheel = 32,
+        ChatMessage = 33
     };
 
     void startAdvertising();
