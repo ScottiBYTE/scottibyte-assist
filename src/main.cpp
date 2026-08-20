@@ -28,7 +28,11 @@
 #include "x11_desktop_backend.h"
 #endif
 
+#include <cmath>
 #include <QApplication>
+#include <gst/gst.h>
+#include <gst/app/gstappsrc.h>
+#include <QGuiApplication>
 #include <QButtonGroup>
 #include <QClipboard>
 #include <QComboBox>
@@ -2941,6 +2945,29 @@ QPushButton#secondaryButton:checked {
     );
 }
 
+QPushButton#secondaryButton[chatUnread="true"] {
+    border: 2px solid #7df3ff;
+    color: #ffffff;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #20c9e8,
+        stop: 0.50 #278fe8,
+        stop: 1 #8b46f0
+    );
+}
+
+QPushButton#secondaryButton[chatUnread="true"]:hover {
+    border: 2px solid #b4f8ff;
+    background: qlineargradient(
+        x1: 0, y1: 0,
+        x2: 1, y2: 0,
+        stop: 0 #36d9f3,
+        stop: 0.50 #3a9cf0,
+        stop: 1 #a35af5
+    );
+}
+
 QPushButton#muteButton {
     min-width: 170px;
     min-height: 38px;
@@ -4516,7 +4543,8 @@ providerRemoteAudioButton->setToolTip(
 
     providerChatButton->setEnabled(false);
 
-    auto *chatWindow = new QWidget;
+    auto *chatWindow =
+        new QWidget;
     chatWindow->setObjectName(
         QStringLiteral("chatWindow"));
     chatWindow->setWindowTitle(
@@ -5226,6 +5254,299 @@ QLineEdit#chatInput:disabled {
 
     pages->addWidget(providePage);
 
+    const QString customerChatNormalStyle =
+        customerChatButton->styleSheet();
+
+    const QString providerChatNormalStyle =
+        providerChatButton->styleSheet();
+
+    const auto setChatUnreadStyle =
+        [
+            customerChatButton,
+            providerChatButton,
+            customerChatNormalStyle,
+            providerChatNormalStyle
+        ](
+            bool unread)
+        {
+            if (!unread) {
+                customerChatButton->setStyleSheet(
+                    customerChatNormalStyle);
+
+                providerChatButton->setStyleSheet(
+                    providerChatNormalStyle);
+
+                return;
+            }
+
+            const QString unreadStyle =
+                QStringLiteral(
+                    "QPushButton {"
+                    " border: 2px solid #fff0a0;"
+                    " border-radius: 12px;"
+                    " color: #ffffff;"
+                    " font-weight: 900;"
+                    " background: qlineargradient("
+                    " x1:0, y1:0, x2:1, y2:0,"
+                    " stop:0 #f29b24,"
+                    " stop:0.52 #e46b24,"
+                    " stop:1 #b13c72);"
+                    "}"
+                    "QPushButton:hover {"
+                    " border: 2px solid #fffbd6;"
+                    " background: qlineargradient("
+                    " x1:0, y1:0, x2:1, y2:0,"
+                    " stop:0 #ffad38,"
+                    " stop:0.52 #ef7a31,"
+                    " stop:1 #c64b86);"
+                    "}");
+
+            customerChatButton->setStyleSheet(
+                unreadStyle);
+
+            providerChatButton->setStyleSheet(
+                unreadStyle);
+        };
+
+    const auto playChatNotificationSound =
+        []()
+        {
+            static const bool gstReady =
+                []()
+                {
+                    GError *error = nullptr;
+
+                    const gboolean ready =
+                        gst_init_check(
+                            nullptr,
+                            nullptr,
+                            &error);
+
+                    if (error != nullptr) {
+                        g_error_free(error);
+                    }
+
+                    return ready != FALSE;
+                }();
+
+            if (!gstReady) {
+                return;
+            }
+
+#ifdef Q_OS_WIN
+            const char *pipelineDescription =
+                "appsrc name=source format=time "
+                "! audio/x-raw,"
+                "format=S16LE,"
+                "rate=48000,"
+                "channels=1,"
+                "layout=interleaved "
+                "! audioconvert "
+                "! audioresample "
+                "! volume volume=0.32 "
+                "! wasapi2sink sync=false";
+#else
+            const char *pipelineDescription =
+                "appsrc name=source format=time "
+                "! audio/x-raw,"
+                "format=S16LE,"
+                "rate=48000,"
+                "channels=1,"
+                "layout=interleaved "
+                "! audioconvert "
+                "! audioresample "
+                "! volume volume=0.32 "
+                "! autoaudiosink sync=false";
+#endif
+
+            GError *error = nullptr;
+
+            GstElement *pipeline =
+                gst_parse_launch(
+                    pipelineDescription,
+                    &error);
+
+            if (
+                pipeline == nullptr ||
+                error != nullptr
+            ) {
+                if (error != nullptr) {
+                    g_error_free(error);
+                }
+
+                if (pipeline != nullptr) {
+                    gst_object_unref(
+                        pipeline);
+                }
+
+                return;
+            }
+
+            GstElement *source =
+                gst_bin_get_by_name(
+                    GST_BIN(pipeline),
+                    "source");
+
+            if (source == nullptr) {
+                gst_object_unref(
+                    pipeline);
+                return;
+            }
+
+            constexpr int sampleRate = 48000;
+            constexpr int durationMs = 260;
+            constexpr int sampleCount =
+                sampleRate *
+                durationMs /
+                1000;
+
+            constexpr double pi =
+                3.14159265358979323846;
+
+            GstBuffer *buffer =
+                gst_buffer_new_allocate(
+                    nullptr,
+                    sampleCount *
+                        sizeof(gint16),
+                    nullptr);
+
+            GstMapInfo map;
+
+            if (
+                buffer == nullptr ||
+                !gst_buffer_map(
+                    buffer,
+                    &map,
+                    GST_MAP_WRITE)
+            ) {
+                if (buffer != nullptr) {
+                    gst_buffer_unref(
+                        buffer);
+                }
+
+                gst_object_unref(source);
+                gst_object_unref(pipeline);
+                return;
+            }
+
+            auto *samples =
+                reinterpret_cast<gint16 *>(
+                    map.data);
+
+            for (
+                int i = 0;
+                i < sampleCount;
+                ++i
+            ) {
+                const double time =
+                    static_cast<double>(i) /
+                    sampleRate;
+
+                const double progress =
+                    static_cast<double>(i) /
+                    sampleCount;
+
+                /*
+                 * A short two-note notification:
+                 * first tone gives definition,
+                 * second tone gives a light upward chime.
+                 */
+                const double firstEnvelope =
+                    std::exp(
+                        -12.0 * time);
+
+                const double secondStart =
+                    0.075;
+
+                double secondTone = 0.0;
+
+                if (time >= secondStart) {
+                    const double secondTime =
+                        time - secondStart;
+
+                    secondTone =
+                        std::sin(
+                            2.0 *
+                            pi *
+                            988.0 *
+                            secondTime) *
+                        std::exp(
+                            -13.0 *
+                            secondTime);
+                }
+
+                const double firstTone =
+                    std::sin(
+                        2.0 *
+                        pi *
+                        659.25 *
+                        time) *
+                    firstEnvelope;
+
+                /*
+                 * Very short fade-in prevents a click
+                 * at the beginning of the sound.
+                 */
+                const double fadeIn =
+                    qMin(
+                        1.0,
+                        progress / 0.025);
+
+                const double mixed =
+                    (
+                        firstTone * 0.42 +
+                        secondTone * 0.34
+                    ) *
+                    fadeIn;
+
+                samples[i] =
+                    static_cast<gint16>(
+                        qBound(
+                            -1.0,
+                            mixed,
+                            1.0) *
+                        32767.0);
+            }
+
+            gst_buffer_unmap(
+                buffer,
+                &map);
+
+            GST_BUFFER_PTS(buffer) = 0;
+
+            GST_BUFFER_DURATION(buffer) =
+                gst_util_uint64_scale(
+                    sampleCount,
+                    GST_SECOND,
+                    sampleRate);
+
+            gst_element_set_state(
+                pipeline,
+                GST_STATE_PLAYING);
+
+            gst_app_src_push_buffer(
+                GST_APP_SRC(source),
+                buffer);
+
+            gst_app_src_end_of_stream(
+                GST_APP_SRC(source));
+
+            gst_object_unref(source);
+
+            QTimer::singleShot(
+                600,
+                qApp,
+                [pipeline]()
+                {
+                    gst_element_set_state(
+                        pipeline,
+                        GST_STATE_NULL);
+
+                    gst_object_unref(
+                        pipeline);
+                });
+        };
+
     const auto openChatWindow =
         [
             window,
@@ -5233,11 +5554,14 @@ QLineEdit#chatInput:disabled {
             customerChatButton,
             providerChatButton,
             chatInput,
+            setChatUnreadStyle,
             &chatUnreadCount,
             &chatWindowPositioned
         ]()
         {
             chatUnreadCount = 0;
+
+            setChatUnreadStyle(false);
 
             customerChatButton->setText(
                 QStringLiteral("Chat"));
@@ -5274,6 +5598,45 @@ QLineEdit#chatInput:disabled {
         &QPushButton::clicked,
         window,
         openChatWindow);
+
+    QObject::connect(
+        qApp,
+        &QApplication::focusChanged,
+        window,
+        [
+            chatWindow,
+            chatInput,
+            chatTranscript,
+            customerChatButton,
+            providerChatButton,
+            setChatUnreadStyle,
+            &chatUnreadCount
+        ](
+            QWidget *,
+            QWidget *now)
+        {
+            if (!chatWindow->isVisible()) {
+                return;
+            }
+
+            if (
+                now != chatInput &&
+                now != chatTranscript &&
+                now != chatWindow
+            ) {
+                return;
+            }
+
+            chatUnreadCount = 0;
+
+            setChatUnreadStyle(false);
+
+            customerChatButton->setText(
+                QStringLiteral("Chat"));
+
+            providerChatButton->setText(
+                QStringLiteral("Chat"));
+        });
 
     QElapsedTimer supportElapsedClock;
     bool supportElapsedRunning = false;
@@ -5559,6 +5922,8 @@ QLineEdit#chatInput:disabled {
             customerChatButton,
             providerChatButton,
             receiveButton,
+            setChatUnreadStyle,
+            playChatNotificationSound,
             &chatUnreadCount
         ](
             const QString &text)
@@ -5581,7 +5946,11 @@ QLineEdit#chatInput:disabled {
                 return;
             }
 
+            playChatNotificationSound();
+
             ++chatUnreadCount;
+
+            setChatUnreadStyle(true);
 
             const QString buttonText =
                 QStringLiteral("Chat (%1)")
@@ -5606,6 +5975,7 @@ QLineEdit#chatInput:disabled {
             chatTranscript,
             chatInput,
             chatSendButton,
+            setChatUnreadStyle,
             &chatUnreadCount
         ](
             bool connected)
@@ -5632,6 +6002,8 @@ QLineEdit#chatInput:disabled {
             }
 
             chatUnreadCount = 0;
+
+            setChatUnreadStyle(false);
 
             customerChatButton->setText(
                 QStringLiteral("Chat"));

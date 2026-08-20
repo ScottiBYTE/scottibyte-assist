@@ -1690,6 +1690,32 @@ void LanSession::sendClipboardText(
         payload);
 }
 
+void LanSession::sendChatMessage(
+    const QString &text)
+{
+    const QString message =
+        text.trimmed();
+
+    if (message.isEmpty()) {
+        return;
+    }
+
+    const QByteArray payload =
+        message.toUtf8();
+
+    if (payload.size() > 16 * 1024) {
+        emit errorOccurred(
+            QStringLiteral(
+                "Chat message exceeds "
+                "the 16 KiB limit."));
+        return;
+    }
+
+    sendMessage(
+        MessageType::ChatMessage,
+        payload);
+}
+
 void LanSession::sendMessage(
     MessageType type,
     const QByteArray &payload)
@@ -2036,6 +2062,14 @@ void LanSession::processIncomingBytes(
         if (expectedMessageType_ ==
             MessageType::ClipboardText) {
             emit clipboardTextReceived(
+                QString::fromUtf8(payload));
+
+            continue;
+        }
+
+        if (expectedMessageType_ ==
+            MessageType::ChatMessage) {
+            emit chatMessageReceived(
                 QString::fromUtf8(payload));
 
             continue;
