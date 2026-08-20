@@ -37,7 +37,7 @@ echo "=== Verify executable version ==="
 
 binary_version="$(
   strings -el "$binary" \
-    | grep -E '^0\.[0-9]+\.[0-9]+$' \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
     | head -n 1
 )"
 
