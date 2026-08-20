@@ -3196,10 +3196,18 @@ QLabel#brandSubtitle {
 }
 
 QLabel#versionLabel {
-    color: #8fe8ff;
+    color: #72c7d8;
     font-size: 24px;
     font-weight: 900;
-    padding: 0 6px;
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+
+QLabel#versionLabel:hover {
+    color: #c8f7ff;
+    border: 1px solid #39dfff;
+    background: rgba(20, 91, 137, 90);
 }
 
 QPushButton#donateButton {
@@ -3611,13 +3619,37 @@ QLabel#remotePlaceholder {
     brandTitle->setTextFormat(
         Qt::RichText);
 
+    const QString projectUrl =
+        QStringLiteral(
+            "https://github.com/ScottiBYTE/"
+            "scottibyte-assist");
+
     auto *versionLabel =
         makeLabel(
-            QStringLiteral("v%1")
+            QStringLiteral(
+                "<a href=\"%1\" "
+                "style=\"color:#72c7d8;"
+                " text-decoration:none;\">"
+                "v%2</a>")
                 .arg(
+                    projectUrl,
                     QCoreApplication::
                         applicationVersion()),
             QStringLiteral("versionLabel"));
+
+    versionLabel->setTextFormat(
+        Qt::RichText);
+
+    versionLabel->setOpenExternalLinks(
+        true);
+
+    versionLabel->setCursor(
+        Qt::PointingHandCursor);
+
+    versionLabel->setToolTip(
+        QStringLiteral(
+            "Open the ScottiBYTE Assist "
+            "project on GitHub"));
 
     versionLabel->setAlignment(
         Qt::AlignVCenter);
