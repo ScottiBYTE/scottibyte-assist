@@ -3870,19 +3870,27 @@ QLabel#remotePlaceholder {
     copyCodeIcon->setFocusPolicy(
         Qt::NoFocus);
 
-    auto *copyCodeClickAwayFilter =
-        new CopyCodeClickAwayFilter(
-            copyCodeIcon,
-            window);
-
-    qApp->installEventFilter(
-        copyCodeClickAwayFilter);
+#if defined(Q_OS_WIN)
+    copyCodeIcon->setFixedSize(
+        34,
+        34);
+#endif
 
     auto copyIconFont =
         copyCodeIcon->font();
 
+#if defined(Q_OS_WIN)
+    /*
+     * Windows renders the Unicode copy glyph considerably
+     * smaller than Linux through its fallback font. Use an
+     * explicit pixel size so the control has the same visual
+     * weight on both platforms.
+     */
+    copyIconFont.setPixelSize(26);
+#else
     copyIconFont.setPointSize(
-        copyIconFont.pointSize() + 3);
+        copyIconFont.pointSize() + 5);
+#endif
 
     copyIconFont.setBold(true);
 
@@ -3904,7 +3912,7 @@ QLabel#remotePlaceholder {
      */
     supportCodeGrid->setColumnMinimumWidth(
         0,
-        28);
+        36);
 
     supportCodeGrid->setColumnStretch(
         1,
@@ -3912,7 +3920,7 @@ QLabel#remotePlaceholder {
 
     supportCodeGrid->setColumnMinimumWidth(
         2,
-        28);
+        36);
 
     supportCodeGrid->addWidget(
         supportCode,
@@ -3920,12 +3928,44 @@ QLabel#remotePlaceholder {
         1,
         Qt::AlignCenter);
 
+#if defined(Q_OS_WIN)
+    auto *copyCodeIconCell =
+        new QWidget;
+
+    copyCodeIconCell->setFixedWidth(36);
+
+    auto *copyCodeIconLayout =
+        new QVBoxLayout(copyCodeIconCell);
+
+    copyCodeIconLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        6);
+
+    copyCodeIconLayout->setSpacing(0);
+
+    copyCodeIconLayout->addStretch(1);
+
+    copyCodeIconLayout->addWidget(
+        copyCodeIcon,
+        0,
+        Qt::AlignRight);
+
+    supportCodeGrid->addWidget(
+        copyCodeIconCell,
+        0,
+        2,
+        Qt::AlignRight |
+            Qt::AlignBottom);
+#else
     supportCodeGrid->addWidget(
         copyCodeIcon,
         0,
         2,
         Qt::AlignRight |
             Qt::AlignBottom);
+#endif
 
     codeLayout->addWidget(
         supportCodeLayer,
@@ -3966,17 +4006,20 @@ QLabel#remotePlaceholder {
         });
 
     /*
-     * Keep the check mark visible while ScottiBYTE Assist
-     * remains the active application.
+     * Keep the check mark visible until the user moves
+     * away from the ScottiBYTE Assist window.
      */
     QObject::connect(
         qApp,
-        &QGuiApplication::applicationStateChanged,
+        &QGuiApplication::focusWindowChanged,
         window,
-        [copyCodeIcon](
-            Qt::ApplicationState state)
+        [window, copyCodeIcon](
+            QWindow *focusWindow)
         {
-            if (state == Qt::ApplicationActive) {
+            if (
+                focusWindow ==
+                window->windowHandle()
+            ) {
                 return;
             }
 
