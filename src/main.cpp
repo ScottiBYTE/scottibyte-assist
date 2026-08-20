@@ -1459,15 +1459,15 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     form->setFieldGrowthPolicy(
         QFormLayout::AllNonFixedFieldsGrow);
 
+    form->setVerticalSpacing(10);
+
     auto *serverUrl =
         new QLineEdit;
 
     serverUrl->setText(
         settings.value(
             QStringLiteral(
-                "connection/serverUrl"),
-            QStringLiteral(
-                "https://assist.scottibyte.com"))
+                "connection/serverUrl"))
             .toString());
 
     serverUrl->setPlaceholderText(
@@ -1614,6 +1614,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         outputDevice);
 
     contentLayout->addLayout(form);
+    contentLayout->addSpacing(8);
     contentLayout->addWidget(refreshDevices);
     contentLayout->addWidget(deviceStatus);
 
@@ -1759,7 +1760,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             enrollProvider,
             providerCredential,
             installProviderCredential,
-            removeProviderCredentialButton
+            removeProviderCredentialButton,
+            &dialog
         ](
             bool required)
         {
@@ -1795,6 +1797,26 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             removeProviderCredentialButton->
                 setVisible(!required);
+
+            /*
+             * Resize only after the bootstrap controls have
+             * been shown or hidden. Otherwise adjustSize()
+             * calculates the normal Settings size while the
+             * larger bootstrap controls are still visible.
+             */
+            if (required) {
+                dialog.setMinimumSize(
+                    660,
+                    780);
+                dialog.resize(
+                    660,
+                    780);
+            } else {
+                dialog.setMinimumSize(
+                    620,
+                    0);
+                dialog.adjustSize();
+            }
         };
 
     const auto refreshProviderStatus =
@@ -3517,7 +3539,8 @@ QLabel#smallText {
 }
 
 QLineEdit#codeEntry {
-    min-height: 64px;
+    min-height: 44px;
+    max-height: 44px;
     border: 1px solid #39dfff;
     border-radius: 14px;
     padding: 0 20px;
@@ -3808,10 +3831,10 @@ QLabel#remotePlaceholder {
         makeCard(
             QStringLiteral("codeCard"));
 
-    codeCard->setMaximumWidth(620);
+    codeCard->setFixedWidth(430);
 
     codeCard->setSizePolicy(
-        QSizePolicy::Expanding,
+        QSizePolicy::Fixed,
         QSizePolicy::Preferred);
 
     auto *codeLayout =
@@ -4412,7 +4435,11 @@ QLabel#remotePlaceholder {
 
     codeEntry->setMaxLength(7);
 
+#if defined(Q_OS_WIN)
+    codeEntry->setFixedWidth(220);
+#else
     codeEntry->setFixedWidth(190);
+#endif
 
     codeEntry->setValidator(
         new QRegularExpressionValidator(
