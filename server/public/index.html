@@ -669,15 +669,23 @@
       width: min(1180px, calc(100% - 40px));
       margin: 18px auto 0;
     ">
-    <span
+    <a
+      id="githubLink"
       class="github-placeholder"
-      title="GitHub link will be added with the public release">
+      href="#"
+      target="_blank"
+      rel="noopener noreferrer">
       GitHub
-    </span>
+    </a>
 
-    <span class="version">
-          Assist Server v1.3.1
-        </span>
+    <a
+      id="serverVersionLink"
+      class="version"
+      href="#"
+      target="_blank"
+      rel="noopener noreferrer">
+      Assist Server
+    </a>
 
     <a
       class="donate"
@@ -714,11 +722,8 @@
     </section>
 
     <div class="release-note">
-      <strong>New in 0.6.0</strong>
-      <span>
-        Two-way mouse-wheel support and full Windows
-        drag-and-select control.
-      </span>
+      <strong id="releaseHeadline">Latest release</strong>
+      <span id="releaseSummary"></span>
     </div>
 
     <section
@@ -747,7 +752,7 @@
           <div>
             <h2>Windows</h2>
             <p>64-bit Windows installer</p>
-            <p>Version 0.6.0</p>
+            <p id="windowsVersion">Version</p>
           </div>
         </div>
 
@@ -760,16 +765,18 @@
 
         <div class="actions">
           <a
+            id="windowsDownload"
             class="download-button"
-            href="/downloads/0.6.0/ScottiBYTE-Assist-Setup-0.6.0.exe"
+            href="#"
             download
           >
             Download for Windows
           </a>
 
           <a
+            id="windowsChecksum"
             class="checksum-link"
-            href="/downloads/0.6.0/ScottiBYTE-Assist-Setup-0.6.0.exe.sha256"
+            href="#"
           >
             View SHA-256 checksum
           </a>
@@ -792,7 +799,7 @@
           <div>
             <h2>Ubuntu Linux</h2>
             <p>64-bit Debian package</p>
-            <p>Version 0.6.1</p>
+            <p id="linuxVersion">Version</p>
           </div>
         </div>
 
@@ -805,16 +812,18 @@
 
         <div class="actions">
           <a
+            id="linuxDownload"
             class="download-button"
-            href="/downloads/0.6.1/ScottiBYTE-Assist_0.6.1_amd64.deb"
+            href="#"
             download
           >
             Download for Ubuntu
           </a>
 
           <a
+            id="linuxChecksum"
             class="checksum-link"
-            href="/downloads/0.6.1/ScottiBYTE-Assist_0.6.1_amd64.deb.sha256"
+            href="#"
           >
             View SHA-256 checksum
           </a>
@@ -866,5 +875,106 @@
       ScottiBYTE Assist
     </footer>
   </main>
+
+  <script>
+    async function loadReleaseMetadata() {
+      try {
+        const response = await fetch(
+          '/api/release',
+          {
+            cache: 'no-store'
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Release API returned ${response.status}`
+          );
+        }
+
+        const release =
+          await response.json();
+
+        const releasesUrl =
+          release.releasesUrl;
+
+        const githubLink =
+          document.getElementById(
+            'githubLink'
+          );
+
+        const serverVersionLink =
+          document.getElementById(
+            'serverVersionLink'
+          );
+
+        githubLink.href =
+          releasesUrl;
+
+        serverVersionLink.href =
+          releasesUrl;
+
+        serverVersionLink.textContent =
+          `Assist Server v${release.server.version}`;
+
+        document.getElementById(
+          'releaseHeadline'
+        ).textContent =
+          release.headline;
+
+        document.getElementById(
+          'releaseSummary'
+        ).textContent =
+          release.summary;
+
+        document.getElementById(
+          'windowsVersion'
+        ).textContent =
+          `Version ${release.windows.version}`;
+
+        document.getElementById(
+          'windowsDownload'
+        ).href =
+          release.windows.download;
+
+        document.getElementById(
+          'windowsChecksum'
+        ).href =
+          release.windows.checksum;
+
+        document.getElementById(
+          'linuxVersion'
+        ).textContent =
+          `Version ${release.linux.version}`;
+
+        document.getElementById(
+          'linuxDownload'
+        ).href =
+          release.linux.download;
+
+        document.getElementById(
+          'linuxChecksum'
+        ).href =
+          release.linux.checksum;
+      } catch (error) {
+        console.error(
+          'Unable to load release metadata:',
+          error
+        );
+
+        document.getElementById(
+          'releaseHeadline'
+        ).textContent =
+          'Release information unavailable';
+
+        document.getElementById(
+          'releaseSummary'
+        ).textContent =
+          'Please try again later.';
+      }
+    }
+
+    loadReleaseMetadata();
+  </script>
 </body>
 </html>

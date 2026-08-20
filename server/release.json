@@ -1,0 +1,15 @@
+{
+  "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
+  "headline": "New in 1.0.0",
+  "summary": "First production release of the ScottiBYTE Assist Windows and Linux clients.",
+  "windows": {
+    "version": "1.0.0",
+    "download": "/downloads/1.0.0/ScottiBYTE-Assist-Setup-1.0.0.exe",
+    "checksum": "/downloads/1.0.0/ScottiBYTE-Assist-Setup-1.0.0.exe.sha256"
+  },
+  "linux": {
+    "version": "1.0.0",
+    "download": "/downloads/1.0.0/ScottiBYTE-Assist_1.0.0_amd64.deb",
+    "checksum": "/downloads/1.0.0/ScottiBYTE-Assist_1.0.0_amd64.deb.sha256"
+  }
+}

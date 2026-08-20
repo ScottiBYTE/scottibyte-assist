@@ -1,5 +1,8 @@
 services:
   assist-server:
+    image:
+      scottibyte/scottibyte-assist-server:1.3.1
+
     build:
       context: ./server
 
@@ -20,7 +23,7 @@ services:
       - "3089:3089"
 
     volumes:
-      - ./server/data:/app/data
+      - ./data:/app/data
 
     healthcheck:
       test:

@@ -255,11 +255,20 @@
 
     .top-utilities .github-placeholder {
       color: #52a9ff;
-      cursor: default;
+      text-decoration: none;
+    }
+
+    .top-utilities .github-placeholder:hover {
+      text-decoration: underline;
     }
 
     .top-utilities .version {
       color: #c8d8e7;
+      text-decoration: none;
+    }
+
+    .top-utilities .version:hover {
+      text-decoration: underline;
     }
 
     .top-utilities .donate {
@@ -299,15 +308,23 @@
       </div>
 
       <div class="top-utilities">
-        <span
+        <a
+          id="adminGithubLink"
           class="github-placeholder"
-          title="GitHub link will be added with the public release">
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer">
           GitHub
-        </span>
+        </a>
 
-        <span class="version">
-          Server v1.3.1
-        </span>
+        <a
+          id="adminServerVersionLink"
+          class="version"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer">
+          Server
+        </a>
 
         <a
           class="donate"
@@ -1108,6 +1125,52 @@
         }
       }
     );
+    async function loadAdminReleaseMetadata() {
+      try {
+        const response =
+          await fetch(
+            '/api/release',
+            {
+              cache: 'no-store'
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            `Release API returned ${response.status}`
+          );
+        }
+
+        const release =
+          await response.json();
+
+        const githubLink =
+          document.getElementById(
+            'adminGithubLink'
+          );
+
+        const versionLink =
+          document.getElementById(
+            'adminServerVersionLink'
+          );
+
+        githubLink.href =
+          release.releasesUrl;
+
+        versionLink.href =
+          release.releasesUrl;
+
+        versionLink.textContent =
+          `Server v${release.server.version}`;
+      } catch (error) {
+        console.error(
+          'Unable to load server release metadata:',
+          error
+        );
+      }
+    }
+
+    loadAdminReleaseMetadata();
   </script>
 </body>
 </html>

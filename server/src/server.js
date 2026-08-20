@@ -2,6 +2,9 @@ import http from 'node:http';
 import {
   randomBytes
 } from 'node:crypto';
+import {
+  readFileSync
+} from 'node:fs';
 import express from 'express';
 
 import {
@@ -64,6 +67,31 @@ import {
   receiveTransferBody,
   transferView
 } from './transfers.js';
+
+const packageMetadata =
+  JSON.parse(
+    readFileSync(
+      new URL(
+        '../package.json',
+        import.meta.url
+      ),
+      'utf8'
+    )
+  );
+
+const releaseMetadata =
+  JSON.parse(
+    readFileSync(
+      new URL(
+        '../release.json',
+        import.meta.url
+      ),
+      'utf8'
+    )
+  );
+
+const serverVersion =
+  packageMetadata.version;
 
 const app = express();
 
@@ -393,13 +421,25 @@ function sendSessionError(
 }
 
 app.get(
+  '/api/release',
+  (_request, response) => {
+    response.status(200).json({
+      server: {
+        version: serverVersion
+      },
+      ...releaseMetadata
+    });
+  }
+);
+
+app.get(
   '/api/health',
   (_request, response) => {
     response.status(200).json({
       status: 'ok',
       service:
         'scottibyte-assist-server',
-      version: '1.3.1',
+      version: serverVersion,
       protocolVersion: 4,
       websocket: websocketStats(),
       timestamp: new Date().toISOString()
@@ -1247,7 +1287,7 @@ httpServer.listen(
   host,
   () => {
     console.log(
-      `ScottiBYTE Assist Server v1.3.1 listening on http://${host}:${port}`
+      `ScottiBYTE Assist Server v${serverVersion} listening on http://${host}:${port}`
     );
   }
 );

@@ -7,6 +7,7 @@ RUN npm install --omit=dev
 
 COPY src ./src
 COPY public ./public
+COPY release.json ./release.json
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
