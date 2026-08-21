@@ -4,7 +4,6 @@ import {
 } from 'ws';
 
 import {
-  supporterAuthConfigured,
   validateSupporterToken
 } from './auth.js';
 
@@ -125,15 +124,6 @@ function handleSupporterAuthentication(
   client,
   message
 ) {
-  if (!supporterAuthConfigured()) {
-    return sendError(
-      client.socket,
-      'supporter_auth_unavailable',
-      'Supporter authentication is not configured.',
-      message.requestId
-    );
-  }
-
   if (
     typeof message.token !== 'string' ||
     !validateSupporterToken(

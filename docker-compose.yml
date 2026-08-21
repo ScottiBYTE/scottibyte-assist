@@ -1,7 +1,7 @@
 services:
   assist-server:
     image:
-      scottibyte/scottibyte-assist-server:1.3.1
+      scottibyte/scottibyte-assist-server:1.3.2
 
     build:
       context: ./server
@@ -17,7 +17,6 @@ services:
       PORT: 3089
       DATABASE_PATH: /app/data/assist.sqlite
       SESSION_LIFETIME_MINUTES: 30
-      SUPPORTER_API_TOKEN: ${ASSIST_SUPPORTER_TOKEN:?ASSIST_SUPPORTER_TOKEN must be configured}
 
     ports:
       - "3089:3089"

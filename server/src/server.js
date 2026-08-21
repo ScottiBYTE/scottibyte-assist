@@ -19,7 +19,6 @@ import {
 } from './admin_auth.js';
 
 import {
-  requireMasterSupporter,
   requireSuperuser,
   requireSupporter,
   validateSupporterToken
