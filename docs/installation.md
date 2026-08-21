@@ -648,8 +648,6 @@ other information while assisting the customer.
 At a high level, ScottiBYTE Assist consists of the central ScottiBYTE
 Assist server and Windows and Linux client applications.
 
-![ScottiBYTE Assist Architecture](images/architecture.png)
-
 The server provides shared services including:
 
 - Provider authorization
