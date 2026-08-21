@@ -9,7 +9,7 @@ Desktop, AnyDesk, LogMeIn, RustDesk, and MeshCentral, while
 taking a deliberately different approach to how remote access
 is established.
 
-![Receive Support with ScottiBYTE Assist](docs/images/receiver.png)
+![Receive Support with ScottiBYTE Assist](docs/images/provider.png)
 
 ## Remote assistance, not unattended remote access
 
