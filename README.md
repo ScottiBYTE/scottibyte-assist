@@ -1,167 +1,251 @@
 # ScottiBYTE Assist
 
-**ScottiBYTE Assist** is a self-hosted remote-support platform designed around customer-created, one-time support sessions.
+**ScottiBYTE Assist** is an open-source, self-hosted remote
+assistance platform for Windows and Linux.
 
-The customer starts a session and receives a six-digit support code. An authenticated supporter claims that code, and both applications use the ScottiBYTE Assist server for authorization, session coordination, audit records, and signaling. Native peer communication is handled separately by Jami.
+It is designed as an alternative to remote-support and
+remote-access products such as TeamViewer, Chrome Remote
+Desktop, AnyDesk, LogMeIn, RustDesk, and MeshCentral, while
+taking a deliberately different approach to how remote access
+is established.
 
-## Current Server Release: v0.7.0
+![Receive Support with ScottiBYTE Assist](docs/images/receiver.png)
 
-`v0.7.0` adds the security and audit foundation for customer-authorized remote-support sessions.
+## Remote assistance, not unattended remote access
 
-### Added
+ScottiBYTE Assist is designed specifically for **attended
+remote assistance**.
 
-- Hash-chained audit records for each support session.
-- Atomic session creation, supporter claiming, ending, and expiration.
-- Dedicated post-session receipt credentials separate from the active customer session token.
-- Authenticated customer audit receipts available after a session ends or expires.
-- Auditing of customer and supporter WebSocket subscriptions.
-- Auditing of identity publication without storing the identity payload.
-- Audit-chain verification with event count and final hash.
-- Explicit receipt disclosure for fields removed from customer-visible audit metadata.
+It is deliberately not designed to provide persistent,
+unattended access to computers.
 
-### Privacy and data minimization
+The person receiving assistance starts the process. ScottiBYTE
+Assist creates a temporary six-digit support code, which the
+customer gives to an authorized provider. Connecting with that
+code does not automatically expose the customer's desktop.
+Desktop viewing and remote control begin only after the
+customer approves access.
 
-ScottiBYTE Assist does not store the content of:
+When the support session ends, the temporary session ends with
+it.
 
-- Jami identity payloads
-- signaling offers
-- signaling answers
-- ICE candidates
-- screen contents
-- audio
-- keystrokes
-- clipboard contents
+This design avoids turning ScottiBYTE Assist into a permanent
+remote-access mechanism waiting on a computer for someone to
+connect.
 
-The server records that an identity was published and how many recipients received it, but it does not retain the identity payload itself.
+## Why ScottiBYTE Assist is different
 
-Customer receipts redact:
+Many remote-access products are designed around persistent
+device enrollment, unattended access, centralized cloud
+services, or a combination of those models.
 
-- `metadata.sourceIp`
-- `metadata.clientId`
+ScottiBYTE Assist was designed around a narrower purpose:
+**helping another person while that person is present.**
 
-Receipt verification is performed against the complete server-side audit record. Because the customer-visible receipt omits those private server fields, its hash chain is reported as server-verified rather than independently recomputable from only the redacted receipt.
+Its design emphasizes:
 
-## Session flow
+- **Customer-initiated sessions.** The person receiving help
+  creates the support session.
 
-1. The customer creates a session.
-2. The server returns:
-   - a six-digit support code
-   - an active customer session token
-   - a separate receipt token
-3. The customer shares only the six-digit code with the supporter.
-4. The authenticated supporter claims the session.
-5. The customer and supporter subscribe over WebSocket.
-6. Both peers exchange Jami identities through transient signaling.
-7. The native Jami connection carries the call media.
-8. Either authorized peer may end the session.
-9. The customer can retrieve the audit receipt with the receipt token.
+- **Temporary support codes.** Each support session uses a
+  temporary six-digit code rather than a permanent computer
+  access ID.
 
-## Session states
+- **Customer approval.** Establishing a support session does
+  not automatically begin desktop capture or remote control.
+  The customer approves desktop access.
 
-- `WAITING`
-- `SUPPORTER_JOINED`
-- `ENDED`
-- `EXPIRED`
+- **Authorized providers.** Support providers are enrolled and
+  authorized by the ScottiBYTE Assist server rather than being
+  granted access merely because they know a support code.
+
+- **No unattended-access mode.** ScottiBYTE Assist is not
+  intended to leave behind a permanent remote-control path to
+  a computer.
+
+- **Self-hosting.** The Assist server, administration system,
+  signaling services, and download portal can run on
+  infrastructure controlled by the organization or individual
+  using it.
+
+- **Cross-platform support.** Native clients support Windows
+  and Ubuntu Linux, including Linux systems using X11 or
+  Wayland.
+
+- **Integrated support tools.** A support session can include
+  remote desktop viewing and control, two-way voice, text
+  chat, clipboard sharing, and file transfer.
+
+- **Provider administration and auditing.** The self-hosted
+  server manages provider authorization and records the
+  security-relevant lifecycle of support sessions.
+
+The goal is not to reproduce every feature of a general-purpose
+remote-access platform. ScottiBYTE Assist intentionally focuses
+on the workflow required for secure, person-to-person remote
+technical assistance.
+
+## How ScottiBYTE Assist works
+
+A person requesting assistance opens the ScottiBYTE Assist
+client and receives a temporary six-digit support code. An
+authorized provider enters that code to establish the support
+session.
+
+During an approved session, ScottiBYTE Assist can provide
+remote desktop viewing and control, two-way voice, text chat,
+clipboard sharing, and file transfer.
+
+ScottiBYTE Assist consists of three primary components: the
+self-hosted server and portal, the Windows client, and the
+Ubuntu Linux client.
 
 ## Components
 
-### Assist server
+### ScottiBYTE Assist Server
 
-The server provides:
+The self-hosted server provides:
 
-- REST session lifecycle endpoints
-- supporter authentication
-- customer token validation
-- receipt-token validation
-- WebSocket coordination and signaling
-- SQLite session storage
-- hash-chained audit storage
-- customer audit receipts
+- the public download portal
+- session creation and coordination
+- provider authorization and enrollment
+- administrator and provider management
+- WebSocket signaling and session communication
+- HTTP-mediated file transfer
+- session auditing
+- persistent SQLite configuration and state
+- release information for the server and clients
 
-### Assist clients
+The server is distributed as a Docker image and is designed so
+that application updates can replace the container while
+persistent server data remains outside the container.
 
-Customer and supporter clients are separate applications that communicate with this server over HTTPS and secure WebSocket connections.
+### Windows client
 
-Jami remains responsible for native peer communication and media transport.
+The native Windows client provides both receiving and providing
+remote assistance, including:
 
-## Deployment
+- desktop viewing and remote control
+- mouse and keyboard input
+- administrator and UAC support
+- two-way voice
+- text chat
+- clipboard sharing
+- file transfer
 
-The server is packaged as a Docker container.
+### Ubuntu Linux client
 
-```bash
-docker compose up -d --build
-```
+The native Linux client provides both receiving and providing
+remote assistance, including:
 
-The production deployment should expose the Assist server only through the configured reverse proxy.
+- X11 and Wayland desktop support
+- desktop viewing and remote control
+- mouse and keyboard input
+- two-way voice
+- text chat
+- clipboard sharing
+- file transfer
 
-### Important proxy security requirement
+## ScottiBYTE Assist Portal
 
-The application trusts one reverse-proxy hop for client address information. The server port must not be exposed directly to untrusted networks.
+The self-hosted portal provides the current Windows and Linux
+client downloads, checksum links, server release information,
+and access to the administrator interface.
 
-In the current deployment, Nginx Proxy Manager is the sole public entry point. Direct WAN access to port `3089` must remain blocked.
+![ScottiBYTE Assist Portal](docs/images/portal.png)
 
-## Environment variables
+## How a support session works
 
-The server uses these primary settings:
+1. The person receiving assistance opens ScottiBYTE Assist.
+2. The client creates a temporary support session and displays
+   a six-digit code.
+3. The customer gives that code to an authorized provider.
+4. The provider enters the code in ScottiBYTE Assist.
+5. The customer approves desktop access.
+6. The support session can then provide remote control, voice,
+   chat, clipboard sharing, and file transfer.
+7. Either participant can end the support session.
 
-```env
-HOST=0.0.0.0
-PORT=3089
-DATABASE_PATH=/app/data/assist.sqlite
-SESSION_LIFETIME_MINUTES=30
-SUPPORTER_API_TOKEN=replace-with-a-strong-secret
-```
+Support codes are temporary and should be shared only with the
+person providing assistance.
 
-Keep the supporter token private. Customer and receipt tokens are generated independently for each session.
+## First-time server installation
 
-## API overview
+A new ScottiBYTE Assist server requires a one-time bootstrap
+procedure.
 
-### Health
+When a new server starts with no provider credentials, it
+generates a one-time setup code. The code is displayed in the
+server's Docker logs and is entered on the first computer that
+will administer the Assist server.
 
-```text
-GET /api/health
-```
+During initial setup, the first provider enters the one-time
+setup code and chooses the administrator password. The server
+authorizes that provider computer as the first **superuser**.
 
-### Create a customer session
+The complete bootstrap procedure is included in the
+**[Server Installation](docs/installation.md)** guide.
 
-```text
-POST /api/sessions
-```
+## Installation
 
-### Claim a session
+The ScottiBYTE Assist server is distributed as a Docker image.
 
-```text
-POST /api/sessions/:code/claim
-```
+The **[Server Installation](docs/installation.md)** guide covers
+Docker Compose deployment, DNS, HTTPS, reverse-proxy
+configuration, first-provider setup, provider administration,
+client installation, and server updates.
 
-Requires supporter bearer authentication.
+## HTTPS and reverse proxy
 
-### End a session
+Production deployments should place ScottiBYTE Assist behind an
+HTTPS reverse proxy.
 
-```text
-POST /api/sessions/:code/end
-```
+The Assist application trusts one reverse-proxy hop for client
+address information. Port **3089 must not be exposed directly
+to the public Internet** when using this configuration.
 
-Requires either the supporter bearer token or active customer token.
+Nginx Proxy Manager is supported and requires configuration
+appropriate for long-running Assist sessions, WebSocket
+traffic, and streamed file transfers.
 
-### Retrieve a customer receipt
+The complete Nginx Proxy Manager configuration is included in
+the **[Server Installation](docs/installation.md)** guide.
 
-```text
-GET /api/sessions/:code/receipt
-```
+## Provider administration
 
-Requires the dedicated receipt token:
+The first provider created during bootstrap is a superuser.
 
-```text
-X-Receipt-Token: <receipt-token>
-```
+A superuser can use the Assist administration portal to create
+enrollment codes for additional providers, view provider
+authorization, rename providers, and revoke provider access.
 
-### WebSocket signaling
+Provider administration and enrollment are documented in the
+**[Server Installation](docs/installation.md)** guide.
 
-```text
-/ws
-```
+## Using ScottiBYTE Assist
 
-The current session protocol version is `3`.
+The **[Server Installation](docs/installation.md)** guide
+includes an overview of receiving support, providing support,
+remote desktop operation, voice, chat, clipboard sharing, and
+file transfer.
 
-See [docs/session-protocol.md](docs/session-protocol.md) for protocol details and [docs/architecture.md](docs/architecture.md) for the system design.
+## Documentation
+
+- **[Installation](docs/installation.md)** — server deployment,
+  Docker Compose, HTTPS, reverse proxy, first-provider setup,
+  provider administration, client installation, usage, and
+  upgrades
+- **[Architecture](docs/architecture.md)** — system components,
+  authorization, session lifecycle, transport, relay behavior,
+  file transfer, and security boundaries
+- **[Session Protocol](docs/session-protocol.md)** — technical
+  REST, WebSocket, signaling, relay, and file-transfer protocol
+  reference
+
+## Project
+
+ScottiBYTE Assist is developed by ScottiBYTE as a self-hosted
+remote-support platform with native Windows and Linux clients.
+
+Release information and source code are published through the
+ScottiBYTE Assist GitHub repository.
