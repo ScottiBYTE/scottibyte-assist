@@ -39,6 +39,7 @@ void RemoteView::clearFrame()
 {
     frame_ = {};
     remoteCursorPosition_ = QPoint(-1, -1);
+    remoteCursorPositionConfirmed_ = false;
     remoteCursorImage_ = {};
     remoteCursorHotspot_ = QPoint(0, 0);
 
@@ -56,6 +57,17 @@ void RemoteView::setRemoteCursorPosition(
         QPoint(x, y);
 
     update();
+}
+
+void RemoteView::setRemoteCursorPositionFromPeer(
+    int x,
+    int y)
+{
+    remoteCursorPositionConfirmed_ = true;
+
+    setRemoteCursorPosition(
+        x,
+        y);
 }
 
 void RemoteView::setRemoteCursorImage(
@@ -248,6 +260,17 @@ void RemoteView::paintEvent(
                 cursorRect,
                 remoteCursorImage_);
 
+            return;
+        }
+
+        /*
+         * Wayland embeds its native cursor in the captured
+         * desktop frame and does not send a separate cursor
+         * position through DesktopBackend. Do not draw the
+         * generic predicted fallback arrow unless the remote
+         * machine has actually supplied a cursor position.
+         */
+        if (!remoteCursorPositionConfirmed_) {
             return;
         }
 
