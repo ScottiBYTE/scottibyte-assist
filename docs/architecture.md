@@ -2,109 +2,483 @@
 
 ## Overview
 
-ScottiBYTE Assist separates session authorization and coordination from native peer communication.
+ScottiBYTE Assist is a self-hosted attended remote-assistance platform
+for Windows and Linux computers.
 
-The Assist server is responsible for:
+The architecture separates server-side authorization and session
+coordination from the native remote-assistance functions performed by
+ScottiBYTE Assist clients.
 
-- creating one-time customer sessions
-- authenticating supporters
-- authorizing session claims
-- validating active customer credentials
-- coordinating WebSocket subscriptions
-- forwarding transient signaling messages
-- recording a hash-chained audit history
-- issuing authenticated customer receipts
+![ScottiBYTE Assist Architecture](images/architecture.png)
 
-The native ScottiBYTE Assist clients are responsible for peer communication, desktop media, audio, clipboard, and remote input.
+The ScottiBYTE Assist server provides:
 
-## Data flow
+- provider authorization
+- provider enrollment
+- administrator authentication
+- customer session creation and authorization
+- session coordination
+- WebSocket signaling
+- authenticated binary relay services
+- HTTP file transfer
+- session auditing
+- customer audit receipts
+- client downloads and release information
+
+The Windows and Linux clients provide the native remote-assistance
+experience, including desktop viewing, remote control, voice, desktop
+audio, clipboard operations, chat, and file transfer.
+
+---
+
+## Major Components
+
+A typical ScottiBYTE Assist deployment contains:
+
+1. A ScottiBYTE Assist customer client
+2. A ScottiBYTE Assist provider client
+3. The ScottiBYTE Assist server
+4. A reverse proxy
+5. A SQLite database used by the server
+
+The normal public architecture is:
 
 ```text
-Customer client
-    |
-    | HTTPS / WSS
-    v
-Nginx Proxy Manager
-    |
-    | private HTTP / WS
-    v
-ScottiBYTE Assist server
-    |
-    +-- SQLite session and audit database
-    |
-    +-- transient signaling forwarding
-            |
-            v
-       Supporter client
-
-Customer client <------ native Assist peer connection ------> Supporter client
+                         Internet
+                            |
+                        HTTPS / WSS
+                            |
+                    +----------------+
+                    | Reverse Proxy  |
+                    +-------+--------+
+                            |
+                         TCP 3089
+                            |
+                 +----------+----------+
+                 | ScottiBYTE Assist   |
+                 | Server              |
+                 |                     |
+                 | REST API            |
+                 | WebSocket signaling |
+                 | Provider auth       |
+                 | Session management  |
+                 | Binary relay        |
+                 | File transfer       |
+                 | Audit records       |
+                 +----------+----------+
+                            |
+                         SQLite
 ```
 
-The Assist server coordinates native peer signaling and does not store desktop media, audio, clipboard contents, or remote-input payloads.
+Both customer and provider clients communicate with the ScottiBYTE
+Assist server through the public HTTPS/WSS address.
 
-## Trust boundaries
+The server coordinates the session and provides transport services when
+required by the clients.
 
-### Public boundary
+---
 
-Nginx Proxy Manager is the intended sole public entry point.
+## Public Network Boundary
 
-The application trusts one reverse-proxy hop. Client address information may therefore be derived from proxy headers.
+The reverse proxy is the intended public entry point for ScottiBYTE
+Assist.
 
-Direct access to the application port from untrusted networks must be blocked. Allowing clients to bypass the reverse proxy could permit forged forwarding headers.
+A typical deployment exposes:
 
-### Supporter authentication
+```text
+https://assist.example.com
+```
 
-Supporters authenticate with the configured bearer token before claiming or subscribing to a session.
+on TCP 443.
 
-The server currently treats possession of that configured token as supporter authorization.
+The reverse proxy forwards HTTP and WebSocket traffic to the ScottiBYTE
+Assist server on:
 
-### Customer authorization
+```text
+TCP 3089
+```
 
-Each newly created session receives two independent credentials:
+For example:
 
-- `customerToken`
-- `receiptToken`
+```text
+Internet
+   |
+   | HTTPS / WSS
+   | TCP 443
+   v
+Reverse Proxy
+   |
+   | HTTP / WebSocket
+   | TCP 3089
+   v
+ScottiBYTE Assist Server
+```
 
-The active customer token authorizes:
+The application port should not normally be exposed directly to
+untrusted networks.
+
+The public base URL is also the Server URL configured in ScottiBYTE
+Assist clients.
+
+The provider administration portal is available at:
+
+```text
+https://assist.example.com/admin
+```
+
+The `/admin` address is an administrative web interface and is not the
+Server URL entered into clients.
+
+---
+
+## Server Responsibilities
+
+The ScottiBYTE Assist server is the coordination and authorization
+authority for an installation.
+
+Its responsibilities include:
+
+- determining whether initial server bootstrap is required
+- creating the first provider and superuser
+- authenticating authorized providers
+- creating enrollment codes for additional providers
+- maintaining provider authorization and revocation state
+- authenticating the administrator web interface
+- creating customer support sessions
+- authorizing provider session claims
+- maintaining session state
+- coordinating WebSocket subscriptions
+- forwarding signaling messages
+- providing authenticated relay channels
+- coordinating HTTP file transfers
+- maintaining session audit records
+- issuing customer-visible audit receipts
+- serving the public portal and client downloads
+
+The server does not grant provider privileges merely because a client
+can reach the public service. Provider computers must possess a valid,
+non-revoked provider credential.
+
+---
+
+## Provider Authorization
+
+Provider authorization is persistent and individual to each authorized
+computer.
+
+Each provider credential contains a role:
+
+```text
+superuser
+provider
+```
+
+The first provider enrolled on a new ScottiBYTE Assist server becomes a
+superuser.
+
+Additional provider computers receive their own credentials through the
+provider enrollment process.
+
+Provider credentials are stored by the server as cryptographic hashes.
+The original credential is retained by the authorized client.
+
+A provider credential can be revoked without changing the credentials
+belonging to other provider computers.
+
+The server records provider information including:
+
+- provider ID
+- display name
+- credential hash
+- role
+- creation time
+- last-use time
+- revocation time
+
+This avoids using a single shared provider credential across all support
+computers.
+
+---
+
+## Initial Bootstrap
+
+When a new ScottiBYTE Assist server has no provider administrator, it
+generates a one-time nine-digit setup code.
+
+For example:
+
+```text
+123-456-789
+```
+
+The setup code is used by the first ScottiBYTE Assist client to create
+the initial provider.
+
+That provider receives the:
+
+```text
+superuser
+```
+
+role.
+
+Initial bootstrap also establishes the administrator password used by
+the web administration portal.
+
+After successful bootstrap, the initial setup code becomes invalid.
+
+The server subsequently reports:
+
+```json
+{
+  "bootstrapRequired": false
+}
+```
+
+Initial bootstrap is therefore a one-time installation operation rather
+than a normal provider authentication mechanism.
+
+---
+
+## Provider Enrollment
+
+Additional provider computers are authorized through provider
+enrollments.
+
+An administrator creates an enrollment for a new provider. The server
+maintains enrollment state including:
+
+- enrollment ID
+- display name
+- enrollment-code hash
+- creation time
+- expiration time
+- redemption time
+- cancellation time
+
+The new provider enters the enrollment code in ScottiBYTE Assist.
+
+Successful redemption creates an individual provider credential for that
+computer.
+
+Enrollment codes are temporary authorization mechanisms. They are not
+the credentials subsequently used by the provider client.
+
+---
+
+## Administrator Authentication
+
+The provider administration web interface is separate from provider
+client authentication.
+
+The administration portal is:
+
+```text
+https://assist.example.com/admin
+```
+
+The administrator password is established during initial bootstrap.
+
+The server stores the administrator authentication state separately from
+provider credentials.
+
+The administrator authentication record contains a password salt and
+password hash rather than the plaintext administrator password.
+
+Administrator authentication protects management operations such as
+provider enrollment and provider authorization management.
+
+---
+
+## Customer Session Authorization
+
+A customer requesting assistance creates a temporary ScottiBYTE Assist
+session.
+
+Each session receives independent customer credentials used for
+different portions of the session lifecycle.
+
+The active customer credential authorizes operations such as:
 
 - customer WebSocket subscription
+- authenticated participation in the support session
 - customer-initiated session ending
 
-The active customer token is removed when the session ends or expires.
+The active customer credential is invalidated when the session ends or
+expires.
 
-The receipt token authorizes retrieval of the post-session customer audit receipt and remains available after the active token has been invalidated.
+A separate receipt credential allows the customer to retrieve the
+post-session customer audit receipt.
 
-Only cryptographic hashes of these tokens are stored in SQLite.
+Only cryptographic hashes of these credentials are stored by the server.
 
-## Session lifecycle
+Customer session credentials are separate from provider credentials.
+
+---
+
+## Session Lifecycle
+
+A ScottiBYTE Assist support session progresses through controlled server
+state transitions.
 
 ### Creation
 
-The session row and `session.created` audit event are written in one immediate SQLite transaction.
+A customer creates a support session.
 
-Either both records commit or neither record exists.
+The server creates the session record and its initial audit event.
+
+The customer receives a temporary support-session code that can be given
+to the provider.
 
 ### Claiming
 
-The transition from `WAITING` to `SUPPORTER_JOINED` and the `session.claimed` audit event occur in one immediate transaction.
+An authenticated provider enters the customer session code.
 
-A failed audit write leaves the session unclaimed.
+The server validates the provider authorization and claims the waiting
+session.
+
+The session then enters the joined state required for active
+remote-assistance communication.
+
+### Active Session
+
+After both participants have authenticated and subscribed to the
+session, the server coordinates the communications required by the
+clients.
+
+Depending on the function being used, this can include:
+
+- signaling messages
+- negotiated native transport
+- authenticated binary relay traffic
+- HTTP file transfer
+- session state notifications
 
 ### Ending
 
-The transition to `ENDED`, removal of the active customer token hash, end timestamp, and `session.ended` audit event occur in one immediate transaction.
+A session can be ended through an authorized session operation.
 
-A failed audit write leaves the session active and preserves the customer credential.
+When the session ends, the active customer credential is invalidated and
+the session receives its final audit state.
 
 ### Expiration
 
-Expired active sessions are changed to `EXPIRED`, their active customer token hashes are removed, and `session.expired` events are appended in one transaction.
+Sessions that remain active beyond their permitted lifetime are changed
+to an expired state.
 
-## Audit chain
+Their active customer credentials are invalidated as part of expiration.
 
-Every session has an ordered sequence of audit events.
+---
 
-Each event contains:
+## Signaling and Transport
+
+ScottiBYTE Assist uses WebSocket signaling to coordinate authenticated
+customer and provider clients.
+
+Current signaling includes messages associated with:
+
+- offers
+- answers
+- candidates
+- session state
+- identity and capability exchange
+- negotiated video destinations
+- relay establishment
+
+Signaling messages are associated with an authenticated, claimed support
+session.
+
+The server coordinates the communication between the two clients rather
+than treating arbitrary WebSocket clients as trusted peers.
+
+The native clients determine which transport mechanisms are required for
+the remote-assistance functions being used.
+
+---
+
+## Authenticated Binary Relay
+
+ScottiBYTE Assist includes a server-mediated binary relay.
+
+Relay traffic is permitted only after a client:
+
+1. has authenticated
+2. has subscribed to a session
+3. belongs to a joined support session
+4. has requested a supported relay channel
+5. has a corresponding authenticated peer ready on that channel
+
+The current relay channels are:
+
+```text
+main
+voice
+desktop-audio
+```
+
+The server matches customer and provider peers by:
+
+- session
+- participant role
+- authentication state
+- relay readiness
+- relay channel
+
+Binary relay data is forwarded only to the corresponding authenticated
+peer.
+
+The server also applies relay chunk-size and WebSocket backlog controls
+to relay traffic.
+
+If the corresponding peer is unavailable, relay traffic is rejected
+rather than being accepted without a destination.
+
+When a relay participant disconnects, the remaining peer is notified
+that the relay peer has disconnected.
+
+---
+
+## File Transfer
+
+ScottiBYTE Assist provides authenticated file transfer between the two
+participants in an active support session.
+
+File-transfer coordination uses authenticated WebSocket signaling,
+while the file contents themselves use authenticated HTTP endpoints.
+
+A transfer identifies:
+
+- the session
+- sender role
+- recipient role
+- file name
+- declared size
+- stored size
+- transfer state
+- SHA-256 digest
+
+Only an authorized participant in the corresponding session can operate
+on a transfer.
+
+The transfer recipient is the only participant authorized to download
+the uploaded file.
+
+The server includes the verified SHA-256 digest when returning file
+content.
+
+Either transfer participant can request deletion of the transfer.
+
+Uploaded file content is temporary server-side transfer data and is not
+part of the permanent session audit record.
+
+---
+
+## Audit Chain
+
+ScottiBYTE Assist maintains an ordered audit history for each support
+session.
+
+Each audit event contains:
 
 - session ID
 - sequence number
@@ -112,93 +486,245 @@ Each event contains:
 - event type
 - actor role
 - actor ID
-- canonical metadata JSON
+- canonical metadata
 - previous event hash
 - current event hash
 
-The event hash is computed with SHA-256 over the canonical event representation and previous event hash.
+The event hash is calculated using SHA-256 over the canonical event
+representation and the preceding event hash.
 
-This creates a per-session hash chain. Changing an earlier event or its metadata causes chain verification to fail.
+This produces a hash chain for each session.
 
-## Audited events
+Changing an earlier stored event or its metadata causes subsequent chain
+verification to fail.
 
-Current event types include:
+Session state transitions and their corresponding audit records are
+performed transactionally where required so that session state and audit
+history remain consistent.
 
-- `session.created`
-- `session.claimed`
-- `customer.subscribed`
-- `supporter.subscribed`
-- `identity.published`
-- `session.ended`
-- `session.expired`
+---
 
-Identity publication records only:
+## Audited Events
 
-- that publication occurred
-- the publishing role and device
-- the number of recipients
+Session audit events include lifecycle and coordination events such as:
 
-The identity payload is not stored.
+```text
+session.created
+session.claimed
+customer.subscribed
+supporter.subscribed
+identity.published
+session.ended
+session.expired
+```
 
-## Data intentionally not stored
+Audit records identify that an event occurred without requiring the
+server to retain the full contents of remote-assistance data associated
+with that event.
 
-The Assist audit database does not store:
+For example, identity publication records that publication occurred,
+the publishing participant, and related metadata rather than storing the
+complete identity payload as session history.
 
-- native Assist identity and capability payload contents
-- offer payloads
-- answer payloads
-- ICE candidate payloads
-- screen contents
-- audio
-- keystrokes
-- clipboard data
-- signaling payload bodies
+---
 
-Offer, answer, and candidate messages are forwarded only to authenticated peers currently subscribed to the claimed session.
+## Customer Audit Receipts
 
-## Customer receipts
+The receipt credential issued with a customer session permits retrieval
+of the post-session customer audit receipt.
 
-The receipt endpoint returns:
+A receipt contains:
 
 - normalized session information
 - ordered customer-visible audit events
 - redaction declarations
 - verification scope
-- server-side chain-verification result
+- server-side audit-chain verification status
 
-The receipt removes these audit metadata fields:
+Sensitive server-side metadata can be omitted from the customer-visible
+representation.
 
-- `sourceIp`
-- `clientId`
+The complete stored audit record is verified by the server before the
+redacted customer representation is returned.
 
-The event hashes were generated from the complete stored audit metadata. Therefore, the redacted receipt cannot independently reproduce every event hash.
+This allows ScottiBYTE Assist to provide useful session accountability
+without exposing every internal audit field to the customer.
 
-The receipt reports:
+---
+
+## Data Intentionally Not Retained in the Audit Database
+
+The ScottiBYTE Assist audit database is intended to record session
+events rather than the contents of the remote assistance itself.
+
+The session audit history does not retain content such as:
+
+- desktop screen contents
+- voice audio
+- desktop audio
+- keystrokes
+- clipboard contents
+- transferred file contents
+- offer payload bodies
+- answer payload bodies
+- candidate payload bodies
+- remote-input payload bodies
+
+Transient data required to operate an active session can pass through
+the ScottiBYTE Assist server without becoming part of the permanent
+session audit history.
+
+File content uploaded through the file-transfer service is temporary
+transfer data and is separate from the SQLite audit database.
+
+---
+
+## SQLite Data Model
+
+The ScottiBYTE Assist server uses SQLite for persistent application
+state.
+
+The current data model includes the following primary tables:
 
 ```text
-verificationScope: complete_server_audit_record
+sessions
+session_audit_events
+provider_credentials
+provider_enrollments
+admin_auth
 ```
 
-This means the server verified the complete stored chain before returning the redacted customer representation.
+### Sessions
 
-## Database
+The session table maintains the authoritative lifecycle state and
+credentials associated with customer support sessions.
 
-SQLite runs with:
+### Session Audit Events
 
-- WAL journal mode
-- foreign keys enabled
-- a busy timeout
-- strict tables
+`session_audit_events` contains the ordered hash-chained audit history
+for each session.
 
-The primary tables are:
+Audit records reference their corresponding session through a foreign
+key.
 
-- `sessions`
-- `session_audit_events`
+### Provider Credentials
 
-Audit records reference their session through a foreign key.
+`provider_credentials` stores authorized provider identities,
+credential hashes, provider roles, usage information, and revocation
+state.
 
-## Protocol compatibility
+Supported roles are:
 
-Server release v0.8.0 uses session protocol version `4` for native Assist client coordination.
+```text
+superuser
+provider
+```
 
-Protocol version 4 adds native Assist signaling for negotiated video destinations and session state while preserving the existing audited REST session lifecycle.
+### Provider Enrollments
+
+`provider_enrollments` stores temporary provider enrollment records,
+including expiration, redemption, and cancellation state.
+
+### Administrator Authentication
+
+`admin_auth` stores the salted password hash used to authenticate the
+administrator web interface.
+
+The plaintext administrator password is not stored in this table.
+
+---
+
+## Trust Boundaries
+
+ScottiBYTE Assist has several distinct authorization boundaries.
+
+### Public Client to Reverse Proxy
+
+Internet clients communicate with the public HTTPS/WSS endpoint.
+
+TLS termination and public exposure are normally handled by the reverse
+proxy.
+
+### Reverse Proxy to Assist Server
+
+The reverse proxy forwards trusted application traffic to TCP 3089 on
+the ScottiBYTE Assist server.
+
+Direct public access to this backend application port should normally be
+blocked.
+
+### Provider Authorization
+
+A provider must possess a valid, non-revoked provider credential before
+it can perform provider operations.
+
+### Customer Authorization
+
+A customer receives credentials scoped to its temporary support session.
+
+Those credentials do not grant provider or administrator privileges.
+
+### Administrator Authorization
+
+The web administrator authenticates separately from provider clients.
+
+Administrator authentication protects provider-management operations.
+
+### Session Boundary
+
+Remote-assistance signaling, relay traffic, and transfer operations are
+associated with an authenticated support session and its authorized
+participants.
+
+---
+
+## Protocol Compatibility
+
+The server and native ScottiBYTE Assist clients use a versioned session
+protocol.
+
+The protocol version allows server and client implementations to
+coordinate compatible signaling and session behavior while the
+ScottiBYTE Assist application and server release versions evolve
+independently.
+
+The architecture therefore distinguishes between:
+
+```text
+Server release version
+Client release version
+Session protocol version
+```
+
+These values do not need to have identical version numbers.
+
+Compatibility should be determined by the supported session protocol
+rather than by assuming that server and client release numbers must
+match.
+
+---
+
+## Architectural Summary
+
+ScottiBYTE Assist deliberately separates several different kinds of
+trust and data.
+
+Provider computers receive individual persistent authorization.
+
+Customers receive temporary credentials scoped to individual support
+sessions.
+
+The administrator web interface uses separate administrator
+authentication.
+
+The server acts as the authoritative coordinator for session state,
+authorization, signaling, relay establishment, file-transfer
+authorization, and audit history.
+
+Remote-assistance data is transported only as needed to operate the
+active session and is not treated as permanent session audit content.
+
+This design allows ScottiBYTE Assist to provide self-hosted attended
+remote assistance while maintaining explicit authorization boundaries,
+individually revocable providers, controlled session access, and
+verifiable session history.
