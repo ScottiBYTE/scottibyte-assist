@@ -1,8 +1,8 @@
 #include <windows.h>
 
 1 VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION 1,0,1,0
+PRODUCTVERSION 1,0,1,0
 FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS VS_FF_DEBUG
@@ -19,10 +19,10 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "ScottiBYTE\0"
             VALUE "FileDescription", "ScottiBYTE Assist\0"
-            VALUE "FileVersion", "1.0.0.0\0"
+            VALUE "FileVersion", "1.0.1.0\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 ScottiBYTE\0"
             VALUE "ProductName", "ScottiBYTE Assist\0"
-            VALUE "ProductVersion", "1.0.0\0"
+            VALUE "ProductVersion", "1.0.1\0"
         END
     END
 
