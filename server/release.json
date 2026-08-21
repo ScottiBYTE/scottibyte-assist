@@ -1,11 +1,11 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in 1.0.0",
-  "summary": "First production release of the ScottiBYTE Assist Windows and Linux clients.",
+  "headline": "New in 1.0.1",
+  "summary": "Windows 1.0.1 fixes a redundant cursor when controlling Wayland desktops. Linux remains at 1.0.0.",
   "windows": {
-    "version": "1.0.0",
-    "download": "/downloads/1.0.0/ScottiBYTE-Assist-Setup-1.0.0.exe",
-    "checksum": "/downloads/1.0.0/ScottiBYTE-Assist-Setup-1.0.0.exe.sha256"
+    "version": "1.0.1",
+    "download": "/downloads/1.0.1/ScottiBYTE-Assist-Setup-1.0.1.exe",
+    "checksum": "/downloads/1.0.1/ScottiBYTE-Assist-Setup-1.0.1.exe.sha256"
   },
   "linux": {
     "version": "1.0.0",
