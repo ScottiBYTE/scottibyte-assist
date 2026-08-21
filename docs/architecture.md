@@ -9,8 +9,6 @@ The architecture separates server-side authorization and session
 coordination from the native remote-assistance functions performed by
 ScottiBYTE Assist clients.
 
-![ScottiBYTE Assist Architecture](images/architecture.png)
-
 The ScottiBYTE Assist server provides:
 
 - provider authorization
