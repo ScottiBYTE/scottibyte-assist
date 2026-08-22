@@ -47,6 +47,15 @@ protected:
     void focusOutEvent(
         QFocusEvent *event) override;
 
+    void mousePressEvent(
+        QMouseEvent *event) override;
+
+    void mouseMoveEvent(
+        QMouseEvent *event) override;
+
+    void mouseReleaseEvent(
+        QMouseEvent *event) override;
+
 private:
     void updateTerminalSize();
 
@@ -54,6 +63,15 @@ private:
         int deltaPixels);
 
     void resetFontSize();
+
+    QPoint cellFromPosition(
+        const QPoint &position) const;
+
+    bool cellIsSelected(
+        int column,
+        int row) const;
+
+    QString selectedText() const;
 
     static int damageCallback(
         VTermRect rect,
@@ -107,4 +125,10 @@ private:
     QPoint cursorCell_;
     bool cursorVisible_ = true;
     bool hasTerminalFocus_ = false;
+
+    bool selecting_ = false;
+    bool hasSelection_ = false;
+
+    QPoint selectionStart_;
+    QPoint selectionEnd_;
 };
