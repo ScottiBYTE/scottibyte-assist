@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in 1.0.1",
-  "summary": "Windows 1.0.1 fixes a redundant cursor when controlling Wayland desktops. Linux remains at 1.0.0.",
+  "headline": "New in 1.0.2",
+  "summary": "Version 1.0.2 improves Wayland interoperability, including reliable clipboard transfer between Wayland and Windows and improved cursor behavior when Windows remotely controls a Wayland desktop.",
   "windows": {
-    "version": "1.0.1",
-    "download": "/downloads/1.0.1/ScottiBYTE-Assist-Setup-1.0.1.exe",
-    "checksum": "/downloads/1.0.1/ScottiBYTE-Assist-Setup-1.0.1.exe.sha256"
+    "version": "1.0.2",
+    "download": "/downloads/1.0.2/ScottiBYTE-Assist-Setup-1.0.2.exe",
+    "checksum": "/downloads/1.0.2/ScottiBYTE-Assist-Setup-1.0.2.exe.sha256"
   },
   "linux": {
-    "version": "1.0.0",
-    "download": "/downloads/1.0.0/ScottiBYTE-Assist_1.0.0_amd64.deb",
-    "checksum": "/downloads/1.0.0/ScottiBYTE-Assist_1.0.0_amd64.deb.sha256"
+    "version": "1.0.2",
+    "download": "/downloads/1.0.2/ScottiBYTE-Assist_1.0.2_amd64.deb",
+    "checksum": "/downloads/1.0.2/ScottiBYTE-Assist_1.0.2_amd64.deb.sha256"
   }
 }
