@@ -136,6 +136,20 @@ public:
     void sendChatMessage(
         const QString &text);
 
+    void requestTerminalOpen();
+
+    void sendTerminalData(
+        const QByteArray &data);
+
+    void sendTerminalResize(
+        int columns,
+        int rows);
+
+    void requestTerminalClose();
+
+    void sendTerminalExit(
+        int exitCode);
+
 signals:
     void statusChanged(
         const QString &status);
@@ -200,6 +214,20 @@ signals:
     void mouseWheelReceived(
         int delta);
 
+    void terminalOpenRequested();
+
+    void terminalDataReceived(
+        const QByteArray &data);
+
+    void terminalResizeRequested(
+        int columns,
+        int rows);
+
+    void terminalCloseRequested();
+
+    void terminalExited(
+        int exitCode);
+
     void relayBytesReady(
         const QByteArray &bytes);
 
@@ -248,7 +276,12 @@ private:
         ProviderCursorImage = 30,
         SupportActivityStart = 31,
         MouseWheel = 32,
-        ChatMessage = 33
+        ChatMessage = 33,
+        TerminalOpen = 34,
+        TerminalData = 35,
+        TerminalResize = 36,
+        TerminalClose = 37,
+        TerminalExit = 38
     };
 
     void startAdvertising();
