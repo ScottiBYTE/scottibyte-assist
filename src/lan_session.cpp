@@ -1,5 +1,6 @@
 #include "lan_session.h"
 #include "desktop_backend.h"
+#include "linux_terminal_session.h"
 #include "vp8_video_codec.h"
 
 #include <QBuffer>
@@ -1053,6 +1054,12 @@ void LanSession::disconnectSession()
 
     if (desktopBackend_ != nullptr) {
         desktopBackend_->stop();
+    }
+
+    if (terminalSession_ != nullptr) {
+        terminalSession_->close();
+        terminalSession_->deleteLater();
+        terminalSession_ = nullptr;
     }
 
     if (providerShareWasActive) {
@@ -2266,7 +2273,57 @@ void LanSession::processIncomingBytes(
             expectedMessageType_ ==
                 MessageType::TerminalOpen
         ) {
-            emit terminalOpenRequested();
+            if (role_ == Role::Customer) {
+                if (terminalSession_ != nullptr) {
+                    terminalSession_->close();
+                    terminalSession_->deleteLater();
+                    terminalSession_ = nullptr;
+                }
+
+                terminalSession_ =
+                    new LinuxTerminalSession(this);
+
+                connect(
+                    terminalSession_,
+                    &LinuxTerminalSession::dataReady,
+                    this,
+                    [this](
+                        const QByteArray &data)
+                    {
+                        sendTerminalData(data);
+                    });
+
+                connect(
+                    terminalSession_,
+                    &LinuxTerminalSession::exited,
+                    this,
+                    [this](
+                        int exitCode)
+                    {
+                        sendTerminalExit(exitCode);
+
+                        if (terminalSession_ != nullptr) {
+                            terminalSession_->deleteLater();
+                            terminalSession_ = nullptr;
+                        }
+                    });
+
+                connect(
+                    terminalSession_,
+                    &LinuxTerminalSession::errorOccurred,
+                    this,
+                    &LanSession::errorOccurred);
+
+                if (!terminalSession_->start(
+                        100,
+                        30)) {
+                    terminalSession_->deleteLater();
+                    terminalSession_ = nullptr;
+                }
+            } else {
+                emit terminalOpenRequested();
+            }
+
             continue;
         }
 
@@ -2274,8 +2331,17 @@ void LanSession::processIncomingBytes(
             expectedMessageType_ ==
                 MessageType::TerminalData
         ) {
-            emit terminalDataReceived(
-                payload);
+            if (
+                role_ == Role::Customer &&
+                terminalSession_ != nullptr
+            ) {
+                terminalSession_->writeData(
+                    payload);
+            } else {
+                emit terminalDataReceived(
+                    payload);
+            }
+
             continue;
         }
 
@@ -2294,9 +2360,18 @@ void LanSession::processIncomingBytes(
                 columns > 0 &&
                 rows > 0
             ) {
-                emit terminalResizeRequested(
-                    columns,
-                    rows);
+                if (
+                    role_ == Role::Customer &&
+                    terminalSession_ != nullptr
+                ) {
+                    terminalSession_->resize(
+                        columns,
+                        rows);
+                } else {
+                    emit terminalResizeRequested(
+                        columns,
+                        rows);
+                }
             }
 
             continue;
@@ -2306,7 +2381,17 @@ void LanSession::processIncomingBytes(
             expectedMessageType_ ==
                 MessageType::TerminalClose
         ) {
-            emit terminalCloseRequested();
+            if (
+                role_ == Role::Customer &&
+                terminalSession_ != nullptr
+            ) {
+                terminalSession_->close();
+                terminalSession_->deleteLater();
+                terminalSession_ = nullptr;
+            } else {
+                emit terminalCloseRequested();
+            }
+
             continue;
         }
 

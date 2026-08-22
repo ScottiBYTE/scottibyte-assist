@@ -8,6 +8,7 @@
 #include <QStringList>
 
 class DesktopBackend;
+class LinuxTerminalSession;
 class Vp8VideoCodec;
 class QTcpServer;
 class QTcpSocket;
@@ -316,6 +317,7 @@ private:
     QTimer *advertiseTimer_ = nullptr;
 
     DesktopBackend *desktopBackend_ = nullptr;
+    LinuxTerminalSession *terminalSession_ = nullptr;
     Vp8VideoCodec *vp8VideoCodec_ = nullptr;
 
     bool providerShareActive_ = false;
