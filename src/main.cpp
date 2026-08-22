@@ -24,6 +24,7 @@
 #if defined(Q_OS_WIN)
 #include "windows_desktop_backend.h"
 #else
+#include "remote_terminal_widget.h"
 #include "wayland_desktop_backend.h"
 #include "x11_desktop_backend.h"
 #endif
@@ -4180,6 +4181,28 @@ QLabel#remotePlaceholder {
     providerWindowControls->addWidget(
         openRemoteWindowButton);
 
+#if !defined(Q_OS_WIN)
+    auto *openRemoteTerminalButton =
+        makeButton(
+            QStringLiteral("Open Customer Terminal"),
+            QStringLiteral(
+                "secondaryButton"));
+
+    openRemoteTerminalButton->setToolTip(
+        QStringLiteral(
+            "Open a remote shell on the customer's "
+            "Linux system"));
+
+    openRemoteTerminalButton->setEnabled(false);
+
+    openRemoteTerminalButton->setSizePolicy(
+        QSizePolicy::Fixed,
+        QSizePolicy::Fixed);
+
+    providerWindowControls->addWidget(
+        openRemoteTerminalButton);
+#endif
+
     auto *shareSourceLayout =
         new QHBoxLayout;
 
@@ -4367,6 +4390,48 @@ providerRemoteAudioButton->setToolTip(
         "Hear the customer's desktop audio "
         "through your selected Assist output device."));
 
+
+#if !defined(Q_OS_WIN)
+    auto *remoteTerminalWindow =
+        new QWidget;
+
+    remoteTerminalWindow->setWindowTitle(
+        QStringLiteral(
+            "ScottiBYTE Assist — Customer Terminal"));
+
+    remoteTerminalWindow->resize(
+        1000,
+        650);
+
+    remoteTerminalWindow->setMinimumSize(
+        640,
+        360);
+
+    remoteTerminalWindow->setAttribute(
+        Qt::WA_QuitOnClose,
+        false);
+
+    auto *remoteTerminalLayout =
+        new QVBoxLayout(
+            remoteTerminalWindow);
+
+    remoteTerminalLayout->setContentsMargins(
+        8,
+        8,
+        8,
+        8);
+
+    auto *remoteTerminalWidget =
+        new RemoteTerminalWidget(
+            remoteTerminalWindow);
+
+    remoteTerminalLayout->addWidget(
+        remoteTerminalWidget,
+        1);
+
+    bool remoteTerminalActive = false;
+    bool remoteTerminalProgrammaticClose = false;
+#endif
 
     auto *remoteWindow =
         new QWidget;
@@ -5906,6 +5971,122 @@ QLineEdit#chatInput:disabled {
 
     auto *lanSession =
         new LanSession(window);
+
+#if !defined(Q_OS_WIN)
+    QObject::connect(
+        remoteTerminalWidget,
+        &RemoteTerminalWidget::terminalInputReady,
+        lanSession,
+        &LanSession::sendTerminalData);
+
+    QObject::connect(
+        remoteTerminalWidget,
+        &RemoteTerminalWidget::terminalResizeRequested,
+        lanSession,
+        &LanSession::sendTerminalResize);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::terminalDataReceived,
+        remoteTerminalWidget,
+        &RemoteTerminalWidget::feedData);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::terminalExited,
+        remoteTerminalWindow,
+        [
+            remoteTerminalWindow,
+            remoteTerminalWidget,
+            &remoteTerminalActive,
+            &remoteTerminalProgrammaticClose
+        ](
+            int)
+        {
+            remoteTerminalActive = false;
+
+            remoteTerminalWidget->resetTerminal();
+
+            remoteTerminalProgrammaticClose = true;
+            remoteTerminalWindow->close();
+            remoteTerminalProgrammaticClose = false;
+        });
+
+    QObject::connect(
+        openRemoteTerminalButton,
+        &QPushButton::clicked,
+        window,
+        [
+            lanSession,
+            remoteTerminalWindow,
+            remoteTerminalWidget,
+            &remoteTerminalActive
+        ]()
+        {
+            if (remoteTerminalActive) {
+                remoteTerminalWindow->showNormal();
+                remoteTerminalWindow->raise();
+                remoteTerminalWindow->activateWindow();
+
+                remoteTerminalWidget->setFocus(
+                    Qt::OtherFocusReason);
+
+                return;
+            }
+
+            remoteTerminalWidget->resetTerminal();
+
+            remoteTerminalWindow->showNormal();
+            remoteTerminalWindow->raise();
+            remoteTerminalWindow->activateWindow();
+
+            remoteTerminalWidget->setFocus(
+                Qt::OtherFocusReason);
+
+            remoteTerminalActive = true;
+
+            lanSession->requestTerminalOpen();
+
+            const QSize size =
+                remoteTerminalWidget->
+                    terminalSizeCells();
+
+            lanSession->sendTerminalResize(
+                size.width(),
+                size.height());
+        });
+
+    auto *remoteTerminalDismissFilter =
+        new UserDismissTrackingFilter(
+            remoteTerminalWindow);
+
+    remoteTerminalWindow->installEventFilter(
+        remoteTerminalDismissFilter);
+
+    remoteTerminalDismissFilter->
+        setUserDismissedCallback(
+            [
+                lanSession,
+                remoteTerminalWidget,
+                &remoteTerminalActive,
+                &remoteTerminalProgrammaticClose
+            ]()
+            {
+                if (remoteTerminalProgrammaticClose) {
+                    return;
+                }
+
+                if (remoteTerminalActive) {
+                    lanSession->
+                        requestTerminalClose();
+                }
+
+                remoteTerminalActive = false;
+
+                remoteTerminalWidget->
+                    resetTerminal();
+            });
+#endif
 
     const auto sendChatText =
         [
@@ -9249,6 +9430,13 @@ QObject::connect(
             fullScreenRemoteView,
             fullScreenWindow,
             openRemoteWindowButton,
+#if !defined(Q_OS_WIN)
+            openRemoteTerminalButton,
+            remoteTerminalWindow,
+            remoteTerminalWidget,
+            &remoteTerminalActive,
+            &remoteTerminalProgrammaticClose,
+#endif
             shareProviderScreenButton,
             shareSourceCombo,
             refreshShareSourcesButton,
@@ -9277,6 +9465,11 @@ QObject::connect(
                 connected &&
                 !receiveButton->isChecked();
 
+#if !defined(Q_OS_WIN)
+            openRemoteTerminalButton->setEnabled(
+                providerConnected);
+#endif
+
             shareProviderScreenButton->setEnabled(
                 providerConnected);
 
@@ -9289,6 +9482,15 @@ QObject::connect(
             if (!connected) {
                 remoteWindowView->clearFrame();
                 fullScreenRemoteView->clearFrame();
+
+#if !defined(Q_OS_WIN)
+                remoteTerminalActive = false;
+                remoteTerminalWidget->resetTerminal();
+
+                remoteTerminalProgrammaticClose = true;
+                remoteTerminalWindow->close();
+                remoteTerminalProgrammaticClose = false;
+#endif
 
                 remoteWindow->close();
                 fullScreenWindow->close();
