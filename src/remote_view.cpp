@@ -29,8 +29,25 @@ void RemoteView::setFrame(
 {
     frame_ = image;
 
-    setCursor(
-        Qt::BlankCursor);
+    /*
+     * Hide the provider's local cursor only when the
+     * remote desktop has supplied its own cursor
+     * representation.
+     *
+     * Wayland normally embeds its native cursor in the
+     * captured desktop frame and does not supply a
+     * separate cursor image or confirmed cursor position.
+     * In that case keep the provider's local arrow visible
+     * so the pointer cannot disappear completely.
+     */
+    if (!remoteCursorImage_.isNull() ||
+        remoteCursorPositionConfirmed_) {
+        setCursor(
+            Qt::BlankCursor);
+    } else {
+        setCursor(
+            Qt::ArrowCursor);
+    }
 
     update();
 }
