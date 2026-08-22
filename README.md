@@ -100,6 +100,25 @@ ScottiBYTE Assist consists of three primary components: the
 self-hosted server and portal, the Windows client, and the
 Ubuntu Linux client.
 
+## Source layout
+
+The ScottiBYTE Assist repository contains the self-hosted server,
+public portal, documentation, release packaging, and native client
+source.
+
+The `main` branch tracks the server, portal, documentation, and
+public release packaging.
+
+Native client releases are preserved in platform-specific source
+tags:
+
+- `windows-v1.0.2` — Windows client source
+- `linux-v1.0.2` — Ubuntu Linux client source
+
+The general `v1.0.2` tag corresponds to the public release on
+`main`, including the server-side release metadata and packaged
+client downloads.
+
 ## Components
 
 ### ScottiBYTE Assist Server
