@@ -34,12 +34,24 @@ pkg_check_modules(
   webrtc-audio-processing-1
 )
 
-pkg_check_modules(
-  VTERM
-  REQUIRED
-  IMPORTED_TARGET
-  vterm
-)
+if(WIN32)
+  set(
+    VTERM_INCLUDE_DIR
+    "C:/msys64/ucrt64/include"
+  )
+
+  set(
+    VTERM_LIBRARY
+    "C:/msys64/ucrt64/lib/libvterm.dll.a"
+  )
+else()
+  pkg_check_modules(
+    VTERM
+    REQUIRED
+    IMPORTED_TARGET
+    vterm
+  )
+endif()
 
 set(
   ASSIST_COMMON_SOURCES
@@ -167,8 +179,27 @@ target_link_libraries(
     Qt6::WebSockets
     Qt6::Widgets
     PkgConfig::WEBRTC_APM
-    PkgConfig::VTERM
 )
+
+if(WIN32)
+  target_include_directories(
+    scottibyte-assist
+    PRIVATE
+      ${VTERM_INCLUDE_DIR}
+  )
+
+  target_link_libraries(
+    scottibyte-assist
+    PRIVATE
+      ${VTERM_LIBRARY}
+  )
+else()
+  target_link_libraries(
+    scottibyte-assist
+    PRIVATE
+      PkgConfig::VTERM
+  )
+endif()
 
 if(WIN32)
   set_target_properties(
@@ -285,13 +316,19 @@ if(WIN32)
     src/remote_terminal_widget.h
   )
 
+  target_include_directories(
+    remote-terminal-widget-test
+    PRIVATE
+      ${VTERM_INCLUDE_DIR}
+  )
+
   target_link_libraries(
     remote-terminal-widget-test
     PRIVATE
       Qt6::Core
       Qt6::Gui
       Qt6::Widgets
-      PkgConfig::VTERM
+      ${VTERM_LIBRARY}
   )
 endif()
 
