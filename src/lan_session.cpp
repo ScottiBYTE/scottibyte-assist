@@ -1716,6 +1716,55 @@ void LanSession::sendChatMessage(
         payload);
 }
 
+void LanSession::requestTerminalOpen()
+{
+    sendMessage(
+        MessageType::TerminalOpen,
+        QByteArray());
+}
+
+void LanSession::sendTerminalData(
+    const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::TerminalData,
+        data);
+}
+
+void LanSession::sendTerminalResize(
+    int columns,
+    int rows)
+{
+    if (columns <= 0 || rows <= 0) {
+        return;
+    }
+
+    sendMessage(
+        MessageType::TerminalResize,
+        pointPayload(
+            columns,
+            rows));
+}
+
+void LanSession::requestTerminalClose()
+{
+    sendMessage(
+        MessageType::TerminalClose,
+        QByteArray());
+}
+
+void LanSession::sendTerminalExit(
+    int exitCode)
+{
+    sendMessage(
+        MessageType::TerminalExit,
+        keyPayload(exitCode));
+}
+
 void LanSession::sendMessage(
     MessageType type,
     const QByteArray &payload)
@@ -2208,6 +2257,70 @@ void LanSession::processIncomingBytes(
                         hotspotX,
                         hotspotY);
                 }
+            }
+
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::TerminalOpen
+        ) {
+            emit terminalOpenRequested();
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::TerminalData
+        ) {
+            emit terminalDataReceived(
+                payload);
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::TerminalResize
+        ) {
+            int columns = 0;
+            int rows = 0;
+
+            if (
+                decodePoint(
+                    payload,
+                    columns,
+                    rows) &&
+                columns > 0 &&
+                rows > 0
+            ) {
+                emit terminalResizeRequested(
+                    columns,
+                    rows);
+            }
+
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::TerminalClose
+        ) {
+            emit terminalCloseRequested();
+            continue;
+        }
+
+        if (
+            expectedMessageType_ ==
+                MessageType::TerminalExit
+        ) {
+            int exitCode = 0;
+
+            if (decodeKey(
+                    payload,
+                    exitCode)) {
+                emit terminalExited(
+                    exitCode);
             }
 
             continue;
