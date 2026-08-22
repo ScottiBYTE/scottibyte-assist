@@ -130,6 +130,8 @@ else()
     src/remote_desktop_audio.cpp
     src/libei_input.cpp
     src/libei_input.h
+    src/linux_terminal_session.cpp
+    src/linux_terminal_session.h
     src/pipewire_echo_cancel.cpp
     src/pipewire_echo_cancel.h
     src/pipewire_preview.cpp
@@ -194,6 +196,19 @@ install(
 )
 
 if(NOT WIN32)
+  qt_add_executable(
+    linux-terminal-session-test
+    src/linux_terminal_session_test.cpp
+    src/linux_terminal_session.cpp
+    src/linux_terminal_session.h
+  )
+
+  target_link_libraries(
+    linux-terminal-session-test
+    PRIVATE
+      Qt6::Core
+  )
+
   qt_add_executable(
     wan-signaling-test
     src/wan_signaling_test.cpp
