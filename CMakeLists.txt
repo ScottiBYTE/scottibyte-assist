@@ -75,6 +75,8 @@ if(WIN32)
     src/windows_desktop_backend.cpp
     src/windows_desktop_backend.h
     src/windows_remote_desktop_audio.cpp
+    src/windows_terminal_session.cpp
+    src/windows_terminal_session.h
     assets/scottibyte-assist.rc
     assets/scottibyte-assist-version.rc
     src/remote_desktop_audio.h
@@ -251,6 +253,21 @@ install(
   TARGETS scottibyte-assist
   RUNTIME DESTINATION bin
 )
+
+if(WIN32)
+  qt_add_executable(
+    windows-terminal-session-test
+    src/windows_terminal_session_test.cpp
+    src/windows_terminal_session.cpp
+    src/windows_terminal_session.h
+  )
+
+  target_link_libraries(
+    windows-terminal-session-test
+    PRIVATE
+      Qt6::Core
+  )
+endif()
 
 if(NOT WIN32)
   qt_add_executable(
