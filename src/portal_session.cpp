@@ -14,6 +14,7 @@
 #include <QUuid>
 #include <QVariant>
 
+#include <poll.h>
 #include <unistd.h>
 
 namespace
@@ -929,10 +930,35 @@ QString PortalSession::readClipboardText(
     constexpr qint64 maximumSize =
         1024 * 1024;
 
+    struct pollfd pollFd = {};
+    pollFd.fd = retainedFd;
+    pollFd.events =
+        POLLIN |
+        POLLHUP |
+        POLLERR;
+
+    const int pollResult =
+        ::poll(
+            &pollFd,
+            1,
+            1500);
+
+    if (pollResult <= 0 ||
+        (pollFd.revents &
+         (POLLIN | POLLHUP)) == 0) {
+        file.close();
+        return {};
+    }
+
     const QByteArray data =
-        file.read(maximumSize + 1);
+        file.read(
+            maximumSize + 1);
 
     file.close();
+
+    if (data.isEmpty()) {
+        return {};
+    }
 
     if (data.size() > maximumSize) {
         emit statusChanged(
@@ -990,6 +1016,13 @@ void PortalSession::onSelectionOwnerChanged(
             selectedMimeType = preferred;
             break;
         }
+    }
+
+    if (selectedMimeType.isEmpty() &&
+        mimeTypes.isEmpty()) {
+        selectedMimeType =
+            QStringLiteral(
+                "text/plain;charset=utf-8");
     }
 
     if (selectedMimeType.isEmpty()) {
