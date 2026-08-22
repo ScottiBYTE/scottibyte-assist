@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstring>
 
+#include <fcntl.h>
 #include <pty.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -91,6 +92,19 @@ bool LinuxTerminalSession::start(
 
     childPid_ =
         static_cast<int>(pid);
+
+    const int currentFlags =
+        ::fcntl(
+            masterFd_,
+            F_GETFL,
+            0);
+
+    if (currentFlags >= 0) {
+        ::fcntl(
+            masterFd_,
+            F_SETFL,
+            currentFlags | O_NONBLOCK);
+    }
 
     readNotifier_ =
         new QSocketNotifier(
