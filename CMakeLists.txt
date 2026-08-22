@@ -34,6 +34,13 @@ pkg_check_modules(
   webrtc-audio-processing-1
 )
 
+pkg_check_modules(
+  VTERM
+  REQUIRED
+  IMPORTED_TARGET
+  vterm
+)
+
 set(
   ASSIST_COMMON_SOURCES
   assets.qrc
@@ -47,6 +54,8 @@ set(
   src/lan_session.h
   src/remote_view.cpp
   src/remote_view.h
+  src/remote_terminal_widget.cpp
+  src/remote_terminal_widget.h
   src/remote_desktop_audio.h
   src/vp8_video_codec.cpp
   src/vp8_video_codec.h
@@ -162,6 +171,7 @@ target_link_libraries(
     Qt6::WebSockets
     Qt6::Widgets
     PkgConfig::WEBRTC_APM
+    PkgConfig::VTERM
 )
 
 if(WIN32)
@@ -196,6 +206,40 @@ install(
 )
 
 if(NOT WIN32)
+  qt_add_executable(
+    remote-terminal-widget-test
+    src/remote_terminal_widget_test.cpp
+    src/remote_terminal_widget.cpp
+    src/remote_terminal_widget.h
+  )
+
+  target_link_libraries(
+    remote-terminal-widget-test
+    PRIVATE
+      Qt6::Core
+      Qt6::Gui
+      Qt6::Widgets
+      PkgConfig::VTERM
+  )
+
+  qt_add_executable(
+    remote-terminal-integration-test
+    src/remote_terminal_integration_test.cpp
+    src/remote_terminal_widget.cpp
+    src/remote_terminal_widget.h
+    src/linux_terminal_session.cpp
+    src/linux_terminal_session.h
+  )
+
+  target_link_libraries(
+    remote-terminal-integration-test
+    PRIVATE
+      Qt6::Core
+      Qt6::Gui
+      Qt6::Widgets
+      PkgConfig::VTERM
+  )
+
   qt_add_executable(
     linux-terminal-session-test
     src/linux_terminal_session_test.cpp
