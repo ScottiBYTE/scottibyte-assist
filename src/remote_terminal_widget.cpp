@@ -7,6 +7,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QTimer>
 #include <QResizeEvent>
 
 namespace
@@ -109,6 +110,25 @@ RemoteTerminalWidget::RemoteTerminalWidget(
     setMinimumSize(
         cellWidth_ * 40,
         cellHeight_ * 12);
+
+    cursorBlinkTimer_ =
+        new QTimer(this);
+
+    cursorBlinkTimer_->setInterval(
+        500);
+
+    connect(
+        cursorBlinkTimer_,
+        &QTimer::timeout,
+        this,
+        [this]() {
+            cursorBlinkOn_ =
+                !cursorBlinkOn_;
+
+            update();
+        });
+
+    cursorBlinkTimer_->start();
 }
 
 RemoteTerminalWidget::~RemoteTerminalWidget()
@@ -138,6 +158,29 @@ void RemoteTerminalWidget::feedData(
 
     vterm_screen_flush_damage(
         screen_);
+
+    VTermState *state =
+        vterm_obtain_state(
+            vterm_);
+
+    if (state != nullptr) {
+        VTermPos pos = {};
+
+        vterm_state_get_cursorpos(
+            state,
+            &pos);
+
+        cursorCell_ =
+            QPoint(
+                pos.col,
+                pos.row);
+    }
+
+    cursorBlinkOn_ = true;
+
+    if (cursorBlinkTimer_ != nullptr) {
+        cursorBlinkTimer_->start();
+    }
 
     update();
 }
@@ -261,7 +304,10 @@ void RemoteTerminalWidget::paintEvent(
         }
     }
 
-    if (cursorVisible_) {
+    if (
+        cursorVisible_ &&
+        cursorBlinkOn_
+    ) {
         const QRect cursorRect(
             cursorCell_.x() *
                 cellWidth_,
@@ -360,6 +406,17 @@ void RemoteTerminalWidget::keyPressEvent(
     if (vterm_ == nullptr) {
         return;
     }
+
+#ifdef Q_OS_WIN
+    if (event->key() == Qt::Key_Backspace) {
+        emit terminalInputReady(
+            QByteArray(
+                1,
+                static_cast<char>(0x7f)));
+
+        return;
+    }
+#endif
 
     const QString text =
         event->text();
@@ -912,8 +969,13 @@ int RemoteTerminalWidget::moveCursorCallback(
                 pos.col,
                 pos.row);
 
-        widget->cursorVisible_ =
-            visible != 0;
+        Q_UNUSED(visible);
+
+        widget->cursorBlinkOn_ = true;
+
+        if (widget->cursorBlinkTimer_ != nullptr) {
+            widget->cursorBlinkTimer_->start();
+        }
 
         widget->update();
     }
@@ -922,10 +984,38 @@ int RemoteTerminalWidget::moveCursorCallback(
 }
 
 int RemoteTerminalWidget::setTermPropCallback(
-    VTermProp,
-    VTermValue *,
-    void *)
+    VTermProp prop,
+    VTermValue *value,
+    void *user)
 {
+    auto *widget =
+        static_cast<RemoteTerminalWidget *>(
+            user);
+
+    if (
+        widget == nullptr ||
+        value == nullptr
+    ) {
+        return 1;
+    }
+
+    if (prop == VTERM_PROP_CURSORVISIBLE) {
+        widget->cursorVisible_ =
+            value->boolean != 0;
+
+        widget->cursorBlinkOn_ = true;
+
+        if (
+            widget->cursorBlinkTimer_ !=
+            nullptr
+        ) {
+            widget->cursorBlinkTimer_->
+                start();
+        }
+
+        widget->update();
+    }
+
     return 1;
 }
 

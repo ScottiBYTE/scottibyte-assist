@@ -6,6 +6,8 @@
 
 #include <vterm.h>
 
+class QTimer;
+
 class RemoteTerminalWidget final : public QWidget
 {
     Q_OBJECT
@@ -124,7 +126,10 @@ private:
 
     QPoint cursorCell_;
     bool cursorVisible_ = true;
+    bool cursorBlinkOn_ = true;
     bool hasTerminalFocus_ = false;
+
+    QTimer *cursorBlinkTimer_ = nullptr;
 
     bool selecting_ = false;
     bool hasSelection_ = false;

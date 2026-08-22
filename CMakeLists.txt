@@ -330,6 +330,30 @@ if(WIN32)
       Qt6::Widgets
       ${VTERM_LIBRARY}
   )
+
+  qt_add_executable(
+    windows-terminal-integration-test
+    src/windows_terminal_integration_test.cpp
+    src/windows_terminal_session.cpp
+    src/windows_terminal_session.h
+    src/remote_terminal_widget.cpp
+    src/remote_terminal_widget.h
+  )
+
+  target_include_directories(
+    windows-terminal-integration-test
+    PRIVATE
+      ${VTERM_INCLUDE_DIR}
+  )
+
+  target_link_libraries(
+    windows-terminal-integration-test
+    PRIVATE
+      Qt6::Core
+      Qt6::Gui
+      Qt6::Widgets
+      ${VTERM_LIBRARY}
+  )
 endif()
 
 if(NOT WIN32)
