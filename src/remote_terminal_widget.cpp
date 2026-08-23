@@ -42,19 +42,27 @@ RemoteTerminalWidget::RemoteTerminalWidget(
     setFocusPolicy(
         Qt::StrongFocus);
 
-    const QFont font =
+    QFont font =
         QFontDatabase::systemFont(
             QFontDatabase::FixedFont);
+
+    int initialPixelSize =
+        font.pixelSize();
+
+    if (initialPixelSize <= 0) {
+        initialPixelSize =
+            QFontMetrics(font).height();
+    }
+
+    initialPixelSize += 2;
+
+    font.setPixelSize(
+        initialPixelSize);
 
     setFont(font);
 
     defaultFontPixelSize_ =
-        font.pixelSize();
-
-    if (defaultFontPixelSize_ <= 0) {
-        defaultFontPixelSize_ =
-            QFontMetrics(font).height();
-    }
+        initialPixelSize;
 
     QFontMetrics metrics(font);
 
@@ -300,6 +308,51 @@ void RemoteTerminalWidget::paintEvent(
             painter.setPen(
                 foreground);
 
+            const uint codepoint =
+                cell.chars[0];
+
+            if (
+                codepoint >= 0xE0B0 &&
+                codepoint <= 0xE0B3
+            ) {
+                const QRect cellRect(
+                    col * cellWidth_,
+                    row * cellHeight_,
+                    cellWidth_,
+                    cellHeight_);
+
+                QPolygon polygon;
+
+                if (codepoint == 0xE0B0 ||
+                    codepoint == 0xE0B1) {
+                    polygon
+                        << QPoint(
+                            cellRect.left(),
+                            cellRect.top())
+                        << QPoint(
+                            cellRect.right(),
+                            cellRect.center().y())
+                        << QPoint(
+                            cellRect.left(),
+                            cellRect.bottom());
+                } else {
+                    polygon
+                        << QPoint(
+                            cellRect.right(),
+                            cellRect.top())
+                        << QPoint(
+                            cellRect.left(),
+                            cellRect.center().y())
+                        << QPoint(
+                            cellRect.right(),
+                            cellRect.bottom());
+                }
+
+                painter.drawPolygon(
+                    polygon);
+
+                continue;
+            }
             painter.drawText(
                 cellRect.left(),
                 cellRect.top() +

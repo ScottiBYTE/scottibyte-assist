@@ -29,16 +29,24 @@ void RemoteView::setFrame(
 {
     frame_ = image;
 
+#if defined(Q_OS_WIN)
     /*
-     * Hide the provider's local cursor only when the
-     * remote desktop has supplied its own cursor
-     * representation.
+     * Windows must not draw its local pointer over the
+     * active remote desktop. Wayland capture normally
+     * embeds the customer's native cursor directly in the
+     * frame, so leaving the Windows pointer visible creates
+     * a duplicate cursor.
      *
-     * Wayland normally embeds its native cursor in the
-     * captured desktop frame and does not supply a
-     * separate cursor image or confirmed cursor position.
-     * In that case keep the provider's local arrow visible
-     * so the pointer cannot disappear completely.
+     * Windows and X11 customers that provide separate
+     * cursor metadata are also rendered by RemoteView, so
+     * hiding the local Windows pointer is correct there too.
+     */
+    setCursor(
+        Qt::BlankCursor);
+#else
+    /*
+     * Linux provider behavior is already proven for
+     * Wayland remote control. Preserve it unchanged.
      */
     if (!remoteCursorImage_.isNull() ||
         remoteCursorPositionConfirmed_) {
@@ -48,6 +56,7 @@ void RemoteView::setFrame(
         setCursor(
             Qt::ArrowCursor);
     }
+#endif
 
     update();
 }
@@ -281,15 +290,24 @@ void RemoteView::paintEvent(
         }
 
         /*
-         * Wayland embeds its native cursor in the captured
-         * desktop frame and does not send a separate cursor
-         * position through DesktopBackend. Do not draw the
-         * generic predicted fallback arrow unless the remote
-         * machine has actually supplied a cursor position.
+         * Windows providers must not synthesize a generic
+         * arrow when the remote side supplied no cursor image.
+         *
+         * Wayland embeds its native cursor directly in the
+         * captured frame. Drawing the fallback arrow here would
+         * therefore create a second cursor over the Wayland
+         * cursor.
+         *
+         * X11 and Windows customers supply real cursor images,
+         * which are handled above.
          */
+#if defined(Q_OS_WIN)
+        return;
+#else
         if (!remoteCursorPositionConfirmed_) {
             return;
         }
+#endif
 
         const QPoint tip(
             cursorX,

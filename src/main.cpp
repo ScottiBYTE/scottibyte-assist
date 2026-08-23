@@ -3653,7 +3653,7 @@ QLabel#remotePlaceholder {
         makeLabel(
             QStringLiteral(
                 "<a href=\"%1\" "
-                "style=\"color:#72c7d8;"
+                "style=\"color:#c084fc;"
                 " text-decoration:none;\">"
                 "v%2</a>")
                 .arg(
@@ -4930,6 +4930,7 @@ providerRemoteAudioButton->setToolTip(
     auto *remoteWindowView =
         new RemoteView;
 
+
     remoteWindowView->setMinimumSize(
         760,
         420);
@@ -4943,6 +4944,7 @@ providerRemoteAudioButton->setToolTip(
 
     auto *fullScreenWindow =
         new QWidget;
+
 
     fullScreenWindow->setWindowTitle(
         QStringLiteral(
