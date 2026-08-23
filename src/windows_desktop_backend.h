@@ -23,6 +23,20 @@ public:
     bool setRemoteControlDisplay(
         const QString &displayId) override;
 
+    struct ShareSource
+    {
+        QString id;
+        QString label;
+    };
+
+    QList<ShareSource>
+        availableShareSources() const;
+
+    QString shareSource() const;
+
+    bool setShareSource(
+        const QString &sourceId);
+
 public slots:
     void start() override;
     void stop() override;
@@ -60,7 +74,21 @@ private slots:
     void captureFrame();
 
 private:
+    enum class CaptureTargetMode
+    {
+        RemoteControlDisplay,
+        ShareSource
+    };
+
     QScreen *selectedScreen() const;
+
+    QImage captureEntireDesktop() const;
+
+    QImage captureShareScreen(
+        int screenIndex) const;
+
+    QImage captureWindow(
+        quintptr windowId) const;
 
     bool desktopPointForFramePoint(
         int x,
@@ -72,6 +100,12 @@ private:
     bool running_ = false;
 
     int selectedScreenIndex_ = -1;
+
+    CaptureTargetMode captureTargetMode_ =
+        CaptureTargetMode::RemoteControlDisplay;
+
+    QString shareSourceId_ =
+        QStringLiteral("desktop");
     int frameWidth_ = 0;
     int frameHeight_ = 0;
 

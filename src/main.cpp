@@ -7082,15 +7082,83 @@ providerScreenDismissFilter->
         windowsBackend,
         &WindowsDesktopBackend::scrollWheel);
 
-    shareSourceCombo->clear();
+    const auto refreshWindowsShareSources =
+        [
+            windowsBackend,
+            shareSourceCombo
+        ]()
+        {
+            const QString previousSource =
+                shareSourceCombo
+                    ->currentData()
+                    .toString();
 
-    shareSourceCombo->addItem(
-        QStringLiteral(
-            "Primary Windows display"),
-        QStringLiteral("primary"));
+            shareSourceCombo->clear();
 
-    shareSourceCombo->setEnabled(false);
-    refreshShareSourcesButton->setEnabled(false);
+            const auto sources =
+                windowsBackend->
+                    availableShareSources();
+
+            for (const auto &source :
+                 sources) {
+                shareSourceCombo->addItem(
+                    source.label,
+                    source.id);
+            }
+
+            int selectedIndex =
+                shareSourceCombo->findData(
+                    previousSource);
+
+            if (selectedIndex < 0) {
+                selectedIndex =
+                    shareSourceCombo->findData(
+                        windowsBackend->
+                            shareSource());
+            }
+
+            if (
+                selectedIndex < 0 &&
+                shareSourceCombo->count() > 0
+            ) {
+                selectedIndex = 0;
+            }
+
+            if (selectedIndex >= 0) {
+                shareSourceCombo->
+                    setCurrentIndex(
+                        selectedIndex);
+
+                windowsBackend->setShareSource(
+                    shareSourceCombo
+                        ->currentData()
+                        .toString());
+            }
+        };
+
+    refreshWindowsShareSources();
+
+    QObject::connect(
+        refreshShareSourcesButton,
+        &QPushButton::clicked,
+        window,
+        refreshWindowsShareSources);
+
+    QObject::connect(
+        shareSourceCombo,
+        &QComboBox::currentIndexChanged,
+        window,
+        [
+            windowsBackend,
+            shareSourceCombo
+        ](
+            int)
+        {
+            windowsBackend->setShareSource(
+                shareSourceCombo
+                    ->currentData()
+                    .toString());
+        });
 #else
     const QString sessionType =
         qEnvironmentVariable(

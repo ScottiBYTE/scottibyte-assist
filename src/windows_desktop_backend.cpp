@@ -2,6 +2,7 @@
 
 #include <QGuiApplication>
 #include <QImage>
+#include <QPainter>
 #include <QPixmap>
 #include <QScreen>
 #include <Qt>
@@ -782,6 +783,200 @@ availableRemoteControlDisplays() const
     return sources;
 }
 
+QList<WindowsDesktopBackend::ShareSource>
+WindowsDesktopBackend::
+availableShareSources() const
+{
+    QList<ShareSource> sources;
+
+    sources.append(
+        {
+            QStringLiteral("desktop"),
+            QStringLiteral("Entire Desktop")
+        });
+
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    for (
+        int index = 0;
+        index < screens.size();
+        ++index
+    ) {
+        QScreen *screen =
+            screens.at(index);
+
+        if (screen == nullptr) {
+            continue;
+        }
+
+        QString name =
+            screen->name().trimmed();
+
+        if (name.isEmpty()) {
+            name =
+                QStringLiteral("Display %1")
+                    .arg(index + 1);
+        }
+
+        sources.append(
+            {
+                QStringLiteral("screen:%1")
+                    .arg(index),
+                QStringLiteral(
+                    "Display %1 — %2")
+                    .arg(index + 1)
+                    .arg(name)
+            });
+    }
+
+    struct EnumerationContext
+    {
+        QList<ShareSource> *sources;
+    };
+
+    EnumerationContext context {
+        &sources
+    };
+
+    EnumWindows(
+        [](
+            HWND hwnd,
+            LPARAM parameter) -> BOOL
+        {
+            auto *context =
+                reinterpret_cast<
+                    EnumerationContext *>(
+                        parameter);
+
+            if (
+                context == nullptr ||
+                context->sources == nullptr
+            ) {
+                return TRUE;
+            }
+
+            if (!IsWindowVisible(hwnd)) {
+                return TRUE;
+            }
+
+            if (GetWindow(hwnd, GW_OWNER) != nullptr) {
+                return TRUE;
+            }
+
+            wchar_t title[512] {};
+
+            const int length =
+                GetWindowTextW(
+                    hwnd,
+                    title,
+                    static_cast<int>(
+                        sizeof(title) /
+                        sizeof(title[0])));
+
+            if (length <= 0) {
+                return TRUE;
+            }
+
+            const QString windowTitle =
+                QString::fromWCharArray(
+                    title,
+                    length).trimmed();
+
+            if (windowTitle.isEmpty()) {
+                return TRUE;
+            }
+
+            RECT rect {};
+
+            if (!GetWindowRect(
+                    hwnd,
+                    &rect)) {
+                return TRUE;
+            }
+
+            const int width =
+                rect.right - rect.left;
+
+            const int height =
+                rect.bottom - rect.top;
+
+            if (
+                width < 240 ||
+                height < 160
+            ) {
+                return TRUE;
+            }
+
+            DWORD processId = 0;
+
+            GetWindowThreadProcessId(
+                hwnd,
+                &processId);
+
+            if (
+                processId ==
+                GetCurrentProcessId()
+            ) {
+                return TRUE;
+            }
+
+            const quintptr windowId =
+                reinterpret_cast<quintptr>(
+                    hwnd);
+
+            context->sources->append(
+                {
+                    QStringLiteral(
+                        "window:%1")
+                        .arg(
+                            static_cast<
+                                qulonglong>(
+                                    windowId),
+                            0,
+                            16),
+                    QStringLiteral(
+                        "Window — %1")
+                        .arg(windowTitle)
+                });
+
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(
+            &context));
+
+    return sources;
+}
+
+QString WindowsDesktopBackend::
+shareSource() const
+{
+    return shareSourceId_;
+}
+
+bool WindowsDesktopBackend::
+setShareSource(
+    const QString &sourceId)
+{
+    if (
+        sourceId == QStringLiteral(
+            "desktop") ||
+        sourceId.startsWith(
+            QStringLiteral("screen:")) ||
+        sourceId.startsWith(
+            QStringLiteral("window:"))
+    ) {
+        shareSourceId_ = sourceId;
+
+        captureTargetMode_ =
+            CaptureTargetMode::ShareSource;
+
+        return true;
+    }
+
+    return false;
+}
+
 bool WindowsDesktopBackend::
 setRemoteControlDisplay(
     const QString &displayId)
@@ -811,6 +1006,10 @@ setRemoteControlDisplay(
     }
 
     selectedScreenIndex_ = index;
+
+    captureTargetMode_ =
+        CaptureTargetMode::RemoteControlDisplay;
+
     return true;
 }
 
@@ -832,6 +1031,251 @@ selectedScreen() const
     }
 
     return QGuiApplication::primaryScreen();
+}
+
+QImage WindowsDesktopBackend::
+captureEntireDesktop() const
+{
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (screens.isEmpty()) {
+        return {};
+    }
+
+    QRect desktopGeometry;
+
+    for (QScreen *screen : screens) {
+        if (screen == nullptr) {
+            continue;
+        }
+
+        desktopGeometry =
+            desktopGeometry.united(
+                screen->geometry());
+    }
+
+    if (desktopGeometry.isEmpty()) {
+        return {};
+    }
+
+    QImage image(
+        desktopGeometry.size(),
+        QImage::Format_RGB32);
+
+    image.fill(Qt::black);
+
+    QPainter painter(&image);
+
+    for (QScreen *screen : screens) {
+        if (screen == nullptr) {
+            continue;
+        }
+
+        const QPixmap pixmap =
+            screen->grabWindow(0);
+
+        if (pixmap.isNull()) {
+            continue;
+        }
+
+        const QRect geometry =
+            screen->geometry();
+
+        const QPoint target =
+            geometry.topLeft() -
+            desktopGeometry.topLeft();
+
+        painter.drawPixmap(
+            target,
+            pixmap);
+    }
+
+    return image;
+}
+
+QImage WindowsDesktopBackend::
+captureShareScreen(
+    int screenIndex) const
+{
+    const QList<QScreen *> screens =
+        QGuiApplication::screens();
+
+    if (
+        screenIndex < 0 ||
+        screenIndex >= screens.size() ||
+        screens.at(screenIndex) == nullptr
+    ) {
+        return {};
+    }
+
+    return screens.at(screenIndex)
+        ->grabWindow(0)
+        .toImage()
+        .convertToFormat(
+            QImage::Format_RGB32);
+}
+
+QImage WindowsDesktopBackend::
+captureWindow(
+    quintptr windowId) const
+{
+    if (windowId == 0) {
+        return {};
+    }
+
+    HWND hwnd =
+        reinterpret_cast<HWND>(
+            windowId);
+
+    if (!IsWindow(hwnd)) {
+        return {};
+    }
+
+    RECT rect {};
+
+    if (!GetWindowRect(
+            hwnd,
+            &rect)) {
+        return {};
+    }
+
+    const int width =
+        rect.right - rect.left;
+
+    const int height =
+        rect.bottom - rect.top;
+
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
+        return {};
+    }
+
+    HDC windowDc =
+        GetWindowDC(hwnd);
+
+    if (windowDc == nullptr) {
+        return {};
+    }
+
+    HDC memoryDc =
+        CreateCompatibleDC(
+            windowDc);
+
+    HBITMAP bitmap =
+        CreateCompatibleBitmap(
+            windowDc,
+            width,
+            height);
+
+    HGDIOBJ oldBitmap = nullptr;
+
+    if (
+        memoryDc != nullptr &&
+        bitmap != nullptr
+    ) {
+        oldBitmap =
+            SelectObject(
+                memoryDc,
+                bitmap);
+    }
+
+    bool captured = false;
+
+    if (
+        memoryDc != nullptr &&
+        bitmap != nullptr
+    ) {
+        constexpr UINT
+            printWindowFullContent = 0x00000002;
+
+        captured =
+            PrintWindow(
+                hwnd,
+                memoryDc,
+                printWindowFullContent) != FALSE;
+
+        if (!captured) {
+            captured =
+                BitBlt(
+                    memoryDc,
+                    0,
+                    0,
+                    width,
+                    height,
+                    windowDc,
+                    0,
+                    0,
+                    SRCCOPY |
+                    CAPTUREBLT) != FALSE;
+        }
+    }
+
+    QImage image;
+
+    if (captured) {
+        image =
+            QImage(
+                width,
+                height,
+                QImage::Format_ARGB32);
+
+        BITMAPINFO bitmapInfo {};
+        bitmapInfo.bmiHeader.biSize =
+            sizeof(BITMAPINFOHEADER);
+        bitmapInfo.bmiHeader.biWidth =
+            width;
+        bitmapInfo.bmiHeader.biHeight =
+            -height;
+        bitmapInfo.bmiHeader.biPlanes =
+            1;
+        bitmapInfo.bmiHeader.biBitCount =
+            32;
+        bitmapInfo.bmiHeader.biCompression =
+            BI_RGB;
+
+        if (
+            GetDIBits(
+                memoryDc,
+                bitmap,
+                0,
+                static_cast<UINT>(
+                    height),
+                image.bits(),
+                &bitmapInfo,
+                DIB_RGB_COLORS) == 0
+        ) {
+            image = {};
+        }
+    }
+
+    if (oldBitmap != nullptr) {
+        SelectObject(
+            memoryDc,
+            oldBitmap);
+    }
+
+    if (bitmap != nullptr) {
+        DeleteObject(bitmap);
+    }
+
+    if (memoryDc != nullptr) {
+        DeleteDC(memoryDc);
+    }
+
+    ReleaseDC(
+        hwnd,
+        windowDc);
+
+    if (!image.isNull()) {
+        image =
+            image.convertToFormat(
+                QImage::Format_RGB32);
+    }
+
+    return image;
 }
 
 void WindowsDesktopBackend::start()
@@ -878,6 +1322,79 @@ void WindowsDesktopBackend::stop()
 void WindowsDesktopBackend::captureFrame()
 {
     if (!running_) {
+        return;
+    }
+
+    if (
+        captureTargetMode_ ==
+        CaptureTargetMode::ShareSource
+    ) {
+        QImage frame;
+
+        if (
+            shareSourceId_ ==
+            QStringLiteral("desktop")
+        ) {
+            frame =
+                captureEntireDesktop();
+        } else if (
+            shareSourceId_.startsWith(
+                QStringLiteral("screen:"))
+        ) {
+            bool valid = false;
+
+            const int screenIndex =
+                shareSourceId_
+                    .mid(
+                        QStringLiteral(
+                            "screen:").size())
+                    .toInt(
+                        &valid);
+
+            if (valid) {
+                frame =
+                    captureShareScreen(
+                        screenIndex);
+            }
+        } else if (
+            shareSourceId_.startsWith(
+                QStringLiteral("window:"))
+        ) {
+            bool valid = false;
+
+            const qulonglong value =
+                shareSourceId_
+                    .mid(
+                        QStringLiteral(
+                            "window:").size())
+                    .toULongLong(
+                        &valid,
+                        16);
+
+            if (valid) {
+                frame =
+                    captureWindow(
+                        static_cast<quintptr>(
+                            value));
+            }
+        }
+
+        if (frame.isNull()) {
+            emit errorOccurred(
+                QStringLiteral(
+                    "The selected Windows share source "
+                    "could not be captured."));
+            return;
+        }
+
+        frameWidth_ = frame.width();
+        frameHeight_ = frame.height();
+
+        emit cursorPositionChanged(
+            -1,
+            -1);
+
+        emit frameReady(frame);
         return;
     }
 
