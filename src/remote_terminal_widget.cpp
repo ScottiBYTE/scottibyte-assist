@@ -922,10 +922,26 @@ int RemoteTerminalWidget::moveCursorCallback(
 }
 
 int RemoteTerminalWidget::setTermPropCallback(
-    VTermProp,
-    VTermValue *,
-    void *)
+    VTermProp prop,
+    VTermValue *value,
+    void *user)
 {
+    auto *widget =
+        static_cast<RemoteTerminalWidget *>(user);
+
+    if (widget == nullptr ||
+        value == nullptr) {
+        return 1;
+    }
+
+    if (prop ==
+        VTERM_PROP_CURSORVISIBLE) {
+        widget->cursorVisible_ =
+            value->boolean != 0;
+
+        widget->update();
+    }
+
     return 1;
 }
 
