@@ -4555,7 +4555,7 @@ QLabel#remotePlaceholder {
 
     auto *openRemoteTerminalButton =
         makeButton(
-            QStringLiteral("Customer Remote Terminal"),
+            QStringLiteral("Open Customer Terminal"),
             QStringLiteral(
                 "secondaryButton"));
 
@@ -4910,7 +4910,7 @@ providerRemoteAudioButton->setToolTip(
 
     auto *remoteWindowFullScreenButton =
         makeButton(
-            QStringLiteral("Full Screen Remote Control"),
+            QStringLiteral("Remote Control Customer"),
             QStringLiteral(
                 "secondaryButton"));
 
@@ -6664,6 +6664,31 @@ QLineEdit#chatInput:disabled {
             chatWindow->hide();
         });
 
+    QObject::connect(
+        lanSession,
+        &LanSession::connectedChanged,
+        remoteTerminalWindow,
+        [
+            remoteTerminalWindow,
+            remoteTerminalWidget,
+            &remoteTerminalActive,
+            &remoteTerminalProgrammaticClose
+        ](
+            bool connected)
+        {
+            if (connected) {
+                return;
+            }
+
+            remoteTerminalActive = false;
+            remoteTerminalWidget->resetTerminal();
+
+            if (remoteTerminalWindow->isVisible()) {
+                remoteTerminalProgrammaticClose = true;
+                remoteTerminalWindow->close();
+                remoteTerminalProgrammaticClose = false;
+            }
+        });
     QObject::connect(
         lanSession,
         &LanSession::supportActivityStarted,

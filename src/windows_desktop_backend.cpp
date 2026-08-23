@@ -916,7 +916,11 @@ availableShareSources() const
 
             if (
                 processId ==
-                GetCurrentProcessId()
+                GetCurrentProcessId() &&
+                windowTitle !=
+                    QStringLiteral(
+                        "ScottiBYTE Assist — "
+                        "Customer Terminal")
             ) {
                 return TRUE;
             }
