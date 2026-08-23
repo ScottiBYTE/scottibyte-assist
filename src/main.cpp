@@ -25,6 +25,7 @@
 
 #if defined(Q_OS_WIN)
 #include "windows_desktop_backend.h"
+#include "windows_terminal_session.h"
 #else
 #include "wayland_desktop_backend.h"
 #include "x11_desktop_backend.h"
@@ -6344,6 +6345,69 @@ QLineEdit#chatInput:disabled {
 
     auto *lanSession =
         new LanSession(window);
+
+#if defined(Q_OS_WIN)
+    auto *windowsTerminalSession =
+        new WindowsTerminalSession(window);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::terminalOpenRequested,
+        windowsTerminalSession,
+        [lanSession, windowsTerminalSession]()
+        {
+            if (windowsTerminalSession->isRunning()) {
+                windowsTerminalSession->close();
+            }
+
+            if (!windowsTerminalSession->start(
+                    100,
+                    30)) {
+                lanSession->sendTerminalExit(1);
+            }
+        });
+
+    QObject::connect(
+        lanSession,
+        &LanSession::terminalDataReceived,
+        windowsTerminalSession,
+        &WindowsTerminalSession::writeData);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::terminalResizeRequested,
+        windowsTerminalSession,
+        &WindowsTerminalSession::resize);
+
+    QObject::connect(
+        lanSession,
+        &LanSession::terminalCloseRequested,
+        windowsTerminalSession,
+        &WindowsTerminalSession::close);
+
+    QObject::connect(
+        windowsTerminalSession,
+        &WindowsTerminalSession::dataReady,
+        lanSession,
+        &LanSession::sendTerminalData);
+
+    QObject::connect(
+        windowsTerminalSession,
+        &WindowsTerminalSession::exited,
+        lanSession,
+        &LanSession::sendTerminalExit);
+
+    QObject::connect(
+        windowsTerminalSession,
+        &WindowsTerminalSession::errorOccurred,
+        window,
+        [](const QString &message)
+        {
+            qWarning()
+                << "Windows terminal:"
+                << message;
+        });
+#endif
 
     QObject::connect(
         remoteTerminalWidget,
