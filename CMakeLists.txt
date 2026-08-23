@@ -214,6 +214,7 @@ if(WIN32)
       PkgConfig::GSTREAMER
       ole32
       uuid
+      dwmapi
   )
 
   add_executable(

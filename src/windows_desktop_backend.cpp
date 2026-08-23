@@ -12,6 +12,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <dwmapi.h>
 
 namespace
 {
@@ -864,6 +865,51 @@ availableShareSources() const
                 return TRUE;
             }
 
+            DWORD cloaked = 0;
+
+            if (
+                SUCCEEDED(
+                    DwmGetWindowAttribute(
+                        hwnd,
+                        DWMWA_CLOAKED,
+                        &cloaked,
+                        sizeof(cloaked))) &&
+                cloaked != 0
+            ) {
+                return TRUE;
+            }
+
+            const LONG_PTR exStyle =
+                GetWindowLongPtrW(
+                    hwnd,
+                    GWL_EXSTYLE);
+
+            if ((exStyle & WS_EX_TOOLWINDOW) != 0) {
+                return TRUE;
+            }
+
+            wchar_t classBuffer[256] {};
+
+            GetClassNameW(
+                hwnd,
+                classBuffer,
+                static_cast<int>(
+                    sizeof(classBuffer) /
+                    sizeof(classBuffer[0])));
+
+            const QString className =
+                QString::fromWCharArray(
+                    classBuffer).trimmed();
+
+            if (
+                className ==
+                    QStringLiteral("Progman") ||
+                className ==
+                    QStringLiteral("WorkerW")
+            ) {
+                return TRUE;
+            }
+
             wchar_t title[512] {};
 
             const int length =
@@ -893,6 +939,19 @@ availableShareSources() const
                     hwnd,
                     &rect)) {
                 return TRUE;
+            }
+
+            if (IsIconic(hwnd)) {
+                WINDOWPLACEMENT placement {};
+                placement.length =
+                    sizeof(placement);
+
+                if (GetWindowPlacement(
+                        hwnd,
+                        &placement)) {
+                    rect =
+                        placement.rcNormalPosition;
+                }
             }
 
             const int width =
@@ -1144,6 +1203,22 @@ captureWindow(
         return {};
     }
 
+    const bool minimized =
+        IsIconic(hwnd);
+
+    if (minimized) {
+        WINDOWPLACEMENT placement {};
+        placement.length =
+            sizeof(placement);
+
+        if (GetWindowPlacement(
+                hwnd,
+                &placement)) {
+            rect =
+                placement.rcNormalPosition;
+        }
+    }
+
     const int width =
         rect.right - rect.left;
 
@@ -1155,6 +1230,44 @@ captureWindow(
         height <= 0
     ) {
         return {};
+    }
+
+    if (minimized) {
+        QImage image(
+            width,
+            height,
+            QImage::Format_RGB32);
+
+        image.fill(
+            Qt::black);
+
+        QPainter painter(
+            &image);
+
+        painter.setPen(
+            Qt::white);
+
+        QFont font =
+            painter.font();
+
+        font.setPixelSize(22);
+        font.setBold(true);
+
+        painter.setFont(font);
+
+        painter.drawText(
+            image.rect().adjusted(
+                24,
+                24,
+                -24,
+                -24),
+            Qt::AlignCenter |
+                Qt::TextWordWrap,
+            QStringLiteral(
+                "The shared window is minimized.\n"
+                "It will reappear when the provider restores it."));
+
+        return image;
     }
 
     HDC windowDc =

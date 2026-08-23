@@ -6262,6 +6262,10 @@ QLineEdit#chatInput:disabled {
         false);
 
     providerScreenWindow->setProperty(
+        "providerShareActive",
+        false);
+
+    providerScreenWindow->setProperty(
         "userDismissed",
         false);
 
@@ -10257,6 +10261,8 @@ QObject::connect(
             }
 
             if (
+                providerScreenWindow->property(
+                    "providerShareActive").toBool() &&
                 !providerScreenWindow->isVisible() &&
                 !providerScreenWindow->property(
                     "userDismissed").toBool()) {
@@ -10292,6 +10298,10 @@ QObject::connect(
         ](
             bool active)
         {
+            providerScreenWindow->setProperty(
+                "providerShareActive",
+                active);
+
             if (receiveButton->isChecked()) {
                 if (active) {
                     providerScreenWindow->setProperty(
