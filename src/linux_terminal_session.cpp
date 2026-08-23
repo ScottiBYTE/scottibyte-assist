@@ -73,6 +73,21 @@ bool LinuxTerminalSession::start(
     }
 
     if (pid == 0) {
+        /*
+         * The Assist GUI may be started without TERM in its
+         * environment.  The child is attached to a real PTY,
+         * so provide a normal terminal type before starting
+         * the login shell.  Without this, shell startup files
+         * that invoke tput print:
+         *
+         *   tput: No value for $TERM and no -T specified
+         */
+        if (qEnvironmentVariableIsEmpty("TERM")) {
+            qputenv(
+                "TERM",
+                QByteArray("xterm-256color"));
+        }
+
         const QByteArray shell =
             qgetenv("SHELL");
 

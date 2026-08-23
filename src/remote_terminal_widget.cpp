@@ -41,19 +41,27 @@ RemoteTerminalWidget::RemoteTerminalWidget(
     setFocusPolicy(
         Qt::StrongFocus);
 
-    const QFont font =
+    QFont font =
         QFontDatabase::systemFont(
             QFontDatabase::FixedFont);
+
+    int initialPixelSize =
+        font.pixelSize();
+
+    if (initialPixelSize <= 0) {
+        initialPixelSize =
+            QFontMetrics(font).height();
+    }
+
+    initialPixelSize += 2;
+
+    font.setPixelSize(
+        initialPixelSize);
 
     setFont(font);
 
     defaultFontPixelSize_ =
-        font.pixelSize();
-
-    if (defaultFontPixelSize_ <= 0) {
-        defaultFontPixelSize_ =
-            QFontMetrics(font).height();
-    }
+        initialPixelSize;
 
     QFontMetrics metrics(font);
 

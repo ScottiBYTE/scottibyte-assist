@@ -3333,7 +3333,7 @@ QLabel#remotePlaceholder {
         makeLabel(
             QStringLiteral(
                 "<a href=\"%1\" "
-                "style=\"color:#72c7d8;"
+                "style=\"color:#c084fc;"
                 " text-decoration:none;\">"
                 "v%2</a>")
                 .arg(
