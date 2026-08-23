@@ -103,6 +103,10 @@ RemoteTerminalWidget::RemoteTerminalWidget(
         &callbacks,
         this);
 
+    vterm_screen_enable_altscreen(
+        screen_,
+        1);
+
     vterm_screen_reset(
         screen_,
         1);
