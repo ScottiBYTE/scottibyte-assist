@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in 2.0.2",
-  "summary": "Version 2.0.2 polishes the remote-control interface and improves support-code copy controls on Windows and Linux.",
+  "headline": "New in 2.0.3",
+  "summary": "Version 2.0.3 improves Windows remote cursor visibility and ensures Linux desktop audio dependencies are installed.",
   "windows": {
-    "version": "2.0.2",
-    "download": "/downloads/2.0.2/ScottiBYTE-Assist-Setup-2.0.2.exe",
-    "checksum": "/downloads/2.0.2/ScottiBYTE-Assist-Setup-2.0.2.exe.sha256"
+    "version": "2.0.3",
+    "download": "/downloads/2.0.3/ScottiBYTE-Assist-Setup-2.0.3.exe",
+    "checksum": "/downloads/2.0.3/ScottiBYTE-Assist-Setup-2.0.3.exe.sha256"
   },
   "linux": {
-    "version": "2.0.2",
-    "download": "/downloads/2.0.2/ScottiBYTE-Assist_2.0.2_amd64.deb",
-    "checksum": "/downloads/2.0.2/ScottiBYTE-Assist_2.0.2_amd64.deb.sha256"
+    "version": "2.0.3",
+    "download": "/downloads/2.0.3/ScottiBYTE-Assist_2.0.3_amd64.deb",
+    "checksum": "/downloads/2.0.3/ScottiBYTE-Assist_2.0.3_amd64.deb.sha256"
   }
 }
