@@ -4,7 +4,7 @@
 
 It is designed as an alternative to tools such as TeamViewer, Chrome Remote Desktop, AnyDesk, LogMeIn, RustDesk, and MeshCentral, while deliberately focusing on **attended remote assistance rather than persistent unattended remote access**.
 
-![Receive Support](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/v2.0.2/docs/images/receiver.png)
+![Receive Support](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/receiver.png)
 
 ## What makes ScottiBYTE Assist different
 
@@ -28,7 +28,7 @@ It is designed as an alternative to tools such as TeamViewer, Chrome Remote Desk
 
 The ScottiBYTE Assist server includes a self-hosted client download and information portal.
 
-![ScottiBYTE Assist Portal](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/v2.0.2/docs/images/portal.png)
+![ScottiBYTE Assist Portal](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/portal.png)
 
 ## First-Time Setup
 
@@ -36,11 +36,11 @@ A new ScottiBYTE Assist server generates a one-time nine-digit setup code.
 
 The first provider uses that code in ScottiBYTE Assist Settings to configure the server and become the initial superuser.
 
-![First-Time Provider Setup](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/v2.0.2/docs/images/bootstrap.png)
+![First-Time Provider Setup](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/bootstrap.png)
 
 Additional providers can then be authorized and revoked individually through the administrator portal.
 
-![Provider Management](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/v2.0.2/docs/images/admin-provider-management.png)
+![Provider Management](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/admin-provider-management.png)
 
 ## Architecture
 
@@ -113,14 +113,14 @@ https://assist.example.com/admin
 
 ## Documentation
 
-- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.0.2/docs/installation.md
-- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.0.2/docs/architecture.md
-- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.0.2/docs/session-protocol.md
+- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.0.3/docs/installation.md
+- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.0.3/docs/architecture.md
+- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.0.3/docs/session-protocol.md
 - Source: https://github.com/ScottiBYTE/scottibyte-assist
 
 ## Current Releases
 
-The Docker image contains the ScottiBYTE Assist public portal, the Windows 2.0.2 client installer, and the Linux 2.0.2 client installer.
+The Docker image contains the ScottiBYTE Assist public portal, the Windows 2.0.3 client installer, and the Linux 2.0.3 client installer.
 
 Server version and client release versions are independent.
 
