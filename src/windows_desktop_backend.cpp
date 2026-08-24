@@ -176,6 +176,201 @@ bool currentWindowsCursorImage(
                     cursorImage.bits(),
                     &bitmapInfo,
                     DIB_RGB_COLORS) != 0;
+
+            /*
+             * Classic Windows monochrome cursors such as
+             * the I-beam have no color bitmap. DrawIconEx
+             * renders their AND/XOR mask correctly, but a
+             * compatible bitmap does not give us a useful
+             * alpha channel. Reconstruct transparency by
+             * drawing the same cursor over both black and
+             * white backgrounds.
+             *
+             * Leave color cursors completely untouched.
+             */
+            bool hasVisibleAlpha = false;
+
+            if (success) {
+                for (int y = 0;
+                     y < height && !hasVisibleAlpha;
+                     ++y) {
+                    for (int x = 0;
+                         x < width;
+                         ++x) {
+                        if (
+                            qAlpha(
+                                cursorImage.pixel(
+                                    x,
+                                    y)) != 0
+                        ) {
+                            hasVisibleAlpha = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (
+                success &&
+                !hasVisibleAlpha
+            ) {
+                QImage whiteImage(
+                    width,
+                    height,
+                    QImage::Format_ARGB32_Premultiplied);
+
+                whiteImage.fill(
+                    Qt::white);
+
+                FillRect(
+                    memoryDc,
+                    &rect,
+                    static_cast<HBRUSH>(
+                        GetStockObject(
+                            WHITE_BRUSH)));
+
+                const bool whiteDrawn =
+                    DrawIconEx(
+                        memoryDc,
+                        0,
+                        0,
+                        cursorInfo.hCursor,
+                        width,
+                        height,
+                        0,
+                        nullptr,
+                        DI_NORMAL) != FALSE;
+
+                const bool whiteRead =
+                    whiteDrawn &&
+                    GetDIBits(
+                        memoryDc,
+                        dib,
+                        0,
+                        static_cast<UINT>(
+                            height),
+                        whiteImage.bits(),
+                        &bitmapInfo,
+                        DIB_RGB_COLORS) != 0;
+
+                if (whiteRead) {
+                    /*
+                     * Windows monochrome cursors can contain
+                     * XOR pixels whose native meaning is
+                     * "invert the desktop underneath me."
+                     *
+                     * A transported ARGB image cannot retain
+                     * that operation directly. Mark those
+                     * pixels temporarily with alpha 254, then
+                     * render them as a black core surrounded
+                     * by a one-pixel white outline. This keeps
+                     * cursors such as the I-beam visible on
+                     * both light and dark remote content.
+                     */
+                    for (int y = 0; y < height; ++y) {
+                        for (int x = 0; x < width; ++x) {
+                            const QRgb blackPixel =
+                                cursorImage.pixel(x, y);
+
+                            const QRgb whitePixel =
+                                whiteImage.pixel(x, y);
+
+                            const bool transparentPixel =
+                                qRed(blackPixel) == 0 &&
+                                qGreen(blackPixel) == 0 &&
+                                qBlue(blackPixel) == 0 &&
+                                qRed(whitePixel) == 255 &&
+                                qGreen(whitePixel) == 255 &&
+                                qBlue(whitePixel) == 255;
+
+                            const bool invertPixel =
+                                qRed(blackPixel) == 255 &&
+                                qGreen(blackPixel) == 255 &&
+                                qBlue(blackPixel) == 255 &&
+                                qRed(whitePixel) == 0 &&
+                                qGreen(whitePixel) == 0 &&
+                                qBlue(whitePixel) == 0;
+
+                            if (transparentPixel) {
+                                cursorImage.setPixel(
+                                    x,
+                                    y,
+                                    qRgba(0, 0, 0, 0));
+                            } else if (invertPixel) {
+                                cursorImage.setPixel(
+                                    x,
+                                    y,
+                                    qRgba(0, 0, 0, 254));
+                            } else {
+                                cursorImage.setPixel(
+                                    x,
+                                    y,
+                                    qRgba(
+                                        qRed(blackPixel),
+                                        qGreen(blackPixel),
+                                        qBlue(blackPixel),
+                                        255));
+                            }
+                        }
+                    }
+
+                    QImage contrastedCursor =
+                        cursorImage;
+
+                    for (int y = 0; y < height; ++y) {
+                        for (int x = 0; x < width; ++x) {
+                            if (
+                                qAlpha(
+                                    cursorImage.pixel(
+                                        x,
+                                        y)) != 254
+                            ) {
+                                continue;
+                            }
+
+                            for (int dy = -1; dy <= 1; ++dy) {
+                                for (int dx = -1; dx <= 1; ++dx) {
+                                    const int outlineX = x + dx;
+                                    const int outlineY = y + dy;
+
+                                    if (
+                                        outlineX < 0 ||
+                                        outlineY < 0 ||
+                                        outlineX >= width ||
+                                        outlineY >= height
+                                    ) {
+                                        continue;
+                                    }
+
+                                    if (
+                                        qAlpha(
+                                            cursorImage.pixel(
+                                                outlineX,
+                                                outlineY)) == 0
+                                    ) {
+                                        contrastedCursor.setPixel(
+                                            outlineX,
+                                            outlineY,
+                                            qRgba(
+                                                255,
+                                                255,
+                                                255,
+                                                255));
+                                    }
+                                }
+                            }
+
+                            contrastedCursor.setPixel(
+                                x,
+                                y,
+                                qRgba(0, 0, 0, 255));
+                        }
+                    }
+
+                    cursorImage =
+                        contrastedCursor;
+                }
+            }
         }
     }
 
