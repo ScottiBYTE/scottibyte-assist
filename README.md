@@ -73,8 +73,9 @@ Its design emphasizes:
   Wayland.
 
 - **Integrated support tools.** A support session can include
-  remote desktop viewing and control, two-way voice, text
-  chat, clipboard sharing, and file transfer.
+  remote desktop viewing and control, an interactive customer
+  terminal, two-way voice, text chat, clipboard sharing, and
+  file transfer.
 
 - **Provider administration and auditing.** The self-hosted
   server manages provider authorization and records the
@@ -93,8 +94,9 @@ authorized provider enters that code to establish the support
 session.
 
 During an approved session, ScottiBYTE Assist can provide
-remote desktop viewing and control, two-way voice, text chat,
-clipboard sharing, and file transfer.
+remote desktop viewing and control, an interactive customer
+terminal, two-way voice, text chat, clipboard sharing, and
+file transfer.
 
 ScottiBYTE Assist consists of three primary components: the
 self-hosted server and portal, the Windows client, and the
@@ -112,10 +114,10 @@ public release packaging.
 Native client releases are preserved in platform-specific source
 tags:
 
-- `windows-v1.0.2` — Windows client source
-- `linux-v1.0.2` — Ubuntu Linux client source
+- `windows-v2.0.2` — Windows client source
+- `linux-v2.0.2` — Ubuntu Linux client source
 
-The general `v1.0.2` tag corresponds to the public release on
+The general `v2.0.2` tag corresponds to the public release on
 `main`, including the server-side release metadata and packaged
 client downloads.
 
@@ -147,6 +149,7 @@ remote assistance, including:
 - desktop viewing and remote control
 - mouse and keyboard input
 - administrator and UAC support
+- interactive customer terminal
 - two-way voice
 - text chat
 - clipboard sharing
@@ -160,6 +163,7 @@ remote assistance, including:
 - X11 and Wayland desktop support
 - desktop viewing and remote control
 - mouse and keyboard input
+- interactive customer terminal
 - two-way voice
 - text chat
 - clipboard sharing
@@ -181,8 +185,9 @@ and access to the administrator interface.
 3. The customer gives that code to an authorized provider.
 4. The provider enters the code in ScottiBYTE Assist.
 5. The customer approves desktop access.
-6. The support session can then provide remote control, voice,
-   chat, clipboard sharing, and file transfer.
+6. The support session can then provide remote control, an
+   interactive customer terminal, voice, chat, clipboard sharing,
+   and file transfer.
 7. Either participant can end the support session.
 
 Support codes are temporary and should be shared only with the

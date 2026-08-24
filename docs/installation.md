@@ -626,6 +626,21 @@ coordinates the support session.
 Once the session has been established, the provider can use the remote
 assistance capabilities available during that session.
 
+### Customer Terminal
+
+During an active support session, an authorized provider can choose
+**Open Customer Terminal** to open an interactive terminal connected to
+the customer computer.
+
+The terminal provides command-line access within the current attended
+support session and is available independently of the remote desktop
+view. This is useful for diagnostics, configuration, package management,
+log inspection, and other command-line support tasks.
+
+The terminal session ends when it is closed or when the ScottiBYTE Assist
+support session ends. It does not create persistent or unattended access
+to the customer computer.
+
 ScottiBYTE Assist deliberately focuses on **remote assistance rather than
 permanent unattended remote control**.
 
