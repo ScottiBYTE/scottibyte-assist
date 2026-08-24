@@ -46,7 +46,6 @@ Additional providers can then be authorized and revoked individually through the
 
 The ScottiBYTE Assist server provides authorization, session coordination, WebSocket signaling, authenticated relay services, temporary file transfer, auditing, provider management, and client downloads.
 
-![ScottiBYTE Assist Architecture](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/v2.0.2/docs/images/architecture.png)
 
 ## Docker Compose
 
