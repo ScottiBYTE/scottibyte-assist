@@ -3840,7 +3840,7 @@ QLabel#remotePlaceholder {
         QSizePolicy::Preferred);
 
     auto *codeLayout =
-        new QVBoxLayout(codeCard);
+        new QGridLayout(codeCard);
 
     auto *supportCode =
         new OutlinedCodeButton;
@@ -3922,80 +3922,29 @@ QLabel#remotePlaceholder {
     copyCodeIcon->setFont(
         copyIconFont);
 
-    /*
-     * Column 0 contains the code.
-     * Column 1 is a narrow reserved gutter for the copy icon.
-     * This prevents the icon from intruding into the digits.
-     */
-    /*
-     * Use equal left and right gutters so the support code
-     * is optically centered inside the box.
-     *
-     * Column 0: empty 28px balancing gutter
-     * Column 1: centered six-digit code
-     * Column 2: 28px copy-icon gutter
-     */
-    supportCodeGrid->setColumnMinimumWidth(
-        0,
-        36);
-
-    supportCodeGrid->setColumnStretch(
-        1,
-        1);
-
-    supportCodeGrid->setColumnMinimumWidth(
-        2,
-        36);
-
     supportCodeGrid->addWidget(
         supportCode,
         0,
-        1,
+        0,
         Qt::AlignCenter);
-
-#if defined(Q_OS_WIN)
-    auto *copyCodeIconCell =
-        new QWidget;
-
-    copyCodeIconCell->setFixedWidth(36);
-
-    auto *copyCodeIconLayout =
-        new QVBoxLayout(copyCodeIconCell);
-
-    copyCodeIconLayout->setContentsMargins(
-        0,
-        0,
-        0,
-        6);
-
-    copyCodeIconLayout->setSpacing(0);
-
-    copyCodeIconLayout->addStretch(1);
-
-    copyCodeIconLayout->addWidget(
-        copyCodeIcon,
-        0,
-        Qt::AlignRight);
-
-    supportCodeGrid->addWidget(
-        copyCodeIconCell,
-        0,
-        2,
-        Qt::AlignRight |
-            Qt::AlignBottom);
-#else
-    supportCodeGrid->addWidget(
-        copyCodeIcon,
-        0,
-        2,
-        Qt::AlignRight |
-            Qt::AlignBottom);
-#endif
-
     codeLayout->addWidget(
         supportCodeLayer,
         0,
-        Qt::AlignHCenter);
+        0,
+        Qt::AlignCenter);
+
+    codeLayout->addWidget(
+        copyCodeIcon,
+        0,
+        0,
+        Qt::AlignRight |
+            Qt::AlignBottom);
+
+    codeLayout->setContentsMargins(
+        12,
+        8,
+        12,
+        8);
 
     QObject::connect(
         copyCodeIcon,
@@ -4910,7 +4859,7 @@ providerRemoteAudioButton->setToolTip(
 
     auto *remoteWindowFullScreenButton =
         makeButton(
-            QStringLiteral("Remote Control Customer"),
+            QStringLiteral("Full Screen Remote Control"),
             QStringLiteral(
                 "secondaryButton"));
 
