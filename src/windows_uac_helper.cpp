@@ -1107,8 +1107,26 @@ bool sendBrokerVirtualKey(
     input.type =
         INPUT_KEYBOARD;
 
-    input.ki.wVk =
-        virtualKey;
+    const bool useScanCode =
+        virtualKey == VK_LSHIFT ||
+        virtualKey == VK_RSHIFT ||
+        virtualKey == VK_LCONTROL ||
+        virtualKey == VK_RCONTROL ||
+        virtualKey == VK_LMENU ||
+        virtualKey == VK_RMENU;
+
+    if (useScanCode) {
+        input.ki.wVk = 0;
+        input.ki.wScan =
+            static_cast<WORD>(
+                MapVirtualKeyW(
+                    virtualKey,
+                    MAPVK_VK_TO_VSC));
+        input.ki.dwFlags |=
+            KEYEVENTF_SCANCODE;
+    } else {
+        input.ki.wVk = virtualKey;
+    }
 
     if (isExtendedVirtualKey(
             virtualKey)) {
