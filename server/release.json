@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in 2.0.4",
-  "summary": "Version 2.0.4 fixes Windows shifted-key input and supports Ubuntu 24.04 and Ubuntu 26.04.",
+  "headline": "New in 2.0.5",
+  "summary": "Linux 2.0.5 adds application-window sharing on Wayland and Customer Terminal sharing on X11.",
   "windows": {
     "version": "2.0.4",
     "download": "/downloads/2.0.4/ScottiBYTE-Assist-Setup-2.0.4.exe",
     "checksum": "/downloads/2.0.4/ScottiBYTE-Assist-Setup-2.0.4.exe.sha256"
   },
   "linux": {
-    "version": "2.0.4",
-    "download": "/downloads/2.0.4/ScottiBYTE-Assist_2.0.4_amd64.deb",
-    "checksum": "/downloads/2.0.4/ScottiBYTE-Assist_2.0.4_amd64.deb.sha256"
+    "version": "2.0.5",
+    "download": "/downloads/2.0.5/ScottiBYTE-Assist_2.0.5_amd64.deb",
+    "checksum": "/downloads/2.0.5/ScottiBYTE-Assist_2.0.5_amd64.deb.sha256"
   }
 }
