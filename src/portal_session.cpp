@@ -44,6 +44,7 @@ constexpr uint keyboardDevice = 1;
 constexpr uint pointerDevice = 2;
 
 constexpr uint monitorSource = 1;
+constexpr uint windowSource = 2;
 constexpr uint embeddedCursor = 2;
 
 QString deviceDescription(uint devices)
@@ -372,7 +373,7 @@ void PortalSession::selectDevices()
 void PortalSession::selectSources()
 {
     emit statusChanged(
-        QStringLiteral("Requesting one monitor…"));
+        QStringLiteral("Requesting one share source…"));
 
     const QString requestToken =
         newToken(QStringLiteral("sources"));
@@ -384,7 +385,8 @@ void PortalSession::selectSources()
 
     options.insert(
         QStringLiteral("types"),
-        QVariant::fromValue(monitorSource));
+        QVariant::fromValue(
+            monitorSource | windowSource));
 
     options.insert(
         QStringLiteral("multiple"),
@@ -456,7 +458,7 @@ void PortalSession::startSession()
 {
     emit statusChanged(
         QStringLiteral(
-            "Waiting for local approval and monitor selection…"));
+            "Waiting for local approval and source selection…"));
 
     const QString requestToken =
         newToken(QStringLiteral("start"));
@@ -567,7 +569,7 @@ void PortalSession::onRequestResponse(
             fail(
                 QStringLiteral(
                     "The portal started the session but "
-                    "returned no screen streams."));
+                    "returned no share streams."));
             return;
         }
 

@@ -342,10 +342,6 @@ X11DesktopBackend::availableShareSources() const
                 }
             }
 
-            if (ownedByAssist) {
-                continue;
-            }
-
             bool usefulWindowType = true;
 
             if (
@@ -470,14 +466,26 @@ X11DesktopBackend::availableShareSources() const
             const QString normalizedTitle =
                 title.toLower();
 
+            const bool isCustomerTerminal =
+                normalizedTitle.contains(
+                    QStringLiteral(
+                        "customer terminal"));
+
             if (
                 normalizedTitle ==
                     QStringLiteral("trash") ||
                 normalizedTitle ==
                     QStringLiteral("desktop") ||
-                normalizedTitle.startsWith(
-                    QStringLiteral(
-                        "scottibyte assist"))) {
+                (
+                    ownedByAssist &&
+                    !isCustomerTerminal
+                ) ||
+                (
+                    normalizedTitle.startsWith(
+                        QStringLiteral(
+                            "scottibyte assist")) &&
+                    !isCustomerTerminal
+                )) {
                 continue;
             }
 
