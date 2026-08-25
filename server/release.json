@@ -1,11 +1,11 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
   "headline": "New in 2.0.4",
-  "summary": "Linux 2.0.4 adds reliable installation support for Ubuntu 24.04 and Ubuntu 26.04.",
+  "summary": "Version 2.0.4 fixes Windows shifted-key input and supports Ubuntu 24.04 and Ubuntu 26.04.",
   "windows": {
-    "version": "2.0.3",
-    "download": "/downloads/2.0.3/ScottiBYTE-Assist-Setup-2.0.3.exe",
-    "checksum": "/downloads/2.0.3/ScottiBYTE-Assist-Setup-2.0.3.exe.sha256"
+    "version": "2.0.4",
+    "download": "/downloads/2.0.4/ScottiBYTE-Assist-Setup-2.0.4.exe",
+    "checksum": "/downloads/2.0.4/ScottiBYTE-Assist-Setup-2.0.4.exe.sha256"
   },
   "linux": {
     "version": "2.0.4",
