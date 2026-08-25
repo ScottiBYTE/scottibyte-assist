@@ -52,13 +52,21 @@ echo "Executable version: $binary_version"
 control="$project_root/packaging-linux/control"
 desktop="$project_root/packaging-linux/scottibyte-assist.desktop"
 webrtc_apm="/usr/local/lib/x86_64-linux-gnu/libwebrtc-audio-processing-1.so.3"
+absl_libraries=(
+  "/lib/x86_64-linux-gnu/libabsl_bad_optional_access.so.20220623"
+  "/lib/x86_64-linux-gnu/libabsl_strings.so.20220623"
+  "/lib/x86_64-linux-gnu/libabsl_throw_delegate.so.20220623"
+  "/lib/x86_64-linux-gnu/libabsl_strings_internal.so.20220623"
+  "/lib/x86_64-linux-gnu/libabsl_raw_logging_internal.so.20220623"
+)
 
 for required_file in \
   "$binary" \
   "$icon" \
   "$control" \
   "$desktop" \
-  "$webrtc_apm"
+  "$webrtc_apm" \
+  "${absl_libraries[@]}"
 do
   if [[ ! -f "$required_file" ]]; then
     echo "Required file not found: $required_file" >&2
@@ -98,6 +106,17 @@ cp "$binary" \
 cp "$webrtc_apm" \
   "$stage/usr/lib/scottibyte-assist/libwebrtc-audio-processing-1.so.3"
 
+for absl_library in "${absl_libraries[@]}"; do
+  bundled_absl="$stage/usr/lib/scottibyte-assist/$(basename "$absl_library")"
+
+  cp -L "$absl_library" \
+    "$bundled_absl"
+
+  patchelf \
+    --set-rpath '$ORIGIN' \
+    "$bundled_absl"
+done
+
 cp "$desktop" \
   "$stage/usr/share/applications/scottibyte-assist.desktop"
 
@@ -108,9 +127,13 @@ patchelf \
   --set-rpath '$ORIGIN/../lib/scottibyte-assist' \
   "$stage/usr/bin/scottibyte-assist"
 
+patchelf \
+  --set-rpath '$ORIGIN' \
+  "$stage/usr/lib/scottibyte-assist/libwebrtc-audio-processing-1.so.3"
+
 chmod 755 \
   "$stage/usr/bin/scottibyte-assist" \
-  "$stage/usr/lib/scottibyte-assist/libwebrtc-audio-processing-1.so.3"
+  "$stage/usr/lib/scottibyte-assist/"*.so.*
 
 chmod 644 \
   "$stage/DEBIAN/control" \
