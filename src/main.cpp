@@ -74,6 +74,8 @@
 #include <QStackedWidget>
 #include <QThread>
 #include <QTabWidget>
+#include <QTextCharFormat>
+#include <QTextCursor>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -4992,14 +4994,8 @@ QLineEdit#chatInput:disabled {
                     18));
 
             chatColorButton->setText(
-                QStringLiteral("  %1")
+                QStringLiteral("  My: %1")
                     .arg(name));
-
-            chatTranscript->setStyleSheet(
-                QStringLiteral(
-                    "color: %1;")
-                    .arg(
-                        chatTextColor));
 
             chatInput->setStyleSheet(
                 QStringLiteral(
@@ -5126,6 +5122,37 @@ QLineEdit#chatInput:disabled {
     updateChatTextColor(
         initialChatColorName,
         chatTextColor);
+
+    const QString remoteChatTextColor =
+        QStringLiteral("#FFFFFF");
+
+    const auto appendChatLine =
+        [chatTranscript](
+            const QString &speaker,
+            const QString &text,
+            const QString &color)
+        {
+            QTextCursor cursor =
+                chatTranscript->textCursor();
+
+            cursor.movePosition(
+                QTextCursor::End);
+
+            QTextCharFormat format;
+            format.setForeground(
+                QColor(color));
+
+            cursor.insertText(
+                QStringLiteral("%1: %2\n")
+                    .arg(
+                        speaker,
+                        text),
+                format);
+
+            chatTranscript->setTextCursor(
+                cursor);
+            chatTranscript->ensureCursorVisible();
+        };
 
     auto *chatSendButton =
         makeButton(
@@ -6074,7 +6101,8 @@ QLineEdit#chatInput:disabled {
         [
             lanSession,
             chatInput,
-            chatTranscript
+            appendChatLine,
+            &chatTextColor
         ]()
         {
             const QString text =
@@ -6084,9 +6112,10 @@ QLineEdit#chatInput:disabled {
                 return;
             }
 
-            chatTranscript->appendPlainText(
-                QStringLiteral("You: %1")
-                    .arg(text));
+            appendChatLine(
+                QStringLiteral("You"),
+                text,
+                chatTextColor);
 
             lanSession->sendChatMessage(
                 text);
@@ -6113,13 +6142,14 @@ QLineEdit#chatInput:disabled {
         window,
         [
             chatWindow,
-            chatTranscript,
+            appendChatLine,
             customerChatButton,
             providerChatButton,
             receiveButton,
             setChatUnreadStyle,
             playChatNotificationSound,
-            &chatUnreadCount
+            &chatUnreadCount,
+            remoteChatTextColor
         ](
             const QString &text)
         {
@@ -6128,11 +6158,10 @@ QLineEdit#chatInput:disabled {
                     ? QStringLiteral("Provider")
                     : QStringLiteral("Customer");
 
-            chatTranscript->appendPlainText(
-                QStringLiteral("%1: %2")
-                    .arg(
-                        peerName,
-                        text));
+            appendChatLine(
+                peerName,
+                text,
+                remoteChatTextColor);
 
             if (
                 chatWindow->isVisible() &&
