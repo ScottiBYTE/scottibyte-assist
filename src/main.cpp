@@ -53,6 +53,7 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
+#include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -1202,6 +1203,12 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     );
     border-color: #ff6b86;
 }
+
+QDialog#settingsDialog QPushButton:disabled {
+    color: #8995a5;
+    background: #293548;
+    border: 1px solid #526175;
+}
 )CSS"));
 
     auto *layout =
@@ -1249,6 +1256,20 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         normalizedServerUrlText(
             QUrl(configuredServerUrl));
 
+    QString primaryServerUrl =
+        normalizedServerUrlText(
+            QUrl(
+                settings.value(
+                    QStringLiteral(
+                        "connection/primaryServerUrl"),
+                    normalizedConfiguredUrl)
+                    .toString()));
+
+    if (primaryServerUrl.isEmpty()) {
+        primaryServerUrl =
+            normalizedConfiguredUrl;
+    }
+
     if (
         !normalizedConfiguredUrl.isEmpty() &&
         !configuredServerUrls.contains(
@@ -1284,6 +1305,71 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     serverUrl->lineEdit()->setPlaceholderText(
         QStringLiteral(
             "https://assist.example.com"));
+
+    serverUrl->setEditable(false);
+
+    auto *addServerButton =
+        new QPushButton(
+            QStringLiteral("Add"));
+
+    auto *editServerButton =
+        new QPushButton(
+            QStringLiteral("Edit"));
+
+    auto *deleteServerButton =
+        new QPushButton(
+            QStringLiteral("Delete"));
+
+    deleteServerButton->setObjectName(
+        QStringLiteral("deleteServerButton"));
+
+    auto *serverProfileButtons =
+        new QHBoxLayout;
+
+    serverProfileButtons->setContentsMargins(
+        0, 0, 0, 0);
+
+    serverProfileButtons->setSpacing(8);
+
+    serverProfileButtons->addWidget(
+        addServerButton);
+
+    serverProfileButtons->addWidget(
+        editServerButton);
+
+    serverProfileButtons->addWidget(
+        deleteServerButton);
+
+    const auto updateDeleteServerButton =
+        [
+            serverUrl,
+            deleteServerButton,
+            &primaryServerUrl
+        ]()
+        {
+            const bool primarySelected =
+                normalizedServerUrlText(
+                    QUrl(
+                        serverUrl->currentText()))
+                    .compare(
+                        primaryServerUrl,
+                        Qt::CaseInsensitive) == 0;
+
+            deleteServerButton->setEnabled(
+                serverUrl->count() > 1 &&
+                !primarySelected);
+
+            deleteServerButton->setToolTip(
+                primarySelected
+                    ? QStringLiteral(
+                          "The primary Assist server "
+                          "cannot be deleted.")
+                    : QStringLiteral(
+                          "Delete the selected "
+                          "Assist server profile."));
+        };
+
+    updateDeleteServerButton();
 
     auto *inputDevice =
         new AssistAudioComboBox;
@@ -1413,6 +1499,11 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         QStringLiteral(
             "Assist Server URL"),
         serverUrl);
+
+    form->addRow(
+        QStringLiteral(
+            "Server profiles"),
+        serverProfileButtons);
 
     form->addRow(
         QStringLiteral(
@@ -1735,16 +1826,267 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         serverUrl,
         &QComboBox::currentIndexChanged,
         &dialog,
-        [refreshProviderStatus](int)
+        [
+            refreshProviderStatus,
+            updateDeleteServerButton
+        ](int)
         {
+            updateDeleteServerButton();
+            refreshProviderStatus();
+        });
+
+    const auto normalizeServerEntry =
+        [&dialog](
+            const QString &enteredValue,
+            QString *normalizedValue)
+        {
+            const QString normalized =
+                normalizedServerUrlText(
+                    QUrl(enteredValue.trimmed()));
+
+            const QUrl parsedUrl(normalized);
+
+            if (
+                !parsedUrl.isValid() ||
+                (
+                    parsedUrl.scheme() !=
+                        QStringLiteral("http") &&
+                    parsedUrl.scheme() !=
+                        QStringLiteral("https")
+                ) ||
+                parsedUrl.host().isEmpty()
+            ) {
+                QMessageBox::warning(
+                    &dialog,
+                    QStringLiteral(
+                        "Invalid Assist Server"),
+                    QStringLiteral(
+                        "Enter a complete Assist server URL, "
+                        "such as:\n"
+                        "https://assist.example.com"));
+                return false;
+            }
+
+            *normalizedValue = normalized;
+            return true;
+        };
+
+    QObject::connect(
+        addServerButton,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            &dialog,
+            serverUrl,
+            deleteServerButton,
+            normalizeServerEntry,
+            refreshProviderStatus
+        ]()
+        {
+            QInputDialog inputDialog(
+                &dialog);
+
+            inputDialog.setWindowTitle(
+                QStringLiteral(
+                    "Add Assist Server"));
+
+            inputDialog.setLabelText(
+                QStringLiteral(
+                    "Assist Server URL:"));
+
+            inputDialog.setInputMode(
+                QInputDialog::TextInput);
+
+            inputDialog.setTextValue(
+                QStringLiteral("https://"));
+
+            inputDialog.setMinimumWidth(
+                520);
+
+            inputDialog.resize(
+                520,
+                190);
+
+            if (
+                inputDialog.exec() !=
+                QDialog::Accepted
+            ) {
+                return;
+            }
+
+            const QString enteredValue =
+                inputDialog.textValue();
+
+            QString normalizedValue;
+
+            if (
+                !normalizeServerEntry(
+                    enteredValue,
+                    &normalizedValue)
+            ) {
+                return;
+            }
+
+            int serverIndex =
+                serverUrl->findText(
+                    normalizedValue,
+                    Qt::MatchFixedString);
+
+            if (serverIndex < 0) {
+                serverUrl->addItem(
+                    normalizedValue);
+
+                serverIndex =
+                    serverUrl->count() - 1;
+            }
+
+            serverUrl->setCurrentIndex(
+                serverIndex);
+
             refreshProviderStatus();
         });
 
     QObject::connect(
-        serverUrl->lineEdit(),
-        &QLineEdit::editingFinished,
+        editServerButton,
+        &QPushButton::clicked,
         &dialog,
-        refreshProviderStatus);
+        [
+            &dialog,
+            serverUrl,
+            normalizeServerEntry,
+            refreshProviderStatus
+        ]()
+        {
+            const int selectedIndex =
+                serverUrl->currentIndex();
+
+            if (selectedIndex < 0) {
+                return;
+            }
+
+            QInputDialog inputDialog(
+                &dialog);
+
+            inputDialog.setWindowTitle(
+                QStringLiteral(
+                    "Edit Assist Server"));
+
+            inputDialog.setLabelText(
+                QStringLiteral(
+                    "Assist Server URL:"));
+
+            inputDialog.setInputMode(
+                QInputDialog::TextInput);
+
+            inputDialog.setTextValue(
+                serverUrl->itemText(
+                    selectedIndex));
+
+            inputDialog.setMinimumWidth(
+                520);
+
+            inputDialog.resize(
+                520,
+                190);
+
+            if (
+                inputDialog.exec() !=
+                QDialog::Accepted
+            ) {
+                return;
+            }
+
+            QString normalizedValue;
+
+            if (
+                !normalizeServerEntry(
+                    inputDialog.textValue(),
+                    &normalizedValue)
+            ) {
+                return;
+            }
+
+            const int existingIndex =
+                serverUrl->findText(
+                    normalizedValue,
+                    Qt::MatchFixedString);
+
+            if (
+                existingIndex >= 0 &&
+                existingIndex != selectedIndex
+            ) {
+                QMessageBox::warning(
+                    &dialog,
+                    QStringLiteral(
+                        "Assist Server Already Exists"),
+                    QStringLiteral(
+                        "That Assist server is already "
+                        "in the server list."));
+                return;
+            }
+
+            serverUrl->setItemText(
+                selectedIndex,
+                normalizedValue);
+
+            serverUrl->setCurrentIndex(
+                selectedIndex);
+
+            refreshProviderStatus();
+        });
+
+    QObject::connect(
+        deleteServerButton,
+        &QPushButton::clicked,
+        &dialog,
+        [
+            &dialog,
+            serverUrl,
+            deleteServerButton,
+            refreshProviderStatus
+        ]()
+        {
+            if (
+                serverUrl->count() <= 1 ||
+                serverUrl->currentIndex() < 0
+            ) {
+                QMessageBox::information(
+                    &dialog,
+                    QStringLiteral(
+                        "Keep One Assist Server"),
+                    QStringLiteral(
+                        "At least one Assist server "
+                        "must remain configured."));
+                return;
+            }
+
+            const QString serverToDelete =
+                serverUrl->currentText();
+
+            const QMessageBox::StandardButton answer =
+                QMessageBox::question(
+                    &dialog,
+                    QStringLiteral(
+                        "Delete Assist Server"),
+                    QStringLiteral(
+                        "Remove this server profile?\n\n"
+                        "%1\n\n"
+                        "Its saved provider authorization "
+                        "will be retained.")
+                        .arg(serverToDelete),
+                    QMessageBox::Yes |
+                        QMessageBox::No,
+                    QMessageBox::No);
+
+            if (answer != QMessageBox::Yes) {
+                return;
+            }
+
+            serverUrl->removeItem(
+                serverUrl->currentIndex());
+
+            refreshProviderStatus();
+        });
 
     QObject::connect(
         createFirstAdministrator,
@@ -2114,6 +2456,7 @@ QMessageBox QPushButton:default {
         [
             &dialog,
             &settings,
+            &primaryServerUrl,
             serverUrl,
             inputDevice,
             outputDevice,
@@ -2193,6 +2536,11 @@ QMessageBox QPushButton:default {
                 QStringLiteral(
                     "connection/serverUrls"),
                 serverUrls);
+
+            settings.setValue(
+                QStringLiteral(
+                    "connection/primaryServerUrl"),
+                primaryServerUrl);
 
             settings.setValue(
                 QStringLiteral(
