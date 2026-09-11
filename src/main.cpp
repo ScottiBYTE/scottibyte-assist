@@ -71,6 +71,7 @@
 #include <QScrollBar>
 #include <QSettings>
 #include <QShortcut>
+#include <QStringList>
 #include <QStandardPaths>
 #include <QStackedWidget>
 #include <QThread>
@@ -974,7 +975,28 @@ public:
             Qt::PointingHandCursor);
     }
 
+    void setSuppressSingleItemPopup(
+        bool suppress)
+    {
+        setProperty(
+            "suppressSingleItemPopup",
+            suppress);
+    }
+
 protected:
+    void showPopup() override
+    {
+        if (
+            property(
+                "suppressSingleItemPopup").toBool() &&
+            count() <= 1
+        ) {
+            return;
+        }
+
+        QComboBox::showPopup();
+    }
+
     void paintEvent(
         QPaintEvent *event) override
     {
@@ -1204,6 +1226,9 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     auto *serverUrl =
         new AssistAudioComboBox;
 
+    serverUrl->setSuppressSingleItemPopup(
+        true);
+
     serverUrl->setEditable(true);
     serverUrl->setInsertPolicy(
         QComboBox::NoInsert);
@@ -1214,11 +1239,46 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
                 "connection/serverUrl"))
             .toString();
 
-    if (!configuredServerUrl.isEmpty()) {
-        serverUrl->addItem(
-            configuredServerUrl);
+    QStringList configuredServerUrls =
+        settings.value(
+            QStringLiteral(
+                "connection/serverUrls"))
+            .toStringList();
+
+    const QString normalizedConfiguredUrl =
+        normalizedServerUrlText(
+            QUrl(configuredServerUrl));
+
+    if (
+        !normalizedConfiguredUrl.isEmpty() &&
+        !configuredServerUrls.contains(
+            normalizedConfiguredUrl,
+            Qt::CaseInsensitive)
+    ) {
+        configuredServerUrls.prepend(
+            normalizedConfiguredUrl);
+    }
+
+    for (const QString &savedServerUrl :
+         configuredServerUrls) {
+        const QString normalizedSavedUrl =
+            normalizedServerUrlText(
+                QUrl(savedServerUrl));
+
+        if (
+            !normalizedSavedUrl.isEmpty() &&
+            serverUrl->findText(
+                normalizedSavedUrl,
+                Qt::MatchFixedString) < 0
+        ) {
+            serverUrl->addItem(
+                normalizedSavedUrl);
+        }
+    }
+
+    if (!normalizedConfiguredUrl.isEmpty()) {
         serverUrl->setCurrentText(
-            configuredServerUrl);
+            normalizedConfiguredUrl);
     }
 
     serverUrl->lineEdit()->setPlaceholderText(
@@ -1672,6 +1732,21 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         };
 
     QObject::connect(
+        serverUrl,
+        &QComboBox::currentIndexChanged,
+        &dialog,
+        [refreshProviderStatus](int)
+        {
+            refreshProviderStatus();
+        });
+
+    QObject::connect(
+        serverUrl->lineEdit(),
+        &QLineEdit::editingFinished,
+        &dialog,
+        refreshProviderStatus);
+
+    QObject::connect(
         createFirstAdministrator,
         &QPushButton::clicked,
         &dialog,
@@ -2076,10 +2151,48 @@ QMessageBox QPushButton:default {
                     ->currentData()
                     .toString();
 
+            QStringList serverUrls;
+
+            for (
+                int index = 0;
+                index < serverUrl->count();
+                ++index
+            ) {
+                const QString savedUrl =
+                    normalizedServerUrlText(
+                        QUrl(
+                            serverUrl->itemText(
+                                index)));
+
+                if (
+                    !savedUrl.isEmpty() &&
+                    !serverUrls.contains(
+                        savedUrl,
+                        Qt::CaseInsensitive)
+                ) {
+                    serverUrls.append(savedUrl);
+                }
+            }
+
+            if (
+                !normalizedServerUrl.isEmpty() &&
+                !serverUrls.contains(
+                    normalizedServerUrl,
+                    Qt::CaseInsensitive)
+            ) {
+                serverUrls.append(
+                    normalizedServerUrl);
+            }
+
             settings.setValue(
                 QStringLiteral(
                     "connection/serverUrl"),
                 normalizedServerUrl);
+
+            settings.setValue(
+                QStringLiteral(
+                    "connection/serverUrls"),
+                serverUrls);
 
             settings.setValue(
                 QStringLiteral(
