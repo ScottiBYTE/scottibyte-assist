@@ -1128,15 +1128,26 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     form->setVerticalSpacing(10);
 
     auto *serverUrl =
-        new QLineEdit;
+        new AssistAudioComboBox;
 
-    serverUrl->setText(
+    serverUrl->setEditable(true);
+    serverUrl->setInsertPolicy(
+        QComboBox::NoInsert);
+
+    const QString configuredServerUrl =
         settings.value(
             QStringLiteral(
                 "connection/serverUrl"))
-            .toString());
+            .toString();
 
-    serverUrl->setPlaceholderText(
+    if (!configuredServerUrl.isEmpty()) {
+        serverUrl->addItem(
+            configuredServerUrl);
+        serverUrl->setCurrentText(
+            configuredServerUrl);
+    }
+
+    serverUrl->lineEdit()->setPlaceholderText(
         QStringLiteral(
             "https://assist.example.com"));
 
@@ -1497,7 +1508,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         ]()
         {
             QString value =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 value.endsWith(
@@ -1600,7 +1611,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         ]()
         {
             QString value =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 value.endsWith(
@@ -1696,7 +1707,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             }
 
             QString value =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 value.endsWith(
@@ -1937,7 +1948,7 @@ QMessageBox QPushButton:default {
         ]()
         {
             QString normalizedServerUrl =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 normalizedServerUrl.endsWith(
