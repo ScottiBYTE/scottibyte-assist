@@ -2,8 +2,9 @@
 Type=Application
 Name=ScottiBYTE Assist
 Comment=Remote desktop assistance and voice
-Exec=env BAMF_DESKTOP_FILE_HINT=/usr/share/applications/scottibyte-assist.desktop /usr/bin/scottibyte-assist
+Exec=env BAMF_DESKTOP_FILE_HINT=/usr/share/applications/scottibyte-assist.desktop /usr/bin/scottibyte-assist %u
 Icon=scottibyte-assist
+MimeType=x-scheme-handler/scottibyte-assist;
 Terminal=false
 Categories=Network;RemoteAccess;
 StartupNotify=false
