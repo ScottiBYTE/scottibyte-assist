@@ -153,7 +153,7 @@ QUrl assistWebSocketUrl(
     return result;
 }
 
-QString providerCredentialPath()
+QString legacyProviderCredentialPath()
 {
     return
         QStandardPaths::writableLocation(
@@ -162,7 +162,43 @@ QString providerCredentialPath()
             "/ScottiBYTE/Assist/provider.json");
 }
 
+QString normalizedServerUrlText(
+    const QUrl &serverUrl)
+{
+    QString value =
+        serverUrl.toString(
+            QUrl::FullyEncoded)
+            .trimmed();
+
+    while (value.endsWith(QChar('/'))) {
+        value.chop(1);
+    }
+
+    return value;
+}
+
+QString providerCredentialPath(
+    const QUrl &serverUrl)
+{
+    const QByteArray serverHash =
+        QCryptographicHash::hash(
+            normalizedServerUrlText(
+                serverUrl)
+                .toUtf8(),
+            QCryptographicHash::Sha256)
+            .toHex();
+
+    return
+        QStandardPaths::writableLocation(
+            QStandardPaths::ConfigLocation) +
+        QStringLiteral(
+            "/ScottiBYTE/Assist/providers/") +
+        QString::fromLatin1(serverHash) +
+        QStringLiteral(".json");
+}
+
 bool saveProviderCredential(
+    const QUrl &serverUrl,
     const QString &credential,
     QString *errorMessage)
 {
@@ -180,7 +216,8 @@ bool saveProviderCredential(
     }
 
     const QString path =
-        providerCredentialPath();
+        providerCredentialPath(
+            serverUrl);
 
     const QFileInfo fileInfo(path);
 
@@ -238,10 +275,12 @@ bool saveProviderCredential(
 }
 
 bool removeProviderCredential(
+    const QUrl &serverUrl,
     QString *errorMessage)
 {
     const QString path =
-        providerCredentialPath();
+        providerCredentialPath(
+            serverUrl);
 
     if (!QFileInfo::exists(path)) {
         return true;
@@ -262,10 +301,39 @@ bool removeProviderCredential(
 }
 
 QString loadProviderCredential(
+    const QUrl &serverUrl,
     QString *errorMessage)
 {
-    const QString path =
-        providerCredentialPath();
+    QString path =
+        providerCredentialPath(
+            serverUrl);
+
+    if (!QFileInfo::exists(path)) {
+        const QString legacyPath =
+            legacyProviderCredentialPath();
+
+        if (
+            QFileInfo::exists(legacyPath) &&
+            normalizedServerUrlText(serverUrl) ==
+                normalizedServerUrlText(
+                    configuredAssistServerUrl())
+        ) {
+            const QFileInfo fileInfo(path);
+
+            if (
+                QDir().mkpath(
+                    fileInfo.absolutePath()) &&
+                QFile::rename(
+                    legacyPath,
+                    path)
+            ) {
+                QFile::setPermissions(
+                    path,
+                    QFileDevice::ReadOwner |
+                        QFileDevice::WriteOwner);
+            }
+        }
+    }
 
     QFile file(path);
 
@@ -1873,6 +1941,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             const QString credential =
                 loadProviderCredential(
+                    QUrl(
+                        serverUrl->text().trimmed()),
                     &credentialError);
 
             if (credential.isEmpty()) {
@@ -1977,6 +2047,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             if (
                 !saveProviderCredential(
+                    QUrl(
+                        serverUrl->text().trimmed()),
                     credential,
                     &errorMessage)
             ) {
@@ -2020,6 +2092,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             const QString existingCredential =
                 loadProviderCredential(
+                    QUrl(
+                        serverUrl->text().trimmed()),
                     &existingError);
 
             if (!existingCredential.isEmpty()) {
@@ -2059,6 +2133,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             if (
                 !saveProviderCredential(
+                    QUrl(
+                        serverUrl->text().trimmed()),
                     credential,
                     &errorMessage)
             ) {
@@ -2088,6 +2164,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         &QPushButton::clicked,
         &dialog,
         [
+            serverUrl,
             providerCredential,
             providerStatus,
             refreshProviderStatus
@@ -2096,6 +2173,8 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             QString errorMessage;
 
             if (!saveProviderCredential(
+                    QUrl(
+                        serverUrl->text().trimmed()),
                     providerCredential->text(),
                     &errorMessage)) {
                 providerStatus->setText(
@@ -2120,6 +2199,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         &dialog,
         [
             &dialog,
+            serverUrl,
             providerStatus,
             refreshProviderStatus
         ]()
@@ -2183,6 +2263,8 @@ QMessageBox QPushButton:default {
             QString errorMessage;
 
             if (!removeProviderCredential(
+                    QUrl(
+                        serverUrl->text().trimmed()),
                     &errorMessage)) {
                 providerStatus->setText(
                     errorMessage);
@@ -8948,6 +9030,7 @@ QDialog#settingsDialog QPushButton {
 
             const QString credential =
                 loadProviderCredential(
+                    configuredAssistServerUrl(),
                     &credentialError);
 
             if (credential.isEmpty()) {
