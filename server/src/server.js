@@ -102,6 +102,34 @@ const port = Number.parseInt(
 const host =
   process.env.HOST ?? '0.0.0.0';
 
+const configuredPublicUrl =
+  (process.env.PUBLIC_URL ?? '')
+    .trim()
+    .replace(/\/+$/, '');
+
+let publicUrl = null;
+
+if (configuredPublicUrl) {
+  const parsedPublicUrl =
+    new URL(configuredPublicUrl);
+
+  if (
+    !['https:', 'http:'].includes(
+      parsedPublicUrl.protocol
+    ) ||
+    !parsedPublicUrl.hostname ||
+    parsedPublicUrl.username ||
+    parsedPublicUrl.password
+  ) {
+    throw new Error(
+      'PUBLIC_URL must be a valid HTTP or HTTPS URL.'
+    );
+  }
+
+  publicUrl = parsedPublicUrl.toString()
+    .replace(/\/+$/, '');
+}
+
 app.disable('x-powered-by');
 
 /*
@@ -426,6 +454,7 @@ app.get(
       server: {
         version: serverVersion
       },
+      assistServerUrl: publicUrl,
       ...releaseMetadata
     });
   }

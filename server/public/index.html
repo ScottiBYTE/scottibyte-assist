@@ -832,6 +832,26 @@
     </section>
 
     <section class="info-card">
+      <h2>Open ScottiBYTE Assist</h2>
+
+      <p id="portalLaunchInstructions">
+        After installing the client, use this button to
+        configure and open ScottiBYTE Assist for this server.
+      </p>
+
+      <div class="actions">
+        <a
+          id="portalLaunch"
+          class="download-button"
+          href="#"
+          style="display: none;"
+        >
+          Configure and Open ScottiBYTE Assist
+        </a>
+      </div>
+    </section>
+
+    <section class="info-card">
       <h2>How a support session works</h2>
 
       <div class="steps">
@@ -894,6 +914,39 @@
 
         const release =
           await response.json();
+
+        const portalLaunch =
+          document.getElementById(
+            'portalLaunch'
+          );
+
+        const portalLaunchInstructions =
+          document.getElementById(
+            'portalLaunchInstructions'
+          );
+
+        if (release.assistServerUrl) {
+          const portalLaunchUrl =
+            new URL(
+              'scottibyte-assist://configure'
+            );
+
+          portalLaunchUrl.searchParams.set(
+            'server',
+            release.assistServerUrl
+          );
+
+          portalLaunch.href =
+            portalLaunchUrl.toString();
+
+          portalLaunch.style.removeProperty(
+            'display'
+          );
+        } else {
+          portalLaunchInstructions.textContent =
+            'Automatic server configuration is not enabled '
+            + 'on this Assist portal.';
+        }
 
         const releasesUrl =
           release.releasesUrl;
