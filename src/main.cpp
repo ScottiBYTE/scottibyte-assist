@@ -1081,7 +1081,9 @@ void showSettingsDialog(
         void(
             const QString &,
             const QString &)> &
-        audioDevicesChanged = {})
+        audioDevicesChanged = {},
+    const std::function<void()> &
+        serverChanged = {})
 {
     QSettings settings(
         QStringLiteral("ScottiBYTE"),
@@ -1269,6 +1271,9 @@ QDialog#settingsDialog QPushButton:disabled {
         primaryServerUrl =
             normalizedConfiguredUrl;
     }
+
+    const QString originalPrimaryServerUrl =
+        primaryServerUrl;
 
     if (
         !normalizedConfiguredUrl.isEmpty() &&
@@ -1954,7 +1959,9 @@ QDialog#settingsDialog QPushButton:disabled {
             &dialog,
             serverUrl,
             normalizeServerEntry,
-            refreshProviderStatus
+            refreshProviderStatus,
+            updateDeleteServerButton,
+            &primaryServerUrl
         ]()
         {
             const int selectedIndex =
@@ -2025,6 +2032,17 @@ QDialog#settingsDialog QPushButton:disabled {
                 return;
             }
 
+            const QString previousValue =
+                normalizedServerUrlText(
+                    QUrl(
+                        serverUrl->itemText(
+                            selectedIndex)));
+
+            const bool editingPrimary =
+                previousValue.compare(
+                    primaryServerUrl,
+                    Qt::CaseInsensitive) == 0;
+
             serverUrl->setItemText(
                 selectedIndex,
                 normalizedValue);
@@ -2032,6 +2050,12 @@ QDialog#settingsDialog QPushButton:disabled {
             serverUrl->setCurrentIndex(
                 selectedIndex);
 
+            if (editingPrimary) {
+                primaryServerUrl =
+                    normalizedValue;
+            }
+
+            updateDeleteServerButton();
             refreshProviderStatus();
         });
 
@@ -2457,7 +2481,10 @@ QMessageBox QPushButton:default {
             &dialog,
             &settings,
             &primaryServerUrl,
+            &originalPrimaryServerUrl,
+            &configuredServerUrl,
             serverUrl,
+            serverChanged,
             inputDevice,
             outputDevice,
             audioDevicesChanged
@@ -2527,6 +2554,56 @@ QMessageBox QPushButton:default {
                     normalizedServerUrl);
             }
 
+            if (
+                !originalPrimaryServerUrl.isEmpty() &&
+                primaryServerUrl.compare(
+                    originalPrimaryServerUrl,
+                    Qt::CaseInsensitive) != 0
+            ) {
+                const QString oldCredentialPath =
+                    providerCredentialPath(
+                        QUrl(
+                            originalPrimaryServerUrl));
+
+                const QString newCredentialPath =
+                    providerCredentialPath(
+                        QUrl(primaryServerUrl));
+
+                if (
+                    QFileInfo::exists(
+                        oldCredentialPath) &&
+                    !QFileInfo::exists(
+                        newCredentialPath)
+                ) {
+                    const QFileInfo newFileInfo(
+                        newCredentialPath);
+
+                    if (
+                        !QDir().mkpath(
+                            newFileInfo.absolutePath()) ||
+                        !QFile::copy(
+                            oldCredentialPath,
+                            newCredentialPath)
+                    ) {
+                        QMessageBox::critical(
+                            &dialog,
+                            QStringLiteral(
+                                "Provider Authorization"),
+                            QStringLiteral(
+                                "The primary server URL "
+                                "could not be changed because "
+                                "its provider authorization "
+                                "could not be preserved."));
+                        return;
+                    }
+
+                    QFile::setPermissions(
+                        newCredentialPath,
+                        QFileDevice::ReadOwner |
+                            QFileDevice::WriteOwner);
+                }
+            }
+
             settings.setValue(
                 QStringLiteral(
                     "connection/serverUrl"),
@@ -2554,7 +2631,21 @@ QMessageBox QPushButton:default {
 
             settings.sync();
 
+            const bool activeServerChanged =
+                normalizedServerUrlText(
+                    QUrl(configuredServerUrl))
+                    .compare(
+                        normalizedServerUrl,
+                        Qt::CaseInsensitive) != 0;
+
             dialog.accept();
+
+            if (
+                activeServerChanged &&
+                serverChanged
+            ) {
+                serverChanged();
+            }
 
             if (
                 audioDevicesChanged &&
@@ -7711,7 +7802,11 @@ providerScreenDismissFilter->
             providerStopVoiceButton,
             receiveButton,
             receiveStatus,
-            provideStatus
+            provideStatus,
+            startCustomerSession,
+            lanSession,
+            customerSignaling,
+            providerSignaling
         ]()
         {
             showSettingsDialog(
@@ -7778,6 +7873,33 @@ providerScreenDismissFilter->
                                 "Audio devices changed. "
                                 "Full-duplex voice is active."));
                     }
+                },
+                [
+                    receiveButton,
+                    startCustomerSession,
+                    lanSession,
+                    customerSignaling,
+                    providerSignaling,
+                    provideStatus
+                ]()
+                {
+                    if (receiveButton->isChecked()) {
+                        startCustomerSession(true);
+                        return;
+                    }
+
+                    lanSession->disconnectSession();
+
+                    customerSignaling->
+                        disconnectFromServer();
+
+                    providerSignaling->
+                        disconnectFromServer();
+
+                    provideStatus->setText(
+                        QStringLiteral(
+                            "Assist server changed. "
+                            "Enter a support code."));
                 });
         });
 
