@@ -56,6 +56,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QUrlQuery>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
@@ -4194,6 +4195,157 @@ QLabel#remotePlaceholder {
     font-weight: 700;
 }
 )CSS"));
+
+    for (
+        const QString &argument :
+        application.arguments().mid(1)
+    ) {
+        const QUrl portalUrl(argument);
+
+        if (
+            portalUrl.scheme().compare(
+                QStringLiteral(
+                    "scottibyte-assist"),
+                Qt::CaseInsensitive) != 0
+        ) {
+            continue;
+        }
+
+        const QUrlQuery portalQuery(
+            portalUrl);
+
+        const QString requestedValue =
+            portalQuery.queryItemValue(
+                QStringLiteral("server"),
+                QUrl::FullyDecoded);
+
+        const QUrl requestedUrl(
+            requestedValue);
+
+        const QString requestedServerUrl =
+            normalizedServerUrlText(
+                requestedUrl);
+
+        if (
+            requestedServerUrl.isEmpty() ||
+            (
+                requestedUrl.scheme() !=
+                    QStringLiteral("https") &&
+                requestedUrl.scheme() !=
+                    QStringLiteral("http")
+            ) ||
+            requestedUrl.host().isEmpty()
+        ) {
+            QMessageBox::warning(
+                nullptr,
+                QStringLiteral(
+                    "ScottiBYTE Assist"),
+                QStringLiteral(
+                    "The portal supplied an invalid "
+                    "Assist server URL."));
+            break;
+        }
+
+        QSettings portalSettings(
+            QStringLiteral("ScottiBYTE"),
+            QStringLiteral("Assist"));
+
+        QStringList savedServerUrls =
+            portalSettings.value(
+                QStringLiteral(
+                    "connection/serverUrls"))
+                .toStringList();
+
+        const QString existingServerUrl =
+            normalizedServerUrlText(
+                QUrl(
+                    portalSettings.value(
+                        QStringLiteral(
+                            "connection/serverUrl"))
+                        .toString()));
+
+        const bool establishedInstallation =
+            !existingServerUrl.isEmpty() ||
+            !savedServerUrls.isEmpty();
+
+        bool alreadySaved = false;
+
+        for (const QString &savedUrl :
+             savedServerUrls) {
+            if (
+                normalizedServerUrlText(
+                    QUrl(savedUrl))
+                    .compare(
+                        requestedServerUrl,
+                        Qt::CaseInsensitive) == 0
+            ) {
+                alreadySaved = true;
+                break;
+            }
+        }
+
+        if (
+            !alreadySaved &&
+            existingServerUrl.compare(
+                requestedServerUrl,
+                Qt::CaseInsensitive) == 0
+        ) {
+            alreadySaved = true;
+        }
+
+        bool acceptServer =
+            !establishedInstallation ||
+            alreadySaved;
+
+        if (
+            establishedInstallation &&
+            !alreadySaved
+        ) {
+            acceptServer =
+                QMessageBox::question(
+                    nullptr,
+                    QStringLiteral(
+                        "Add Assist Server"),
+                    QStringLiteral(
+                        "Add this Assist server "
+                        "profile?\n\n%1")
+                        .arg(
+                            requestedServerUrl),
+                    QMessageBox::Yes |
+                        QMessageBox::No,
+                    QMessageBox::No) ==
+                QMessageBox::Yes;
+        }
+
+        if (!acceptServer) {
+            break;
+        }
+
+        if (!alreadySaved) {
+            savedServerUrls.append(
+                requestedServerUrl);
+        }
+
+        portalSettings.setValue(
+            QStringLiteral(
+                "connection/serverUrl"),
+            requestedServerUrl);
+
+        portalSettings.setValue(
+            QStringLiteral(
+                "connection/serverUrls"),
+            savedServerUrls);
+
+        if (!establishedInstallation) {
+            portalSettings.setValue(
+                QStringLiteral(
+                    "connection/primaryServerUrl"),
+                requestedServerUrl);
+        }
+
+        portalSettings.sync();
+        break;
+    }
 
     auto *window =
         new QWidget;

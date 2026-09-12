@@ -48,6 +48,12 @@ Source: "C:\Users\scott\scottibyte-assist\deploy-windows\*"; DestDir: "{app}"; E
 Name: "{group}\ScottiBYTE Assist"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\ScottiBYTE Assist"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
+[Registry]
+Root: HKCR; Subkey: "scottibyte-assist"; ValueType: string; ValueName: ""; ValueData: "URL:ScottiBYTE Assist Protocol"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "scottibyte-assist"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCR; Subkey: "scottibyte-assist\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKCR; Subkey: "scottibyte-assist\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+
 [Run]
 Filename: "{sys}\sc.exe"; Parameters: "create ScottiBYTEAssistService binPath= ""{app}\scottibyte-assist-service.exe"" start= auto DisplayName= ""ScottiBYTE Assist Privileged Service"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\sc.exe"; Parameters: "description ScottiBYTEAssistService ""Provides privileged Windows support functions for ScottiBYTE Assist."""; Flags: runhidden waituntilterminated
