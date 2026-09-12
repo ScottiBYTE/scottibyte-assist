@@ -73,6 +73,7 @@
 #include <gst/app/gstappsrc.h>
 #include <QShortcut>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QStackedWidget>
 #include <QTextCharFormat>
 #include <QTextCursor>
@@ -1534,17 +1535,67 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
     form->setVerticalSpacing(10);
 
     auto *serverUrl =
-        new QLineEdit;
+        new AssistAudioComboBox;
 
-    serverUrl->setText(
+    serverUrl->setInsertPolicy(
+        QComboBox::NoInsert);
+
+    const QString configuredServerUrl =
         settings.value(
             QStringLiteral(
                 "connection/serverUrl"))
-            .toString());
+            .toString();
 
-    serverUrl->setPlaceholderText(
-        QStringLiteral(
-            "https://assist.example.com"));
+    QStringList configuredServerUrls =
+        settings.value(
+            QStringLiteral(
+                "connection/serverUrls"))
+            .toStringList();
+
+    const QString normalizedConfiguredUrl =
+        normalizedServerUrlText(
+            QUrl(configuredServerUrl));
+
+    if (
+        !normalizedConfiguredUrl.isEmpty() &&
+        !configuredServerUrls.contains(
+            normalizedConfiguredUrl,
+            Qt::CaseInsensitive)
+    ) {
+        configuredServerUrls.prepend(
+            normalizedConfiguredUrl);
+    }
+
+    for (const QString &savedServerUrl :
+         configuredServerUrls) {
+        const QString normalizedSavedUrl =
+            normalizedServerUrlText(
+                QUrl(savedServerUrl));
+
+        if (
+            !normalizedSavedUrl.isEmpty() &&
+            serverUrl->findText(
+                normalizedSavedUrl,
+                Qt::MatchFixedString) < 0
+        ) {
+            serverUrl->addItem(
+                normalizedSavedUrl);
+        }
+    }
+
+    if (!normalizedConfiguredUrl.isEmpty()) {
+        const int configuredServerIndex =
+            serverUrl->findText(
+                normalizedConfiguredUrl,
+                Qt::MatchFixedString);
+
+        if (configuredServerIndex >= 0) {
+            serverUrl->setCurrentIndex(
+                configuredServerIndex);
+        }
+    }
+
+    serverUrl->setEditable(false);
 
     auto *inputDevice =
         new AssistAudioComboBox;
@@ -1902,7 +1953,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         ]()
         {
             QString value =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 value.endsWith(
@@ -1942,7 +1993,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             const QString credential =
                 loadProviderCredential(
                     QUrl(
-                        serverUrl->text().trimmed()),
+                        serverUrl->currentText().trimmed()),
                     &credentialError);
 
             if (credential.isEmpty()) {
@@ -2007,7 +2058,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
         ]()
         {
             QString value =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 value.endsWith(
@@ -2048,7 +2099,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             if (
                 !saveProviderCredential(
                     QUrl(
-                        serverUrl->text().trimmed()),
+                        serverUrl->currentText().trimmed()),
                     credential,
                     &errorMessage)
             ) {
@@ -2093,7 +2144,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             const QString existingCredential =
                 loadProviderCredential(
                     QUrl(
-                        serverUrl->text().trimmed()),
+                        serverUrl->currentText().trimmed()),
                     &existingError);
 
             if (!existingCredential.isEmpty()) {
@@ -2107,7 +2158,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             }
 
             QString value =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 value.endsWith(
@@ -2134,7 +2185,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
             if (
                 !saveProviderCredential(
                     QUrl(
-                        serverUrl->text().trimmed()),
+                        serverUrl->currentText().trimmed()),
                     credential,
                     &errorMessage)
             ) {
@@ -2174,7 +2225,7 @@ QDialog#settingsDialog QPushButton#cancelSettingsButton {
 
             if (!saveProviderCredential(
                     QUrl(
-                        serverUrl->text().trimmed()),
+                        serverUrl->currentText().trimmed()),
                     providerCredential->text(),
                     &errorMessage)) {
                 providerStatus->setText(
@@ -2264,7 +2315,7 @@ QMessageBox QPushButton:default {
 
             if (!removeProviderCredential(
                     QUrl(
-                        serverUrl->text().trimmed()),
+                        serverUrl->currentText().trimmed()),
                     &errorMessage)) {
                 providerStatus->setText(
                     errorMessage);
@@ -2356,7 +2407,7 @@ QMessageBox QPushButton:default {
         ]()
         {
             QString normalizedServerUrl =
-                serverUrl->text().trimmed();
+                serverUrl->currentText().trimmed();
 
             while (
                 normalizedServerUrl.endsWith(
@@ -2386,10 +2437,48 @@ QMessageBox QPushButton:default {
                     ->currentData()
                     .toString();
 
+            QStringList serverUrls;
+
+            for (
+                int index = 0;
+                index < serverUrl->count();
+                ++index
+            ) {
+                const QString savedUrl =
+                    normalizedServerUrlText(
+                        QUrl(
+                            serverUrl->itemText(
+                                index)));
+
+                if (
+                    !savedUrl.isEmpty() &&
+                    !serverUrls.contains(
+                        savedUrl,
+                        Qt::CaseInsensitive)
+                ) {
+                    serverUrls.append(savedUrl);
+                }
+            }
+
+            if (
+                !normalizedServerUrl.isEmpty() &&
+                !serverUrls.contains(
+                    normalizedServerUrl,
+                    Qt::CaseInsensitive)
+            ) {
+                serverUrls.append(
+                    normalizedServerUrl);
+            }
+
             settings.setValue(
                 QStringLiteral(
                     "connection/serverUrl"),
                 normalizedServerUrl);
+
+            settings.setValue(
+                QStringLiteral(
+                    "connection/serverUrls"),
+                serverUrls);
 
             settings.setValue(
                 QStringLiteral(
