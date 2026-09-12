@@ -30,6 +30,12 @@ The ScottiBYTE Assist server includes a self-hosted client download and informat
 
 ![ScottiBYTE Assist Portal](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/portal.png)
 
+The portal can configure and open an installed client for its
+Assist server. Clients can retain multiple server profiles,
+with provider authorization stored separately for each server.
+
+![ScottiBYTE Assist Settings](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/settings.png)
+
 ## First-Time Setup
 
 A new ScottiBYTE Assist server generates a one-time nine-digit setup code.

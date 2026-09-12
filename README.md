@@ -11,6 +11,12 @@ is established.
 
 ![Receive Support with ScottiBYTE Assist](docs/images/receiver.png)
 
+Assist server profiles can be added, edited, and selected from
+the client Settings window. Provider authorization is stored
+separately for each server.
+
+![ScottiBYTE Assist Settings](docs/images/settings.png)
+
 ## Remote assistance, not unattended remote access
 
 ScottiBYTE Assist is designed specifically for **attended

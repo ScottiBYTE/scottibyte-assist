@@ -598,6 +598,12 @@ receive support.
 
 ![ScottiBYTE Assist Receive Support](images/receiver.png)
 
+The Settings window manages Assist server profiles. Multiple
+servers can be saved, and provider authorization is maintained
+separately for each server.
+
+![ScottiBYTE Assist Settings](images/settings.png)
+
 ScottiBYTE Assist creates a temporary six-digit support code.
 
 The person receiving assistance gives that code to the trusted provider
