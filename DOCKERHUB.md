@@ -12,6 +12,8 @@ It is designed as an alternative to tools such as TeamViewer, Chrome Remote Desk
 - Six-digit support codes rather than permanent remote-access IDs
 - Customer approval before desktop access begins
 - Individually authorized and revocable provider computers
+- Multiple Assist server profiles
+- Separate provider authorization for each server
 - No unattended-access mode
 - Self-hosted server, signaling, administration, and client portal
 - Native Windows and Ubuntu Linux clients
@@ -19,7 +21,7 @@ It is designed as an alternative to tools such as TeamViewer, Chrome Remote Desk
 - Remote desktop viewing and control
 - Interactive Customer Terminal
 - Two-way voice
-- Text chat
+- Text chat with distinct local and remote message colors
 - Clipboard sharing
 - File transfer
 - Provider administration and session auditing
@@ -71,6 +73,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3089
+      PUBLIC_URL: https://assist.example.com
       DATABASE_PATH: /app/data/assist.sqlite
       SESSION_LIFETIME_MINUTES: 30
 
@@ -92,6 +95,8 @@ services:
       retries: 3
       start_period: 10s
 ```
+
+Replace `https://assist.example.com` with the public HTTPS address used to reach your Assist server.
 
 Start the server with:
 
@@ -122,6 +127,7 @@ https://assist.example.com/admin
 - Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/installation.md
 - Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/architecture.md
 - Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/session-protocol.md
+- Release Notes: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/release-notes-2.1.1.md
 - Source: https://github.com/ScottiBYTE/scottibyte-assist
 
 ## Current Releases
@@ -129,6 +135,8 @@ https://assist.example.com/admin
 The current server release is **Assist Server 1.4.1**.
 
 The Docker image contains the ScottiBYTE Assist public portal, the Windows 2.1.0 client installer, and the Ubuntu Linux 2.1.1 client package.
+
+Linux client 2.1.1 fixes X11 pointer jumping over higher-latency connections and restores Tab, Shift+Tab, and shifted punctuation input.
 
 Server version and client release versions are independent.
 
