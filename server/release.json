@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in 2.1.0",
-  "summary": "Version 2.1.0 adds multiple Assist server profiles, server-specific provider authorization, portal-configured launch links, immediate server switching, and clearer chat colors.",
+  "headline": "New in Linux 2.1.1",
+  "summary": "Linux 2.1.1 fixes pointer jumping when controlling X11 desktops over higher-latency connections and restores Tab and shifted punctuation input.",
   "windows": {
     "version": "2.1.0",
     "download": "/downloads/2.1.0/ScottiBYTE-Assist-Setup-2.1.0.exe",
     "checksum": "/downloads/2.1.0/ScottiBYTE-Assist-Setup-2.1.0.exe.sha256"
   },
   "linux": {
-    "version": "2.1.0",
-    "download": "/downloads/2.1.0/ScottiBYTE-Assist_2.1.0_amd64.deb",
-    "checksum": "/downloads/2.1.0/ScottiBYTE-Assist_2.1.0_amd64.deb.sha256"
+    "version": "2.1.1",
+    "download": "/downloads/2.1.1/ScottiBYTE-Assist_2.1.1_amd64.deb",
+    "checksum": "/downloads/2.1.1/ScottiBYTE-Assist_2.1.1_amd64.deb.sha256"
   }
 }
