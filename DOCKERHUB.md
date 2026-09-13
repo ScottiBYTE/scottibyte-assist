@@ -119,16 +119,16 @@ https://assist.example.com/admin
 
 ## Documentation
 
-- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.0/docs/installation.md
-- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.0/docs/architecture.md
-- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.0/docs/session-protocol.md
+- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/installation.md
+- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/architecture.md
+- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/session-protocol.md
 - Source: https://github.com/ScottiBYTE/scottibyte-assist
 
 ## Current Releases
 
-The current server release is **Assist Server 1.4.0**.
+The current server release is **Assist Server 1.4.1**.
 
-The Docker image contains the ScottiBYTE Assist public portal, the Windows 2.1.0 client installer, and the Ubuntu Linux 2.1.0 client package.
+The Docker image contains the ScottiBYTE Assist public portal, the Windows 2.1.0 client installer, and the Ubuntu Linux 2.1.1 client package.
 
 Server version and client release versions are independent.
 
