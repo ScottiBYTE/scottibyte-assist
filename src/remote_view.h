@@ -70,6 +70,9 @@ protected:
     void mouseMoveEvent(
         QMouseEvent *event) override;
 
+    void leaveEvent(
+        QEvent *event) override;
+
     void mousePressEvent(
         QMouseEvent *event) override;
 
@@ -94,6 +97,7 @@ private:
     QImage frame_;
     QPoint remoteCursorPosition_{-1, -1};
     bool remoteCursorPositionConfirmed_ = false;
+    bool localPointerActive_ = false;
     QImage remoteCursorImage_;
     QPoint remoteCursorHotspot_{0, 0};
 };

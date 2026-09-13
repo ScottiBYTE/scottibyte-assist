@@ -47,6 +47,7 @@ void RemoteView::clearFrame()
     frame_ = {};
     remoteCursorPosition_ = QPoint(-1, -1);
     remoteCursorPositionConfirmed_ = false;
+    localPointerActive_ = false;
     remoteCursorImage_ = {};
     remoteCursorHotspot_ = QPoint(0, 0);
 
@@ -71,6 +72,17 @@ void RemoteView::setRemoteCursorPositionFromPeer(
     int y)
 {
     remoteCursorPositionConfirmed_ = true;
+
+    /*
+     * While the provider's pointer is inside this view,
+     * the locally predicted position is newer than the
+     * position returning from the remote X11 desktop.
+     * Applying that delayed position causes visible
+     * backward jumps over WAN connections.
+     */
+    if (localPointerActive_) {
+        return;
+    }
 
     setRemoteCursorPosition(
         x,
@@ -313,6 +325,8 @@ void RemoteView::mouseMoveEvent(
                 .toPoint());
 
     if (position.x() >= 0) {
+        localPointerActive_ = true;
+
         /*
          * Render provider mouse movement immediately.
          *
@@ -333,6 +347,14 @@ void RemoteView::mouseMoveEvent(
             position.x(),
             position.y());
     }
+}
+
+void RemoteView::leaveEvent(
+    QEvent *event)
+{
+    localPointerActive_ = false;
+
+    QWidget::leaveEvent(event);
 }
 
 void RemoteView::mousePressEvent(
