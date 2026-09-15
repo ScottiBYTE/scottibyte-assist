@@ -709,7 +709,7 @@ bool CustomerVoiceAudio::startPacketReceiver(
             "max-size-time=200000000 "
             "leaky=downstream "
             "! rtpjitterbuffer "
-            "latency=40 "
+            "latency=100 "
             "drop-on-latency=true "
             "do-lost=true "
             "! rtpopusdepay "
