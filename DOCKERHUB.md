@@ -124,19 +124,19 @@ https://assist.example.com/admin
 
 ## Documentation
 
-- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/installation.md
-- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/architecture.md
-- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/session-protocol.md
-- Release Notes: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.1.1/docs/release-notes-2.1.1.md
+- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/installation.md
+- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/architecture.md
+- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/session-protocol.md
+- Release Notes: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/release-notes-2.2.0.md
 - Source: https://github.com/ScottiBYTE/scottibyte-assist
 
 ## Current Releases
 
-The current server release is **Assist Server 1.4.1**.
+The current server release is **Assist Server 1.4.2**.
 
-The Docker image contains the ScottiBYTE Assist public portal, the Windows 2.1.0 client installer, and the Ubuntu Linux 2.1.1 client package.
+The Docker image contains the ScottiBYTE Assist public portal and the Windows and Ubuntu Linux 2.2.0 client packages.
 
-Linux client 2.1.1 fixes X11 pointer jumping over higher-latency connections and restores Tab, Shift+Tab, and shifted punctuation input.
+Linux and Windows 2.2.0 restore version parity and increase WAN voice buffering from 40 ms to 100 ms. Testing showed a substantial reduction in WAN voice dropouts.
 
 Server version and client release versions are independent.
 
