@@ -7612,78 +7612,106 @@ providerScreenDismissFilter->
         });
 #endif
 
-    QString lastClipboardText;
+    // ASSIST_WAYLAND_CLIPBOARD_FALLBACK
+    QClipboard *clipboard = QApplication::clipboard();
+    QString lastClipboardText = clipboard->text(QClipboard::Clipboard);
+    QString pendingRemoteClipboardText;
+    bool remoteClipboardPending = false;
+
+    const auto portalClipboardActive = [=]() -> bool {
+#if !defined(Q_OS_WIN)
+        return waylandBackend != nullptr &&
+               waylandBackend->clipboardSessionActive();
+#else
+        return false;
+#endif
+    };
+
+    const auto sendLocalClipboard = [&, clipboard, lanSession,
+                                     portalClipboardActive]() {
+        if (portalClipboardActive() ||
+            remoteClipboardPending ||
+            !lanSession->isConnected()) {
+            return;
+        }
+
+        const QString text = clipboard->text(QClipboard::Clipboard);
+        if (text == lastClipboardText) {
+            return;
+        }
+
+        lastClipboardText = text;
+        lanSession->sendClipboardText(text);
+    };
+
+    QObject::connect(
+        clipboard, &QClipboard::dataChanged,
+        window, sendLocalClipboard);
 
 #if !defined(Q_OS_WIN)
     if (waylandBackend != nullptr) {
         QObject::connect(
             waylandBackend,
-            &WaylandDesktopBackend::
-                localClipboardTextChanged,
-            lanSession,
-            &LanSession::sendClipboardText);
-
-        QObject::connect(
-            lanSession,
-            &LanSession::clipboardTextReceived,
-            waylandBackend,
-            &WaylandDesktopBackend::
-                applyRemoteClipboardText);
-    } else
-#endif
-    {
-        QClipboard *clipboard =
-            QApplication::clipboard();
-
-        lastClipboardText =
-            clipboard->text(
-                QClipboard::Clipboard);
-
-        QObject::connect(
-            clipboard,
-            &QClipboard::dataChanged,
+            &WaylandDesktopBackend::localClipboardTextChanged,
             window,
-            [
-                clipboard,
-                lanSession,
-                &lastClipboardText
-            ]()
-            {
-                const QString text =
-                    clipboard->text(
-                        QClipboard::Clipboard);
-
-                if (text ==
-                    lastClipboardText) {
-                    return;
-                }
-
+            [&, lanSession](const QString &text) {
                 lastClipboardText = text;
-                lanSession->sendClipboardText(text);
-            });
-
-        QObject::connect(
-            lanSession,
-            &LanSession::clipboardTextReceived,
-            window,
-            [
-                clipboard,
-                &lastClipboardText
-            ](
-                const QString &text)
-            {
-                if (text ==
-                    lastClipboardText) {
-                    return;
+                remoteClipboardPending = false;
+                if (lanSession->isConnected()) {
+                    lanSession->sendClipboardText(text);
                 }
-
-                lastClipboardText = text;
-
-                clipboard->setText(
-                    text,
-                    QClipboard::Clipboard);
             });
     }
+#endif
+
+    QObject::connect(
+        lanSession, &LanSession::clipboardTextReceived,
+        window,
+        [&, clipboard, portalClipboardActive](const QString &text) {
+#if !defined(Q_OS_WIN)
+            if (portalClipboardActive()) {
+                lastClipboardText = text;
+                remoteClipboardPending = false;
+                waylandBackend->applyRemoteClipboardText(text);
+                return;
+            }
+
+            // Native Wayland selection writes require keyboard focus.
+            if (waylandBackend != nullptr &&
+                QGuiApplication::focusWindow() == nullptr) {
+                pendingRemoteClipboardText = text;
+                remoteClipboardPending = true;
+                return;
+            }
+#endif
+            remoteClipboardPending = false;
+            lastClipboardText = text;
+            clipboard->setText(text, QClipboard::Clipboard);
+        });
+
+    QObject::connect(
+        qApp, &QGuiApplication::focusWindowChanged,
+        window,
+        [&, clipboard, lanSession, portalClipboardActive,
+         sendLocalClipboard](QWindow *focusedWindow) {
+            if (focusedWindow == nullptr || portalClipboardActive()) {
+                return;
+            }
+
+            if (!lanSession->isConnected()) {
+                remoteClipboardPending = false;
+                return;
+            }
+
+            if (remoteClipboardPending) {
+                const QString text = pendingRemoteClipboardText;
+                lastClipboardText = text;
+                clipboard->setText(text, QClipboard::Clipboard);
+                remoteClipboardPending = false;
+            } else {
+                sendLocalClipboard();
+            }
+        });
 
     bool customerCodeConsumed = false;
     bool restartingCustomerSession = false;
@@ -9315,12 +9343,16 @@ QDialog#settingsDialog QPushButton#declineFileButton {
         window,
         [
             providerSignaling,
+            providerCandidateFallbackTimer,
             provideStatus
         ]()
         {
             provideStatus->setText(
                 QStringLiteral(
                     "Support code claimed. Connecting..."));
+
+            // Start fallback even if the customer candidate never arrives.
+            providerCandidateFallbackTimer->start();
 
             providerSignaling->
                 sendCandidateRequest();

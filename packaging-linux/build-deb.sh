@@ -51,13 +51,13 @@ fi
 echo "Executable version: $binary_version"
 control="$project_root/packaging-linux/control"
 desktop="$project_root/packaging-linux/scottibyte-assist.desktop"
-webrtc_apm="/usr/local/lib/x86_64-linux-gnu/libwebrtc-audio-processing-1.so.3"
+webrtc_apm="/usr/lib/scottibyte-assist/libwebrtc-audio-processing-1.so.3"
 absl_libraries=(
-  "/lib/x86_64-linux-gnu/libabsl_bad_optional_access.so.20220623"
-  "/lib/x86_64-linux-gnu/libabsl_strings.so.20220623"
-  "/lib/x86_64-linux-gnu/libabsl_throw_delegate.so.20220623"
-  "/lib/x86_64-linux-gnu/libabsl_strings_internal.so.20220623"
-  "/lib/x86_64-linux-gnu/libabsl_raw_logging_internal.so.20220623"
+  "/usr/lib/scottibyte-assist/libabsl_bad_optional_access.so.20220623"
+  "/usr/lib/scottibyte-assist/libabsl_strings.so.20220623"
+  "/usr/lib/scottibyte-assist/libabsl_throw_delegate.so.20220623"
+  "/usr/lib/scottibyte-assist/libabsl_strings_internal.so.20220623"
+  "/usr/lib/scottibyte-assist/libabsl_raw_logging_internal.so.20220623"
 )
 
 for required_file in \
@@ -113,7 +113,7 @@ for absl_library in "${absl_libraries[@]}"; do
     "$bundled_absl"
 
   patchelf \
-    --set-rpath '$ORIGIN' \
+    --force-rpath --set-rpath '$ORIGIN' \
     "$bundled_absl"
 done
 
@@ -124,11 +124,11 @@ cp "$icon" \
   "$stage/usr/share/icons/hicolor/256x256/apps/scottibyte-assist.png"
 
 patchelf \
-  --set-rpath '$ORIGIN/../lib/scottibyte-assist' \
+  --force-rpath --set-rpath '$ORIGIN/../lib/scottibyte-assist' \
   "$stage/usr/bin/scottibyte-assist"
 
 patchelf \
-  --set-rpath '$ORIGIN' \
+  --force-rpath --set-rpath '$ORIGIN' \
   "$stage/usr/lib/scottibyte-assist/libwebrtc-audio-processing-1.so.3"
 
 chmod 755 \

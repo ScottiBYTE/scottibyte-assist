@@ -7,6 +7,7 @@
 #include <QDBusMetaType>
 #include <QDBusObjectPath>
 #include <QDBusReply>
+#include <QDBusVariant>
 #include <QDBusUnixFileDescriptor>
 #include <QFile>
 #include <QProcessEnvironment>
@@ -392,9 +393,46 @@ void PortalSession::selectSources()
         QStringLiteral("multiple"),
         false);
 
+    // Select a cursor mode advertised by the portal.
+    QDBusInterface properties(
+        QString::fromLatin1(portalService),
+        QString::fromLatin1(portalPath),
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        bus_);
+
+    QDBusReply<QDBusVariant> modesReply = properties.call(
+        QStringLiteral("Get"),
+        QString::fromLatin1(screenCastInterface),
+        QStringLiteral("AvailableCursorModes"));
+
+    bool cursorModesValid = false;
+    const uint advertisedModes = modesReply.isValid()
+        ? modesReply.value().variant().toUInt(&cursorModesValid)
+        : 0U;
+
+    if (!modesReply.isValid() || !cursorModesValid || advertisedModes == 0U) {
+        fail(QStringLiteral(
+            "The GNOME desktop portal is unavailable. "
+            "Restart the desktop portal and try sharing again."));
+        return;
+    }
+    const uint cursorModes = advertisedModes;
+
+
+    const uint cursorMode =
+        (cursorModes & embeddedCursor) ? embeddedCursor :
+        (cursorModes & 1U) ? 1U :
+        (cursorModes & 4U) ? 4U : 0U;
+
+    if (cursorMode == 0U) {
+        fail(QStringLiteral(
+            "The portal advertises no supported cursor mode."));
+        return;
+    }
+
     options.insert(
         QStringLiteral("cursor_mode"),
-        QVariant::fromValue(embeddedCursor));
+        QVariant::fromValue(cursorMode));
 
     callRequestMethod(
         QString::fromLatin1(screenCastInterface),

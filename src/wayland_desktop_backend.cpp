@@ -433,6 +433,11 @@ void WaylandDesktopBackend::releaseKey(
     }
 }
 
+bool WaylandDesktopBackend::clipboardSessionActive() const
+{
+    return portalSession_->isActive();
+}
+
 void WaylandDesktopBackend::applyRemoteClipboardText(
     const QString &text)
 {

@@ -17,6 +17,8 @@ public:
 
     bool isSupported() const override;
 
+    bool clipboardSessionActive() const;
+
     QList<DisplaySource>
         availableRemoteControlDisplays() const override;
 
