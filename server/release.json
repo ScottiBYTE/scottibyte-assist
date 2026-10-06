@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in ScottiBYTE Assist 2.2.0",
-  "summary": "Linux and Windows 2.2.0 restore version parity and increase WAN voice buffering from 40 ms to 100 ms to better tolerate short network timing variations.",
+  "headline": "New in ScottiBYTE Assist Linux 2.2.1",
+  "summary": "Linux 2.2.1 fixes Wayland clipboard synchronization when Assist gains focus and improves portal capability error handling. Windows remains at 2.2.0. A recurring GNOME desktop portal crash remains unresolved.",
   "windows": {
     "version": "2.2.0",
     "download": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe",
     "checksum": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe.sha256"
   },
   "linux": {
-    "version": "2.2.0",
-    "download": "/downloads/2.2.0/ScottiBYTE-Assist_2.2.0_amd64.deb",
-    "checksum": "/downloads/2.2.0/ScottiBYTE-Assist_2.2.0_amd64.deb.sha256"
+    "version": "2.2.1",
+    "download": "/downloads/2.2.1/ScottiBYTE-Assist_2.2.1_amd64.deb",
+    "checksum": "/downloads/2.2.1/ScottiBYTE-Assist_2.2.1_amd64.deb.sha256"
   }
 }

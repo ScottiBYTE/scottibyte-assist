@@ -1,6 +1,6 @@
 {
   "name": "scottibyte-assist-server",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Authorization and session coordination server for ScottiBYTE Assist",
   "type": "module",
   "main": "src/server.js",
