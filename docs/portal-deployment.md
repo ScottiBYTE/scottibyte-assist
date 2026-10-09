@@ -19,7 +19,7 @@ standard Docker deployment.
 
 The recommended installation uses the official Docker image:
 
-    scottibyte/scottibyte-assist-server:1.4.4
+    scottibyte/scottibyte-assist-server:1.4.5
 
 The bundled portal automatically serves the release information
 and installers included with that image.
@@ -81,8 +81,8 @@ Do not remove or overwrite this directory during upgrades.
 
 ## Current release versions
 
-- Assist Server: 1.4.4
-- Ubuntu Linux Client: 2.2.2
+- Assist Server: 1.4.5
+- Ubuntu Linux Client: 2.2.3
 - Windows Client: 2.2.0
 
 GitHub releases:

@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in ScottiBYTE Assist Linux 2.2.2",
-  "summary": "Linux 2.2.2 provides a unified installer for Ubuntu 24.04 LTS and Ubuntu 26.04 LTS, with improved Qt library compatibility and bundled WebRTC audio processing dependencies. Screen sharing and remote desktop control have been verified on both Ubuntu LTS versions. Windows remains at 2.2.0.",
+  "headline": "New in ScottiBYTE Assist Linux 2.2.3",
+  "summary": "Linux 2.2.3 improves Wayland absolute pointer control, startup cursor behavior, portal request cleanup, and shared-window cropping and viewer sizing. One amd64 installer supports Ubuntu 24.04 LTS and Ubuntu 26.04 LTS. Windows remains at 2.2.0.",
   "windows": {
     "version": "2.2.0",
     "download": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe",
     "checksum": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe.sha256"
   },
   "linux": {
-    "version": "2.2.2",
-    "download": "/downloads/2.2.2/ScottiBYTE-Assist_2.2.2_amd64.deb",
-    "checksum": "/downloads/2.2.2/ScottiBYTE-Assist_2.2.2_amd64.deb.sha256"
+    "version": "2.2.3",
+    "download": "/downloads/2.2.3/ScottiBYTE-Assist_2.2.3_amd64.deb",
+    "checksum": "/downloads/2.2.3/ScottiBYTE-Assist_2.2.3_amd64.deb.sha256"
   }
 }

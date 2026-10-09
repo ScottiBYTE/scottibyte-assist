@@ -1,5 +1,16 @@
 # ScottiBYTE Assist
 
+## Current releases
+
+| Component | Version |
+| --- | --- |
+| Assist Server | [1.4.5](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.5) |
+| Ubuntu Linux client | [2.2.3](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.3), one amd64 installer for Ubuntu 24.04 and 26.04 |
+| Windows client | 2.2.0 |
+
+Linux 2.2.3 improves Wayland absolute pointer control, startup cursor behavior, portal request cleanup, and shared-window cropping and viewer sizing. See the [Linux release notes](docs/release-notes-2.2.3.md).
+
+
 **ScottiBYTE Assist** is an open-source, self-hosted remote
 assistance platform for Windows and Linux.
 
@@ -121,7 +132,7 @@ Native client releases are preserved in platform-specific source
 tags:
 
 - `windows-v2.0.2` — Windows client source
-- `linux-v2.0.2` — Ubuntu Linux client source
+- `linux-v2.2.3` — Ubuntu Linux client source
 
 The general `v2.0.2` tag corresponds to the public release on
 `main`, including the server-side release metadata and packaged
