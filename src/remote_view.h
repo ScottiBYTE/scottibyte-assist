@@ -15,6 +15,8 @@ public:
         QWidget *parent = nullptr);
 
 public slots:
+    void setProviderPresentation(bool enabled);
+
     void setFrame(
         const QImage &image);
 
@@ -97,6 +99,7 @@ private:
     QPoint imagePosition(
         const QPoint &widgetPosition) const;
 
+    bool providerPresentation_ = false;
     QImage frame_;
     QPoint remoteCursorPosition_{-1, -1};
     bool remoteCursorPositionConfirmed_ = false;

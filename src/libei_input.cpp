@@ -30,8 +30,65 @@ bool LibeiInput::pointerReady() const
 
 bool LibeiInput::absolutePointerReady() const
 {
-    return absolutePointerDevice_ != nullptr &&
-           absolutePointerResumed_;
+    return selectedAbsoluteRegion() != nullptr;
+}
+
+void LibeiInput::setPointerMappingId(const QString &mappingId)
+{
+    pointerMappingId_ = mappingId;
+    lastPointerDiagnostic_.clear();
+    qInfo() << "assist-wayland-input: selected stream mapping_id"
+            << mappingId;
+    emit absolutePointerReadyChanged(absolutePointerReady());
+}
+
+ei_region *LibeiInput::selectedAbsoluteRegion(ei_device **selectedDevice) const
+{
+    if (selectedDevice != nullptr) {
+        *selectedDevice = nullptr;
+    }
+    ei_region *singleRegion = nullptr;
+    ei_device *singleDevice = nullptr;
+    QString singleMappingId;
+    int regionCount = 0;
+    for (ei_device *device : absolutePointerDevices_) {
+        for (size_t index = 0; ; ++index) {
+            ei_region *region = ei_device_get_region(device, index);
+            if (region == nullptr) {
+                break;
+            }
+            if (ei_region_get_width(region) == 0 ||
+                ei_region_get_height(region) == 0) {
+                continue;
+            }
+            const char *id = ei_region_get_mapping_id(region);
+            const QString mappingId = id != nullptr
+                ? QString::fromUtf8(id) : QString();
+            ++regionCount;
+            singleRegion = region;
+            singleDevice = device;
+            singleMappingId = mappingId;
+            if (!pointerMappingId_.isEmpty() &&
+                mappingId == pointerMappingId_ &&
+                resumedAbsolutePointerDevices_.contains(device)) {
+                if (selectedDevice != nullptr) {
+                    *selectedDevice = device;
+                }
+                return region;
+            }
+        }
+    }
+    // Older portals may omit IDs. Only accept one unambiguous region;
+    // never substitute another region when both IDs exist and disagree.
+    if (regionCount == 1 &&
+        (pointerMappingId_.isEmpty() || singleMappingId.isEmpty()) &&
+        resumedAbsolutePointerDevices_.contains(singleDevice)) {
+        if (selectedDevice != nullptr) {
+            *selectedDevice = singleDevice;
+        }
+        return singleRegion;
+    }
+    return nullptr;
 }
 
 bool LibeiInput::buttonReady() const
@@ -168,6 +225,7 @@ void LibeiInput::stop()
         ei_ = ei_unref(ei_);
     }
 
+    lastPointerDiagnostic_.clear();
     sequence_ = 0;
 }
 
@@ -195,6 +253,8 @@ void LibeiInput::processEvents()
             break;
 
         case EI_EVENT_DISCONNECT:
+            resumedAbsolutePointerDevices_.clear();
+            emit absolutePointerReadyChanged(false);
             emit errorOccurred(
                 QStringLiteral(
                     "The compositor closed the EIS connection."));
@@ -386,102 +446,49 @@ void LibeiInput::movePointerRelative(
 }
 
 void LibeiInput::movePointerAbsolute(
-    int x,
-    int y,
-    int frameWidth,
-    int frameHeight)
+    int x, int y, int frameWidth, int frameHeight)
 {
-    if (!absolutePointerReady() ||
-        ei_ == nullptr) {
-        emit errorOccurred(
-            QStringLiteral(
-                "No active authorized absolute pointer device."));
+    ei_device *device = nullptr;
+    ei_region *region = selectedAbsoluteRegion(&device);
+    if (ei_ == nullptr || region == nullptr ||
+        frameWidth <= 0 || frameHeight <= 0) {
+        if (lastPointerDiagnostic_ != QStringLiteral("unavailable")) {
+            lastPointerDiagnostic_ = QStringLiteral("unavailable");
+            qWarning() << "assist-wayland-input: absolute input unavailable;"
+                       << "relative fallback disabled; mapping_id"
+                       << pointerMappingId_;
+            emit statusChanged(QStringLiteral(
+                "Wayland pointer paused: waiting for the shared screen's "
+                "authorized absolute input region."));
+        }
         return;
     }
-
-    if (frameWidth <= 0 ||
-        frameHeight <= 0) {
-        emit errorOccurred(
-            QStringLiteral(
-                "The remote desktop dimensions are invalid."));
-        return;
+    const uint32_t regionX = ei_region_get_x(region);
+    const uint32_t regionY = ei_region_get_y(region);
+    const uint32_t regionWidth = ei_region_get_width(region);
+    const uint32_t regionHeight = ei_region_get_height(region);
+    const int boundedX = std::clamp(x, 0, frameWidth - 1);
+    const int boundedY = std::clamp(y, 0, frameHeight - 1);
+    const double normalizedX = frameWidth > 1
+        ? double(boundedX) / double(frameWidth - 1) : 0.0;
+    const double normalizedY = frameHeight > 1
+        ? double(boundedY) / double(frameHeight - 1) : 0.0;
+    const double targetX = double(regionX) + normalizedX * double(regionWidth - 1);
+    const double targetY = double(regionY) + normalizedY * double(regionHeight - 1);
+    const QString diagnostic = QStringLiteral("%1:%2:%3:%4:%5:%6:%7")
+        .arg(qulonglong(reinterpret_cast<quintptr>(device)))
+        .arg(frameWidth).arg(frameHeight).arg(regionX).arg(regionY)
+        .arg(regionWidth).arg(regionHeight);
+    if (lastPointerDiagnostic_ != diagnostic) {
+        lastPointerDiagnostic_ = diagnostic;
+        qInfo() << "assist-wayland-input: ABSOLUTE"
+                << "frame" << frameWidth << frameHeight
+                << "region" << regionX << regionY << regionWidth << regionHeight
+                << "mapping_id" << pointerMappingId_;
+        emit statusChanged(QStringLiteral("Wayland absolute pointer control active"));
     }
-
-    ei_region *region =
-        ei_device_get_region(
-            absolutePointerDevice_,
-            0);
-
-    if (region == nullptr) {
-        emit errorOccurred(
-            QStringLiteral(
-                "The authorized absolute pointer has no region."));
-        return;
-    }
-
-    const uint32_t regionX =
-        ei_region_get_x(region);
-
-    const uint32_t regionY =
-        ei_region_get_y(region);
-
-    const uint32_t regionWidth =
-        ei_region_get_width(region);
-
-    const uint32_t regionHeight =
-        ei_region_get_height(region);
-
-    if (regionWidth == 0 ||
-        regionHeight == 0) {
-        emit errorOccurred(
-            QStringLiteral(
-                "The authorized pointer region is invalid."));
-        return;
-    }
-
-    const int boundedX =
-        std::clamp(
-            x,
-            0,
-            frameWidth - 1);
-
-    const int boundedY =
-        std::clamp(
-            y,
-            0,
-            frameHeight - 1);
-
-    const double normalizedX =
-        frameWidth > 1
-            ? static_cast<double>(boundedX) /
-                  static_cast<double>(frameWidth - 1)
-            : 0.0;
-
-    const double normalizedY =
-        frameHeight > 1
-            ? static_cast<double>(boundedY) /
-                  static_cast<double>(frameHeight - 1)
-            : 0.0;
-
-    const double targetX =
-        static_cast<double>(regionX) +
-        normalizedX *
-            static_cast<double>(regionWidth - 1);
-
-    const double targetY =
-        static_cast<double>(regionY) +
-        normalizedY *
-            static_cast<double>(regionHeight - 1);
-
-    ei_device_pointer_motion_absolute(
-        absolutePointerDevice_,
-        targetX,
-        targetY);
-
-    ei_device_frame(
-        absolutePointerDevice_,
-        ei_now(ei_));
-
+    ei_device_pointer_motion_absolute(device, targetX, targetY);
+    ei_device_frame(device, ei_now(ei_));
     ei_dispatch(ei_);
 }
 
@@ -726,22 +733,25 @@ void LibeiInput::setPointerDevice(
     emit pointerReadyChanged(false);
 }
 
-void LibeiInput::setAbsolutePointerDevice(
-    struct ei_device *device)
+void LibeiInput::setAbsolutePointerDevice(ei_device *device)
 {
-    if (device == absolutePointerDevice_) {
+    if (absolutePointerDevices_.contains(device)) {
         return;
     }
-
-    clearAbsolutePointerDevice();
-
-    absolutePointerDevice_ =
-        ei_device_ref(device);
-
-    absolutePointerResumed_ = false;
-
-    emit absolutePointerReadyChanged(
-        false);
+    absolutePointerDevices_.insert(ei_device_ref(device));
+    for (size_t index = 0; ; ++index) {
+        ei_region *region = ei_device_get_region(device, index);
+        if (region == nullptr) {
+            break;
+        }
+        const char *id = ei_region_get_mapping_id(region);
+        qInfo() << "assist-wayland-input: EIS region" << index
+                << "mapping_id" << (id != nullptr ? id : "(none)")
+                << "geometry" << ei_region_get_x(region) << ei_region_get_y(region)
+                << ei_region_get_width(region) << ei_region_get_height(region);
+    }
+    lastPointerDiagnostic_.clear();
+    emit absolutePointerReadyChanged(absolutePointerReady());
 }
 
 void LibeiInput::setButtonDevice(
@@ -805,16 +815,13 @@ void LibeiInput::clearPointerDevice()
 
 void LibeiInput::clearAbsolutePointerDevice()
 {
-    absolutePointerResumed_ = false;
-
-    emit absolutePointerReadyChanged(
-        false);
-
-    if (absolutePointerDevice_ != nullptr) {
-        absolutePointerDevice_ =
-            ei_device_unref(
-                absolutePointerDevice_);
+    resumedAbsolutePointerDevices_.clear();
+    for (ei_device *device : absolutePointerDevices_) {
+        ei_device_unref(device);
     }
+    absolutePointerDevices_.clear();
+    lastPointerDiagnostic_.clear();
+    emit absolutePointerReadyChanged(false);
 }
 
 void LibeiInput::clearButtonDevice()
@@ -872,11 +879,16 @@ void LibeiInput::updateDeviceResumeState(
             pointerReady());
     }
 
-    if (device == absolutePointerDevice_) {
-        absolutePointerResumed_ = resumed;
-
-        emit absolutePointerReadyChanged(
-            absolutePointerReady());
+    if (absolutePointerDevices_.contains(device)) {
+        if (resumed) {
+            resumedAbsolutePointerDevices_.insert(device);
+        } else {
+            resumedAbsolutePointerDevices_.remove(device);
+        }
+        lastPointerDiagnostic_.clear();
+        qInfo() << "assist-wayland-input: absolute device resumed" << resumed
+                << "selected region ready" << absolutePointerReady();
+        emit absolutePointerReadyChanged(absolutePointerReady());
     }
 
     if (device == buttonDevice_) {
@@ -922,8 +934,11 @@ void LibeiInput::removeDevice(
         clearPointerDevice();
     }
 
-    if (device == absolutePointerDevice_) {
-        clearAbsolutePointerDevice();
+    if (absolutePointerDevices_.remove(device)) {
+        resumedAbsolutePointerDevices_.remove(device);
+        ei_device_unref(device);
+        lastPointerDiagnostic_.clear();
+        emit absolutePointerReadyChanged(absolutePointerReady());
     }
 
     if (device == buttonDevice_) {

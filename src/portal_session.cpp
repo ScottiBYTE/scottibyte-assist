@@ -1,6 +1,11 @@
 #include "portal_session.h"
 
 #include <QDebug>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#include <QDBusServiceWatcher>
+#include <QTimer>
 #include <QDBusArgument>
 #include <QDBusError>
 #include <QDBusInterface>
@@ -102,6 +107,26 @@ PortalSession::PortalSession(QObject *parent)
 {
     qDBusRegisterMetaType<PortalStream>();
     qDBusRegisterMetaType<PortalStreamList>();
+    requestTimer_ = new QTimer(this);
+    requestTimer_->setSingleShot(true);
+    connect(requestTimer_, &QTimer::timeout, this, [this]() {
+        if (stage_ != Stage::Idle && stage_ != Stage::Active) {
+            fail(QStringLiteral("Wayland portal timed out waiting for %1. "
+                                "The pending request was cancelled; try sharing again.")
+                     .arg(currentRequestMethod_));
+        }
+    });
+    auto *serviceWatcher = new QDBusServiceWatcher(
+        QString::fromLatin1(portalService), bus_,
+        QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(serviceWatcher, &QDBusServiceWatcher::serviceOwnerChanged,
+            this, [this](const QString &, const QString &oldOwner,
+                         const QString &newOwner) {
+        if (!oldOwner.isEmpty() && oldOwner != newOwner && stage_ != Stage::Idle) {
+            fail(QStringLiteral("The Wayland portal service restarted or disconnected. "
+                                "Try sharing again when the service is available."));
+        }
+    });
 }
 
 PortalSession::~PortalSession()
@@ -189,7 +214,7 @@ bool PortalSession::connectRequest(
             QString::fromLatin1(requestInterface),
             QStringLiteral("Response"),
             this,
-            SLOT(onRequestResponse(uint,QVariantMap)));
+            SLOT(onRequestResponse(uint,QVariantMap,QDBusMessage)));
 
     if (!connected) {
         fail(
@@ -206,6 +231,9 @@ bool PortalSession::connectRequest(
 
 void PortalSession::disconnectRequest()
 {
+    requestTimer_->stop();
+    ++requestGeneration_;
+    currentRequestMethod_.clear();
     if (currentRequestPath_.isEmpty()) {
         return;
     }
@@ -216,9 +244,22 @@ void PortalSession::disconnectRequest()
         QString::fromLatin1(requestInterface),
         QStringLiteral("Response"),
         this,
-        SLOT(onRequestResponse(uint,QVariantMap)));
+        SLOT(onRequestResponse(uint,QVariantMap,QDBusMessage)));
 
     currentRequestPath_.clear();
+}
+
+void PortalSession::cancelPendingRequest()
+{
+    const QString path = currentRequestPath_;
+    disconnectRequest();
+    if (!path.isEmpty()) {
+        QDBusMessage close = QDBusMessage::createMethodCall(
+            QString::fromLatin1(portalService), path,
+            QString::fromLatin1(requestInterface), QStringLiteral("Close"));
+        bus_.asyncCall(close, 5000);
+        qInfo() << "assist-wayland-portal: cancelled pending portal request" << path;
+    }
 }
 
 bool PortalSession::callRequestMethod(
@@ -228,62 +269,49 @@ bool PortalSession::callRequestMethod(
     const QString &requestToken,
     Stage stage)
 {
-    const QString expectedPath =
-        requestPath(requestToken);
-
+    const QString expectedPath = requestPath(requestToken);
     if (!connectRequest(expectedPath, stage)) {
         return false;
     }
-
-    QDBusInterface portal(
-        QString::fromLatin1(portalService),
-        QString::fromLatin1(portalPath),
-        interfaceName,
-        bus_);
-
-    if (!portal.isValid()) {
-        disconnectRequest();
-
-        fail(
-            QStringLiteral("Portal interface unavailable: ")
-            + interfaceName);
-
-        return false;
-    }
-
-    const QDBusMessage reply =
-        portal.callWithArgumentList(
-            QDBus::Block,
-            methodName,
-            arguments);
-
-    if (reply.type() == QDBusMessage::ErrorMessage) {
-        disconnectRequest();
-
-        fail(
-            QStringLiteral("%1 failed: %2")
-                .arg(methodName, reply.errorMessage()));
-
-        return false;
-    }
-
-    if (!reply.arguments().isEmpty()) {
-        const QDBusObjectPath returnedPath =
-            qvariant_cast<QDBusObjectPath>(
-                reply.arguments().constFirst());
-
-        if (!returnedPath.path().isEmpty() &&
-            returnedPath.path() != expectedPath) {
-            disconnectRequest();
-
-            if (!connectRequest(
-                    returnedPath.path(),
-                    stage)) {
-                return false;
-            }
+    currentRequestMethod_ = methodName;
+    // Start includes human approval; allow three minutes for that chooser.
+    // Other request stages should respond within thirty seconds.
+    const int timeoutMs = stage == Stage::Starting ? 180000 : 30000;
+    requestTimer_->start(timeoutMs);
+    const quint64 generation = requestGeneration_;
+    QDBusMessage call = QDBusMessage::createMethodCall(
+        QString::fromLatin1(portalService), QString::fromLatin1(portalPath),
+        interfaceName, methodName);
+    call.setArguments(arguments);
+    auto *watcher = new QDBusPendingCallWatcher(bus_.asyncCall(call, 10000), this);
+    qInfo() << "assist-wayland-portal: requesting" << methodName;
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, generation, methodName, stage, timeoutMs](QDBusPendingCallWatcher *finished) {
+        const QDBusPendingReply<QDBusObjectPath> reply = *finished;
+        finished->deleteLater();
+        // A Response may already have advanced the session, or stop/retry
+        // may have replaced this request. Never mutate a newer request.
+        if (generation != requestGeneration_ || stage != stage_) {
+            return;
         }
-    }
-
+        if (reply.isError()) {
+            fail(QStringLiteral("%1 failed: %2")
+                     .arg(methodName, reply.error().message()));
+            return;
+        }
+        const QString returnedPath = reply.value().path();
+        if (returnedPath.isEmpty()) {
+            fail(QStringLiteral("%1 returned an empty request handle.").arg(methodName));
+            return;
+        }
+        if (returnedPath != currentRequestPath_) {
+            if (!connectRequest(returnedPath, stage)) {
+                return;
+            }
+            currentRequestMethod_ = methodName;
+            requestTimer_->start(timeoutMs);
+        }
+    });
     return true;
 }
 
@@ -467,6 +495,8 @@ bool PortalSession::requestClipboard()
         return false;
     }
 
+    clipboard.setTimeout(5000);
+
     const QDBusMessage reply =
         clipboard.call(
             QStringLiteral(
@@ -521,8 +551,14 @@ void PortalSession::startSession()
 
 void PortalSession::onRequestResponse(
     uint response,
-    const QVariantMap &results)
+    const QVariantMap &results,
+    const QDBusMessage &message)
 {
+    if (currentRequestPath_.isEmpty() || message.path() != currentRequestPath_) {
+        return;
+    }
+    qInfo() << "assist-wayland-portal: response"
+            << currentRequestMethod_ << response;
     const Stage completedStage = stage_;
 
     disconnectRequest();
@@ -632,6 +668,11 @@ void PortalSession::onRequestResponse(
                 << eisFd_;
 
         stage_ = Stage::Active;
+
+        // Publish the selected stream identity before starting EIS discovery.
+        emit pointerMappingReady(
+            streams_.constFirst().properties.value(
+                QStringLiteral("mapping_id")).toString());
 
         emit pipeWireStreamReady(
             pipeWireFd_,
@@ -764,6 +805,8 @@ bool PortalSession::openPipeWireRemote()
         QString::fromLatin1(screenCastInterface),
         bus_);
 
+    screenCast.setTimeout(5000);
+
     const QDBusReply<QDBusUnixFileDescriptor> reply =
         screenCast.call(
             QStringLiteral("OpenPipeWireRemote"),
@@ -808,6 +851,8 @@ bool PortalSession::connectToEis()
         QString::fromLatin1(portalPath),
         QString::fromLatin1(remoteDesktopInterface),
         bus_);
+
+    remoteDesktop.setTimeout(5000);
 
     const QDBusReply<QDBusUnixFileDescriptor> reply =
         remoteDesktop.call(
@@ -1257,7 +1302,7 @@ void PortalSession::stop()
     emit statusChanged(
         QStringLiteral("Stopping portal session…"));
 
-    disconnectRequest();
+    cancelPendingRequest();
     closeSessionObject();
     resetState();
 
@@ -1274,26 +1319,14 @@ void PortalSession::closeSessionObject()
     if (sessionHandle_.isEmpty()) {
         return;
     }
-
     bus_.disconnect(
-        QString::fromLatin1(portalService),
-        sessionHandle_,
-        QString::fromLatin1(sessionInterface),
-        QStringLiteral("Closed"),
-        this,
-        SLOT(onSessionClosed()));
-
-    QDBusInterface session(
-        QString::fromLatin1(portalService),
-        sessionHandle_,
-        QString::fromLatin1(sessionInterface),
-        bus_);
-
-    if (session.isValid()) {
-        session.call(
-            QDBus::NoBlock,
-            QStringLiteral("Close"));
-    }
+        QString::fromLatin1(portalService), sessionHandle_,
+        QString::fromLatin1(sessionInterface), QStringLiteral("Closed"),
+        this, SLOT(onSessionClosed()));
+    QDBusMessage close = QDBusMessage::createMethodCall(
+        QString::fromLatin1(portalService), sessionHandle_,
+        QString::fromLatin1(sessionInterface), QStringLiteral("Close"));
+    bus_.asyncCall(close, 5000);
 }
 
 void PortalSession::onSessionClosed()
@@ -1312,6 +1345,13 @@ void PortalSession::onSessionClosed()
 
 void PortalSession::resetState()
 {
+    disconnectRequest();
+    if (!sessionHandle_.isEmpty()) {
+        bus_.disconnect(
+            QString::fromLatin1(portalService), sessionHandle_,
+            QString::fromLatin1(sessionInterface), QStringLiteral("Closed"),
+            this, SLOT(onSessionClosed()));
+    }
     disconnectClipboardSignals();
     clipboardText_.clear();
 
@@ -1334,6 +1374,8 @@ void PortalSession::resetState()
 
 void PortalSession::fail(const QString &message)
 {
+    qWarning() << "assist-wayland-portal:" << message;
+    cancelPendingRequest();
     closeSessionObject();
     resetState();
 

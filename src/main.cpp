@@ -9,6 +9,7 @@
 #include "wan_voice_relay.h"
 
 #include <QWindow>
+#include <QDebug>
 #include <QToolButton>
 #include <QPainterPath>
 #include <QStyleOptionButton>
@@ -4758,7 +4759,8 @@ QLabel#remotePlaceholder {
             " font-weight: 800;"
             "}"));
 
-    receiveSessionTimer->setVisible(true);
+    // The layout will parent and show this label with the main window.
+    // Showing it here creates a temporary Wayland top-level and launch token.
 
     receiveLayout->addWidget(receiveTitle);
     receiveLayout->addWidget(receiveDescription);
@@ -4955,7 +4957,8 @@ QLabel#remotePlaceholder {
             " font-weight: 800;"
             "}"));
 
-    provideSessionTimer->setVisible(true);
+    // The layout will parent and show this label with the main window.
+    // Showing it here creates a temporary Wayland top-level and launch token.
 
     auto *providerWindowControls =
         new QHBoxLayout;
@@ -6709,8 +6712,8 @@ QLineEdit#chatInput:disabled {
         800);
 
     providerScreenWindow->setMinimumSize(
-        800,
-        500);
+        360,
+        240);
 
     providerScreenWindow->setAttribute(
         Qt::WA_QuitOnClose,
@@ -6771,8 +6774,9 @@ QLineEdit#chatInput:disabled {
         new RemoteView;
 
     providerScreenView->setMinimumSize(
-        760,
-        420);
+        320,
+        180);
+    providerScreenView->setProviderPresentation(true);
 
     /*
      * This window is deliberately view-only.
@@ -10504,12 +10508,47 @@ QObject::connect(
         providerScreenWindow,
         [
             receiveButton,
-            providerScreenWindow
+            providerScreenWindow,
+            providerScreenView,
+            providerScreenLayout,
+            providerScreenHeader
         ](
-            const QImage &)
+            const QImage &frame)
         {
-            if (!receiveButton->isChecked()) {
+            if (!receiveButton->isChecked() || frame.isNull()) {
                 return;
+            }
+
+            const QSize previousFrameSize = providerScreenWindow->property(
+                "sharedFrameSize").toSize();
+            if (previousFrameSize != frame.size()) {
+                providerScreenWindow->setProperty("sharedFrameSize", frame.size());
+                QScreen *screen = providerScreenWindow->screen();
+                if (screen == nullptr) {
+                    screen = QGuiApplication::primaryScreen();
+                }
+                if (screen != nullptr && !providerScreenWindow->isMaximized() &&
+                    !providerScreenWindow->isFullScreen()) {
+                    const QRect available = screen->availableGeometry();
+                    providerScreenLayout->activate();
+                    const QMargins margins = providerScreenLayout->contentsMargins();
+                    const int widthOverhead = margins.left() + margins.right() + 24;
+                    const int heightOverhead = margins.top() + margins.bottom() + 24 +
+                        providerScreenHeader->sizeHint().height() + providerScreenLayout->spacing();
+                    const QSize maxImageSize(
+                        qMax(1, available.width() - 64 - widthOverhead),
+                        qMax(1, available.height() - 64 - heightOverhead));
+                    QSize imageSize = frame.size();
+                    if (imageSize.width() > maxImageSize.width() ||
+                        imageSize.height() > maxImageSize.height()) {
+                        imageSize.scale(maxImageSize, Qt::KeepAspectRatio);
+                    }
+                    providerScreenWindow->resize(
+                        qMax(360, imageSize.width() + widthOverhead),
+                        qMax(240, imageSize.height() + heightOverhead));
+                    qInfo() << "assist-wayland-viewer: provider view frame" << frame.size()
+                            << "window" << providerScreenWindow->size();
+                }
             }
 
             if (
@@ -10549,6 +10588,7 @@ QObject::connect(
             bool active)
         {
             if (receiveButton->isChecked()) {
+                providerScreenWindow->setProperty("sharedFrameSize", QVariant());
                 if (active) {
                     providerScreenWindow->setProperty(
                         "userDismissed",

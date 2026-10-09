@@ -1,8 +1,12 @@
 #include "pipewire_preview.h"
 
 #include <QMetaObject>
+#include <QDebug>
+#include <QRect>
 
 #include <spa/buffer/buffer.h>
+#include <spa/buffer/meta.h>
+#include <spa/param/buffers.h>
 #include <spa/param/format-utils.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/pod/builder.h>
@@ -281,6 +285,7 @@ void PipeWirePreview::stop()
     }
 
     videoInfo_ = {};
+    lastCaptureDiagnostic_.clear();
 }
 
 void PipeWirePreview::acknowledgeFrame()
@@ -365,6 +370,23 @@ void PipeWirePreview::handleParamChanged(
     }
 
     preview->videoInfo_ = parsedInfo;
+
+    // Window streams can occupy only part of the negotiated video buffer.
+    // Request the producer's content rectangle; never infer it from pixels.
+    alignas(8) std::array<uint8_t, 128> metaStorage{};
+    spa_pod_builder metaBuilder = SPA_POD_BUILDER_INIT(
+        metaStorage.data(), metaStorage.size());
+    const spa_pod *metaParameters[] = {
+        static_cast<const spa_pod *>(spa_pod_builder_add_object(
+            &metaBuilder, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
+            SPA_PARAM_META_type, SPA_POD_Id(SPA_META_VideoCrop),
+            SPA_PARAM_META_size, SPA_POD_Int(sizeof(spa_meta_region))))
+    };
+    const int metaResult = pw_stream_update_params(preview->stream_, metaParameters, 1);
+    if (metaResult < 0) {
+        qWarning() << "assist-wayland-viewer: crop metadata negotiation failed"
+                   << metaResult;
+    }
 
     const QString description =
         QStringLiteral(
@@ -490,8 +512,31 @@ void PipeWirePreview::processFrame()
         stride,
         imageFormat);
 
-    const QImage copiedImage =
-        borrowedImage.copy();
+    QRect contentRect(0, 0, static_cast<int>(width), static_cast<int>(height));
+    const auto *crop = static_cast<const spa_meta_region *>(
+        spa_buffer_find_meta_data(buffer, SPA_META_VideoCrop, sizeof(spa_meta_region)));
+    bool validCrop = false;
+    if (crop != nullptr && spa_meta_region_is_valid(crop)) {
+        const qint64 cropX = crop->region.position.x;
+        const qint64 cropY = crop->region.position.y;
+        const qint64 cropWidth = crop->region.size.width;
+        const qint64 cropHeight = crop->region.size.height;
+        if (cropX >= 0 && cropY >= 0 && cropWidth > 0 && cropHeight > 0 &&
+            cropX + cropWidth <= width && cropY + cropHeight <= height) {
+            contentRect = QRect(int(cropX), int(cropY), int(cropWidth), int(cropHeight));
+            validCrop = true;
+        }
+    }
+    const QString diagnostic = QStringLiteral("%1:%2:%3:%4:%5:%6:%7")
+        .arg(width).arg(height).arg(contentRect.x()).arg(contentRect.y())
+        .arg(contentRect.width()).arg(contentRect.height()).arg(validCrop);
+    if (lastCaptureDiagnostic_ != diagnostic) {
+        lastCaptureDiagnostic_ = diagnostic;
+        qInfo() << "assist-wayland-viewer: capture buffer" << width << height
+                << "content" << contentRect << "valid crop metadata" << validCrop;
+    }
+    // Copy while the buffer is owned by us, before returning it to PipeWire.
+    const QImage copiedImage = borrowedImage.copy(contentRect);
 
     pw_stream_queue_buffer(
         stream_,

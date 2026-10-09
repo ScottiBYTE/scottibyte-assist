@@ -77,7 +77,4 @@ private:
     int frameWidth_ = 0;
     int frameHeight_ = 0;
 
-    int previousPointerX_ = 0;
-    int previousPointerY_ = 0;
-    bool previousPointerValid_ = false;
 };

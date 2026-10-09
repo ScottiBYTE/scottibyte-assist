@@ -57,6 +57,7 @@ private:
     pw_stream_events streamEvents_{};
 
     spa_video_info_raw videoInfo_{};
+    QString lastCaptureDiagnostic_;
 
     std::atomic_bool framePending_{false};
     std::atomic_bool running_{false};

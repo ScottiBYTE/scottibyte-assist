@@ -19,6 +19,8 @@ Q_DECLARE_METATYPE(PortalStream)
 Q_DECLARE_METATYPE(PortalStreamList)
 
 class QDBusArgument;
+class QDBusMessage;
+class QTimer;
 class QDBusObjectPath;
 
 QDBusArgument &operator<<(
@@ -57,6 +59,8 @@ signals:
         int fileDescriptor,
         uint nodeId);
 
+    void pointerMappingReady(const QString &mappingId);
+
     void eisConnectionReady(
         int fileDescriptor);
 
@@ -66,7 +70,8 @@ signals:
 private slots:
     void onRequestResponse(
         uint response,
-        const QVariantMap &results);
+        const QVariantMap &results,
+        const QDBusMessage &message);
 
     void onSessionClosed();
 
@@ -98,6 +103,7 @@ private:
         Stage stage);
 
     void disconnectRequest();
+    void cancelPendingRequest();
 
     bool callRequestMethod(
         const QString &interfaceName,
@@ -139,6 +145,9 @@ private:
 
     Stage stage_ = Stage::Idle;
 
+    QTimer *requestTimer_ = nullptr;
+    quint64 requestGeneration_ = 0;
+    QString currentRequestMethod_;
     QString currentRequestPath_;
     QString sessionHandle_;
 

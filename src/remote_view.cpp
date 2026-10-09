@@ -82,6 +82,12 @@ RemoteView::RemoteView(
         Qt::ArrowCursor);
 }
 
+void RemoteView::setProviderPresentation(bool enabled)
+{
+    providerPresentation_ = enabled;
+    update();
+}
+
 void RemoteView::setFrame(
     const QImage &image)
 {
@@ -166,24 +172,16 @@ QRect RemoteView::imageRect() const
     if (frame_.isNull()) {
         return {};
     }
-
-    QSize scaledSize =
-        frame_.size();
-
-    scaledSize.scale(
-        size(),
-        Qt::KeepAspectRatio);
-
-    const int x =
-        (width() -
-         scaledSize.width()) / 2;
-
-    const int y =
-        (height() -
-         scaledSize.height()) / 2;
-
+    const QRect viewport = providerPresentation_
+        ? rect().adjusted(12, 12, -12, -12) : rect();
+    if (viewport.isEmpty()) {
+        return {};
+    }
+    QSize scaledSize = frame_.size();
+    scaledSize.scale(viewport.size(), Qt::KeepAspectRatio);
     return QRect(
-        QPoint(x, y),
+        QPoint(viewport.left() + (viewport.width() - scaledSize.width()) / 2,
+               viewport.top() + (viewport.height() - scaledSize.height()) / 2),
         scaledSize);
 }
 
@@ -242,10 +240,9 @@ void RemoteView::paintEvent(
 
     painter.fillRect(
         rect(),
-        QColor(
-            4,
-            19,
-            39));
+        providerPresentation_
+            ? QColor(38, 49, 66)
+            : QColor(4, 19, 39));
 
     if (frame_.isNull()) {
         painter.setPen(
@@ -273,6 +270,12 @@ void RemoteView::paintEvent(
     painter.drawImage(
         target,
         frame_);
+
+    if (providerPresentation_ && !target.isEmpty()) {
+        painter.setPen(QPen(QColor(85, 183, 221), 2));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(target.adjusted(-1, -1, 1, 1));
+    }
 
     if (remoteCursorPosition_.x() >= 0 &&
         remoteCursorPosition_.y() >= 0 &&

@@ -161,9 +161,25 @@ WaylandDesktopBackend::WaylandDesktopBackend(
 
     connect(
         portalSession_,
+        &PortalSession::pointerMappingReady,
+        libeiInput_,
+        &LibeiInput::setPointerMappingId);
+
+    connect(
+        portalSession_,
         &PortalSession::eisConnectionReady,
         libeiInput_,
         &LibeiInput::start);
+
+    connect(portalSession_, &PortalSession::activeChanged,
+            this, [this](bool active) {
+        if (!active) {
+            pipeWirePreview_->stop();
+            libeiInput_->stop();
+            frameWidth_ = 0;
+            frameHeight_ = 0;
+        }
+    });
 
     connect(
         portalSession_,
@@ -249,7 +265,6 @@ void WaylandDesktopBackend::start()
 
     frameWidth_ = 0;
     frameHeight_ = 0;
-    previousPointerValid_ = false;
 
     portalSession_->start();
 }
@@ -262,7 +277,6 @@ void WaylandDesktopBackend::stop()
 
     frameWidth_ = 0;
     frameHeight_ = 0;
-    previousPointerValid_ = false;
 }
 
 void WaylandDesktopBackend::handleFrame(
@@ -278,51 +292,12 @@ void WaylandDesktopBackend::handleFrame(
     pipeWirePreview_->acknowledgeFrame();
 }
 
-void WaylandDesktopBackend::movePointerTo(
-    int x,
-    int y)
+void WaylandDesktopBackend::movePointerTo(int x, int y)
 {
-    if (frameWidth_ <= 0 ||
-        frameHeight_ <= 0) {
+    if (frameWidth_ <= 0 || frameHeight_ <= 0) {
         return;
     }
-
-    if (libeiInput_->absolutePointerReady()) {
-        libeiInput_->movePointerAbsolute(
-            x,
-            y,
-            frameWidth_,
-            frameHeight_);
-
-        previousPointerX_ = x;
-        previousPointerY_ = y;
-        previousPointerValid_ = true;
-        return;
-    }
-
-    if (!libeiInput_->pointerReady()) {
-        return;
-    }
-
-    if (!previousPointerValid_) {
-        previousPointerX_ = x;
-        previousPointerY_ = y;
-        previousPointerValid_ = true;
-        return;
-    }
-
-    const int deltaX =
-        x - previousPointerX_;
-
-    const int deltaY =
-        y - previousPointerY_;
-
-    previousPointerX_ = x;
-    previousPointerY_ = y;
-
-    libeiInput_->movePointerRelative(
-        deltaX,
-        deltaY);
+    libeiInput_->movePointerAbsolute(x, y, frameWidth_, frameHeight_);
 }
 
 void WaylandDesktopBackend::clickLeftAt(
@@ -338,7 +313,8 @@ void WaylandDesktopBackend::clickLeftAt(
         x,
         y);
 
-    if (libeiInput_->buttonReady()) {
+    if (libeiInput_->absolutePointerReady() &&
+        libeiInput_->buttonReady()) {
         libeiInput_->clickLeftButton();
     }
 }
@@ -356,7 +332,8 @@ void WaylandDesktopBackend::clickRightAt(
         x,
         y);
 
-    if (libeiInput_->buttonReady()) {
+    if (libeiInput_->absolutePointerReady() &&
+        libeiInput_->buttonReady()) {
         libeiInput_->clickRightButton();
     }
 }
@@ -374,7 +351,8 @@ void WaylandDesktopBackend::pressLeftAt(
         x,
         y);
 
-    if (libeiInput_->buttonReady()) {
+    if (libeiInput_->absolutePointerReady() &&
+        libeiInput_->buttonReady()) {
         libeiInput_->pressLeftButton();
     }
 }

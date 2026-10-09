@@ -8,6 +8,7 @@
 
 struct ei;
 struct ei_device;
+struct ei_region;
 
 class QSocketNotifier;
 
@@ -26,6 +27,8 @@ public:
     bool keyboardReady() const;
 
 public slots:
+    void setPointerMappingId(const QString &mappingId);
+
     void start(int portalFileDescriptor);
     void stop();
 
@@ -100,14 +103,19 @@ private:
     void stopDeviceEmulation(
         struct ei_device *device);
 
+    struct ei_region *selectedAbsoluteRegion(
+        struct ei_device **selectedDevice = nullptr) const;
+
     uint32_t nextSequence();
 
     struct ei *ei_ = nullptr;
 
     struct ei_device *pointerDevice_ = nullptr;
 
-    struct ei_device *absolutePointerDevice_ =
-        nullptr;
+    QSet<struct ei_device *> absolutePointerDevices_;
+    QSet<struct ei_device *> resumedAbsolutePointerDevices_;
+    QString pointerMappingId_;
+    QString lastPointerDiagnostic_;
 
     struct ei_device *buttonDevice_ = nullptr;
     struct ei_device *scrollDevice_ = nullptr;
@@ -116,7 +124,6 @@ private:
     QSocketNotifier *notifier_ = nullptr;
 
     bool pointerResumed_ = false;
-    bool absolutePointerResumed_ = false;
     bool buttonResumed_ = false;
     bool scrollResumed_ = false;
     bool keyboardResumed_ = false;
