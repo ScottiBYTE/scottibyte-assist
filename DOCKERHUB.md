@@ -1,52 +1,65 @@
 # ScottiBYTE Assist
 
-**ScottiBYTE Assist** is an open-source, self-hosted attended remote-assistance platform for Windows and Linux.
+**ScottiBYTE Assist** is an open-source, self-hosted **attended remote-assistance platform** for Windows and Ubuntu Linux.
 
-It is designed as an alternative to tools such as TeamViewer, Chrome Remote Desktop, AnyDesk, LogMeIn, RustDesk, and MeshCentral, while deliberately focusing on **attended remote assistance rather than persistent unattended remote access**.
+It is designed as an alternative to TeamViewer, Chrome Remote Desktop, AnyDesk, LogMeIn, RustDesk, and MeshCentral, with a deliberate focus on **customer-approved support sessions rather than persistent unattended access**.
 
 ![Receive Support](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/receiver.png)
 
+## Current releases
+
+| Component | Version | Availability |
+| --- | --- | --- |
+| Assist Server | **1.4.4** | Docker image `scottibyte/scottibyte-assist-server:1.4.4` or `:latest` |
+| Ubuntu Linux client | **2.2.2** | Ubuntu 24.04 LTS and 26.04 LTS, amd64 |
+| Windows client | **2.2.0** | Windows installer |
+
+**Linux 2.2.2** provides a unified Debian installer for Ubuntu 24.04 LTS and Ubuntu 26.04 LTS, improves Qt library compatibility, and bundles WebRTC audio-processing dependencies. Screen sharing and remote desktop control have been verified on both Ubuntu LTS releases.
+
+The Linux and Windows clients are versioned independently of the server. The 2.2.0 voice update increased WAN voice buffering from 40 ms to 100 ms to improve audio continuity.
+
+- [Linux 2.2.2 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.2)
+- [Server 1.4.4 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.4)
+- [All GitHub releases](https://github.com/ScottiBYTE/scottibyte-assist/releases)
+
 ## What makes ScottiBYTE Assist different
 
-- Customer-initiated temporary support sessions
-- Six-digit support codes rather than permanent remote-access IDs
-- Customer approval before desktop access begins
+- Customer-initiated, temporary support sessions
+- Six-digit support codes instead of permanent remote-access IDs
+- Explicit customer approval before desktop access
 - Individually authorized and revocable provider computers
-- Multiple Assist server profiles
-- Separate provider authorization for each server
+- Multiple Assist server profiles, each with separate provider authorization
 - No unattended-access mode
-- Self-hosted server, signaling, administration, and client portal
+- Self-hosted server, signaling, administration, and client download portal
 - Native Windows and Ubuntu Linux clients
 - X11 and Wayland support on Linux
 - Remote desktop viewing and control
 - Interactive Customer Terminal
-- Two-way voice
-- Text chat with distinct local and remote message colors
-- Clipboard sharing
-- File transfer
+- Two-way voice and text chat with distinct local and remote message colors
+- Clipboard sharing and file transfer
 - Provider administration and session auditing
 
-## Public Portal
+## Public portal and client downloads
 
-The ScottiBYTE Assist server includes a self-hosted client download and information portal.
+The ScottiBYTE Assist server includes a **self-hosted public portal** for information and client downloads. The Docker image includes release metadata, current Windows and Linux installers, and their SHA-256 checksum files.
 
 ![ScottiBYTE Assist Portal](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/portal.png)
 
-The portal can configure and open an installed client for its
-Assist server. Clients can retain multiple server profiles,
-with provider authorization stored separately for each server.
+The portal can configure and open an installed client for its Assist server. Clients can retain multiple server profiles, with provider authorization stored separately for each server.
 
 ![ScottiBYTE Assist Settings](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/settings.png)
 
-## First-Time Setup
+**No separate portal mounts are required for a standard Docker deployment.** Administrators who want to maintain download files and release metadata independently of Docker image updates can use optional bind mounts as described in the [Portal Deployment Guide](https://github.com/ScottiBYTE/scottibyte-assist/blob/main/docs/portal-deployment.md).
 
-A new ScottiBYTE Assist server generates a one-time nine-digit setup code.
+**Important:** A downloads bind mount replaces the image's visible downloads directory. Populate it with **every installer and checksum referenced by the release metadata** before enabling that mount.
 
-The first provider uses that code in ScottiBYTE Assist Settings to configure the server and become the initial superuser.
+## First-time setup
+
+On a new installation, the server generates a **one-time nine-digit setup code**. The first provider enters that code in ScottiBYTE Assist Settings to configure the server and become the initial superuser.
 
 ![First-Time Provider Setup](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/bootstrap.png)
 
-Additional providers can then be authorized and revoked individually through the administrator portal.
+Additional providers can be authorized and revoked individually through the administrator portal.
 
 ![Provider Management](https://raw.githubusercontent.com/ScottiBYTE/scottibyte-assist/main/docs/images/admin-provider-management.png)
 
@@ -54,20 +67,18 @@ Additional providers can then be authorized and revoked individually through the
 
 The ScottiBYTE Assist server provides authorization, session coordination, WebSocket signaling, authenticated relay services, temporary file transfer, auditing, provider management, and client downloads.
 
+It is intended to run behind an HTTPS reverse proxy with **WebSocket support** for Internet-facing deployments.
 
 ## Docker Compose
+
+Create a `docker-compose.yml` file:
 
 ```yaml
 services:
   assist-server:
-    image:
-      scottibyte/scottibyte-assist-server:latest
-
-    container_name:
-      scottibyte-assist-server
-
-    restart:
-      unless-stopped
+    image: scottibyte/scottibyte-assist-server:1.4.4
+    container_name: scottibyte-assist-server
+    restart: unless-stopped
 
     environment:
       NODE_ENV: production
@@ -96,54 +107,38 @@ services:
       start_period: 10s
 ```
 
-Replace `https://assist.example.com` with the public HTTPS address used to reach your Assist server.
+Replace `https://assist.example.com` with the public HTTPS URL for your server. You can substitute `:latest` for `:1.4.4` if you prefer to follow the latest published server image.
 
-Start the server with:
+Start the server:
 
 ```bash
 docker compose up -d
 ```
 
-The application listens on TCP `3089`.
+The application listens on **TCP 3089**. For Internet-facing installations, configure an HTTPS reverse proxy with WebSocket support rather than forwarding port 3089 directly from the Internet.
 
-For Internet-facing deployments, place ScottiBYTE Assist behind an HTTPS reverse proxy with WebSocket support rather than exposing TCP 3089 directly.
+The `./data:/app/data` mount persists the server database. Keep that directory backed up.
 
 ## Important URLs
 
-Public portal and client Server URL:
+| Purpose | URL |
+| --- | --- |
+| Public portal and client server URL | `https://assist.example.com` |
+| Administrator portal | `https://assist.example.com/admin` |
 
-```text
-https://assist.example.com
-```
-
-Administrator portal:
-
-```text
-https://assist.example.com/admin
-```
+Replace the example domain with your own public HTTPS hostname.
 
 ## Documentation
 
-- Installation: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/installation.md
-- Architecture: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/architecture.md
-- Session Protocol: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/session-protocol.md
-- Release Notes: https://github.com/ScottiBYTE/scottibyte-assist/blob/v2.2.0/docs/release-notes-2.2.0.md
-- Source: https://github.com/ScottiBYTE/scottibyte-assist
-
-## Current Releases
-
-The current server release is **Assist Server 1.4.2**.
-
-The Docker image contains the ScottiBYTE Assist public portal and the Windows and Ubuntu Linux 2.2.0 client packages.
-
-Linux and Windows 2.2.0 restore version parity and increase WAN voice buffering from 40 ms to 100 ms. Testing showed a substantial reduction in WAN voice dropouts.
-
-Server version and client release versions are independent.
+- [Installation guide](https://github.com/ScottiBYTE/scottibyte-assist/blob/main/docs/installation.md)
+- [Portal deployment guide](https://github.com/ScottiBYTE/scottibyte-assist/blob/main/docs/portal-deployment.md)
+- [Architecture](https://github.com/ScottiBYTE/scottibyte-assist/blob/main/docs/architecture.md)
+- [Session protocol](https://github.com/ScottiBYTE/scottibyte-assist/blob/main/docs/session-protocol.md)
+- [GitHub releases](https://github.com/ScottiBYTE/scottibyte-assist/releases)
+- [Source repository](https://github.com/ScottiBYTE/scottibyte-assist)
 
 ## Project
 
-ScottiBYTE Assist is developed by ScottiBYTE.
+ScottiBYTE Assist is developed by **ScottiBYTE** as an open-source, self-hosted remote-support solution.
 
-Source code and release information:
-
-https://github.com/ScottiBYTE/scottibyte-assist
+Source code, documentation, and releases: https://github.com/ScottiBYTE/scottibyte-assist
