@@ -279,3 +279,9 @@ remote-support platform with native Windows and Linux clients.
 
 Release information and source code are published through the
 ScottiBYTE Assist GitHub repository.
+
+## Portal deployment
+
+The official Docker image includes the public portal, release metadata, and client installers. No additional portal mounts are needed for a standard installation.
+
+For optional persistent portal downloads and release metadata, see the [Portal Deployment Guide](docs/portal-deployment.md).

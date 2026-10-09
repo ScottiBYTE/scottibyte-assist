@@ -924,3 +924,9 @@ A new ScottiBYTE Assist installation is ready when:
 
 The ScottiBYTE Assist installation is now ready for provider enrollment
 and attended remote assistance.
+
+## Optional portal customization
+
+The standard Docker image includes the client download portal and installers. No separate portal configuration is required.
+
+To manage portal downloads and release metadata independently of Docker image updates, see the [Portal Deployment Guide](portal-deployment.md).
