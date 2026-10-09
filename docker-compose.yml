@@ -1,7 +1,7 @@
 services:
   assist-server:
     image:
-      scottibyte/scottibyte-assist-server:1.4.3
+      scottibyte/scottibyte-assist-server:1.4.4
 
     build:
       context: ./server
