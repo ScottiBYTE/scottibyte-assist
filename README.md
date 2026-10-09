@@ -128,15 +128,17 @@ source.
 The `main` branch tracks the server, portal, documentation, and
 public release packaging.
 
-Native client releases are preserved in platform-specific source
-tags:
+Native client releases are preserved in platform-specific source tags:
 
-- `windows-v2.0.2` — Windows client source
-- `linux-v2.2.3` — Ubuntu Linux client source
+- `windows-v2.2.0` — Windows 2.2.0 client source
+- `linux-v2.2.3` — Ubuntu Linux 2.2.3 client source
 
-The general `v2.0.2` tag corresponds to the public release on
-`main`, including the server-side release metadata and packaged
-client downloads.
+The Linux 2.2.3 source is also maintained on
+`feature/remote-terminal-linux`.
+
+Server releases use separate tags, including `server-v1.4.5`.
+The `main` branch contains the server, portal, documentation,
+and bundled client installers.
 
 ## Components
 
