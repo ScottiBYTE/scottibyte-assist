@@ -10,16 +10,16 @@ It is designed as an alternative to TeamViewer, Chrome Remote Desktop, AnyDesk, 
 
 | Component | Version | Availability |
 | --- | --- | --- |
-| Assist Server | **1.4.5** | Docker image `scottibyte/scottibyte-assist-server:1.4.5` or `:latest` |
-| Ubuntu Linux client | **2.2.3** | Ubuntu 24.04 LTS and 26.04 LTS, amd64 |
+| Assist Server | **1.4.6** | Docker image `scottibyte/scottibyte-assist-server:1.4.6` or `:latest` |
+| Ubuntu Linux client | **2.2.4** | Ubuntu 24.04 LTS and 26.04 LTS, amd64 |
 | Windows client | **2.2.0** | Windows installer |
 
-**Linux 2.2.3** improves Wayland pointer control, removes the observed startup wait cursor, improves portal session cleanup, and adds shared-window crop handling and viewer sizing. The single Debian installer continues to support Ubuntu 24.04 LTS and Ubuntu 26.04 LTS.
+**Linux 2.2.4** adds automatic Wayland portal recovery. If a portal service disconnects or becomes unavailable, Assist attempts one restart of the GNOME and desktop portal services, then reconnects the sharing session. The Debian installer supports Ubuntu 24.04 LTS and Ubuntu 26.04 LTS.
 
 The Linux and Windows clients are versioned independently of the server. The 2.2.0 voice update increased WAN voice buffering from 40 ms to 100 ms to improve audio continuity.
 
-- [Linux 2.2.3 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.3)
-- [Server 1.4.5 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.5)
+- [Linux 2.2.4 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.4)
+- [Server 1.4.6 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.6)
 - [All GitHub releases](https://github.com/ScottiBYTE/scottibyte-assist/releases)
 
 ## What makes ScottiBYTE Assist different
@@ -76,7 +76,7 @@ Create a `docker-compose.yml` file:
 ```yaml
 services:
   assist-server:
-    image: scottibyte/scottibyte-assist-server:1.4.5
+    image: scottibyte/scottibyte-assist-server:1.4.6
     container_name: scottibyte-assist-server
     restart: unless-stopped
 
@@ -107,7 +107,7 @@ services:
       start_period: 10s
 ```
 
-Replace `https://assist.example.com` with the public HTTPS URL for your server. You can substitute `:latest` for `:1.4.5` if you prefer to follow the latest published server image.
+Replace `https://assist.example.com` with the public HTTPS URL for your server. You can substitute `:latest` for `:1.4.6` if you prefer to follow the latest published server image.
 
 Start the server:
 

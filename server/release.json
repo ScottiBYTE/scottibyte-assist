@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in ScottiBYTE Assist Linux 2.2.3",
-  "summary": "Linux 2.2.3 improves Wayland absolute pointer control, startup cursor behavior, portal request cleanup, and shared-window cropping and viewer sizing. One amd64 installer supports Ubuntu 24.04 LTS and Ubuntu 26.04 LTS. Windows remains at 2.2.0.",
+  "headline": "New in ScottiBYTE Assist Linux 2.2.4",
+  "summary": "Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Assist attempts one restart of the GNOME and desktop portal services, then creates a fresh sharing session. One amd64 installer supports Ubuntu 24.04 LTS and Ubuntu 26.04 LTS. Windows remains at 2.2.0.",
   "windows": {
     "version": "2.2.0",
     "download": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe",
     "checksum": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe.sha256"
   },
   "linux": {
-    "version": "2.2.3",
-    "download": "/downloads/2.2.3/ScottiBYTE-Assist_2.2.3_amd64.deb",
-    "checksum": "/downloads/2.2.3/ScottiBYTE-Assist_2.2.3_amd64.deb.sha256"
+    "version": "2.2.4",
+    "download": "/downloads/2.2.4/ScottiBYTE-Assist_2.2.4_amd64.deb",
+    "checksum": "/downloads/2.2.4/ScottiBYTE-Assist_2.2.4_amd64.deb.sha256"
   }
 }

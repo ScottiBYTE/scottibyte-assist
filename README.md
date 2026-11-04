@@ -4,29 +4,11 @@
 
 | Component | Version |
 | --- | --- |
-| Assist Server | [1.4.5](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.5) |
-| Ubuntu Linux client | [2.2.3](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.3), one amd64 installer for Ubuntu 24.04 and 26.04 |
+| Assist Server | [1.4.6](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.6) |
+| Ubuntu Linux client | [2.2.4](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.4), one amd64 installer for Ubuntu 24.04 and 26.04 |
 | Windows client | 2.2.0 |
 
-Linux 2.2.3 improves Wayland absolute pointer control, startup cursor behavior, portal request cleanup, and shared-window cropping and viewer sizing. See the [Linux release notes](docs/release-notes-2.2.3.md).
-
-
-**ScottiBYTE Assist** is an open-source, self-hosted remote
-assistance platform for Windows and Linux.
-
-It is designed as an alternative to remote-support and
-remote-access products such as TeamViewer, Chrome Remote
-Desktop, AnyDesk, LogMeIn, RustDesk, and MeshCentral, while
-taking a deliberately different approach to how remote access
-is established.
-
-![Receive Support with ScottiBYTE Assist](docs/images/receiver.png)
-
-Assist server profiles can be added, edited, and selected from
-the client Settings window. Provider authorization is stored
-separately for each server.
-
-![ScottiBYTE Assist Settings](docs/images/settings.png)
+Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Assist attempts one restart of the GNOME and desktop portal services, then creates a fresh sharing session. See the [Linux release notes](docs/release-notes-2.2.4.md).
 
 ## Remote assistance, not unattended remote access
 
