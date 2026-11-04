@@ -22,6 +22,7 @@ class QDBusArgument;
 class QDBusMessage;
 class QTimer;
 class QDBusObjectPath;
+class QProcess;
 
 QDBusArgument &operator<<(
     QDBusArgument &argument,
@@ -113,6 +114,7 @@ private:
         Stage stage);
 
     void createSession();
+    void beginPortalSession();
     void selectDevices();
     void selectSources();
     bool requestClipboard();
@@ -129,6 +131,8 @@ private:
 
     void closeSessionObject();
     void resetState();
+    void recoverPortal(const QString &reason);
+    void finishPortalRecovery(int exitCode, int exitStatus);
 
     QString sessionHandleFrom(
         const QVariantMap &results) const;
@@ -146,6 +150,8 @@ private:
     Stage stage_ = Stage::Idle;
 
     QTimer *requestTimer_ = nullptr;
+    QTimer *portalRecoveryTimer_ = nullptr;
+    QProcess *portalRecoveryProcess_ = nullptr;
     quint64 requestGeneration_ = 0;
     QString currentRequestMethod_;
     QString currentRequestPath_;
@@ -158,4 +164,6 @@ private:
 
     bool clipboardSignalsConnected_ = false;
     QString clipboardText_;
+    bool portalRecoveryAttempted_ = false;
+    bool portalRecoveryInProgress_ = false;
 };

@@ -15,6 +15,7 @@
 #include <QDBusVariant>
 #include <QDBusUnixFileDescriptor>
 #include <QFile>
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QStringList>
 #include <QUuid>
@@ -116,15 +117,44 @@ PortalSession::PortalSession(QObject *parent)
                      .arg(currentRequestMethod_));
         }
     });
+    portalRecoveryProcess_ = new QProcess(this);
+    portalRecoveryTimer_ = new QTimer(this);
+    portalRecoveryTimer_->setSingleShot(true);
+
+    connect(portalRecoveryTimer_, &QTimer::timeout, this, [this]() {
+        if (portalRecoveryInProgress_ &&
+            portalRecoveryProcess_->state() != QProcess::NotRunning) {
+            portalRecoveryProcess_->kill();
+            fail(QStringLiteral(
+                "Timed out restarting the Wayland desktop portal."));
+        }
+    });
+
+    connect(portalRecoveryProcess_,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, [this](int exitCode, QProcess::ExitStatus exitStatus) {
+        finishPortalRecovery(exitCode, static_cast<int>(exitStatus));
+    });
+
+    connect(portalRecoveryProcess_, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart && portalRecoveryInProgress_) {
+            portalRecoveryTimer_->stop();
+            fail(QStringLiteral(
+                "Could not start systemctl to recover the Wayland portal."));
+        }
+    });
+
     auto *serviceWatcher = new QDBusServiceWatcher(
         QString::fromLatin1(portalService), bus_,
         QDBusServiceWatcher::WatchForOwnerChange, this);
     connect(serviceWatcher, &QDBusServiceWatcher::serviceOwnerChanged,
             this, [this](const QString &, const QString &oldOwner,
                          const QString &newOwner) {
-        if (!oldOwner.isEmpty() && oldOwner != newOwner && stage_ != Stage::Idle) {
-            fail(QStringLiteral("The Wayland portal service restarted or disconnected. "
-                                "Try sharing again when the service is available."));
+        if (!oldOwner.isEmpty() && oldOwner != newOwner &&
+            stage_ != Stage::Idle && !portalRecoveryInProgress_) {
+            recoverPortal(QStringLiteral(
+                "The Wayland portal service restarted or disconnected."));
         }
     });
 }
@@ -295,8 +325,17 @@ bool PortalSession::callRequestMethod(
             return;
         }
         if (reply.isError()) {
-            fail(QStringLiteral("%1 failed: %2")
-                     .arg(methodName, reply.error().message()));
+            const QString errorName = reply.error().name();
+            if (errorName == QStringLiteral("org.freedesktop.DBus.Error.ServiceUnknown") ||
+                errorName == QStringLiteral("org.freedesktop.DBus.Error.NameHasNoOwner") ||
+                errorName == QStringLiteral("org.freedesktop.DBus.Error.NoReply") ||
+                errorName == QStringLiteral("org.freedesktop.DBus.Error.Disconnected")) {
+                recoverPortal(QStringLiteral("%1 failed: %2")
+                                  .arg(methodName, reply.error().message()));
+            } else {
+                fail(QStringLiteral("%1 failed: %2")
+                         .arg(methodName, reply.error().message()));
+            }
             return;
         }
         const QString returnedPath = reply.value().path();
@@ -317,22 +356,27 @@ bool PortalSession::callRequestMethod(
 
 void PortalSession::start()
 {
-    if (!isSupported()) {
-        fail(
-            QStringLiteral(
-                "A Wayland session with ScreenCast and "
-                "RemoteDesktop portals is required."));
+    if (stage_ != Stage::Idle || portalRecoveryInProgress_) {
         return;
     }
 
-    if (stage_ != Stage::Idle) {
-        return;
-    }
-
+    portalRecoveryAttempted_ = false;
     emit busyChanged(true);
     emit activeChanged(false);
     emit detailsChanged(QString());
 
+    if (!isSupported()) {
+        recoverPortal(QStringLiteral(
+            "The Wayland ScreenCast or RemoteDesktop portal is unavailable."));
+        return;
+    }
+
+    beginPortalSession();
+}
+
+void PortalSession::beginPortalSession()
+{
+    emit statusChanged(QStringLiteral("Starting Wayland portal session…"));
     createSession();
 }
 
@@ -439,9 +483,8 @@ void PortalSession::selectSources()
         : 0U;
 
     if (!modesReply.isValid() || !cursorModesValid || advertisedModes == 0U) {
-        fail(QStringLiteral(
-            "The GNOME desktop portal is unavailable. "
-            "Restart the desktop portal and try sharing again."));
+        recoverPortal(QStringLiteral(
+            "The GNOME desktop portal did not provide screen-capture capabilities."));
         return;
     }
     const uint cursorModes = advertisedModes;
@@ -668,6 +711,7 @@ void PortalSession::onRequestResponse(
                 << eisFd_;
 
         stage_ = Stage::Active;
+        portalRecoveryAttempted_ = false;
 
         // Publish the selected stream identity before starting EIS discovery.
         emit pointerMappingReady(
@@ -1295,7 +1339,17 @@ void PortalSession::onSelectionTransfer(
 
 void PortalSession::stop()
 {
-    if (stage_ == Stage::Idle) {
+    if (portalRecoveryTimer_ != nullptr) {
+        portalRecoveryTimer_->stop();
+    }
+    if (portalRecoveryProcess_ != nullptr &&
+        portalRecoveryProcess_->state() != QProcess::NotRunning) {
+        portalRecoveryProcess_->kill();
+        portalRecoveryProcess_->waitForFinished(1000);
+    }
+    const bool wasBusy = stage_ != Stage::Idle || portalRecoveryInProgress_;
+    portalRecoveryInProgress_ = false;
+    if (!wasBusy) {
         return;
     }
 
@@ -1375,6 +1429,11 @@ void PortalSession::resetState()
 void PortalSession::fail(const QString &message)
 {
     qWarning() << "assist-wayland-portal:" << message;
+    portalRecoveryTimer_->stop();
+    portalRecoveryInProgress_ = false;
+    if (portalRecoveryProcess_->state() != QProcess::NotRunning) {
+        portalRecoveryProcess_->kill();
+    }
     cancelPendingRequest();
     closeSessionObject();
     resetState();
@@ -1384,5 +1443,61 @@ void PortalSession::fail(const QString &message)
 
     emit busyChanged(false);
     emit activeChanged(false);
+}
+
+void PortalSession::recoverPortal(const QString &reason)
+{
+    if (portalRecoveryInProgress_) {
+        return;
+    }
+    if (portalRecoveryAttempted_) {
+        fail(reason + QStringLiteral(" Automatic portal recovery already failed once; restart the portal services and try sharing again."));
+        return;
+    }
+    const QString sessionType = QProcessEnvironment::systemEnvironment()
+        .value(QStringLiteral("XDG_SESSION_TYPE")).trimmed().toLower();
+    if (sessionType != QStringLiteral("wayland") || !bus_.isConnected()) {
+        fail(reason);
+        return;
+    }
+    portalRecoveryAttempted_ = true;
+    portalRecoveryInProgress_ = true;
+    emit statusChanged(QStringLiteral("Portal unavailable. Restarting the Wayland portal and reconnecting…"));
+    emit busyChanged(true);
+    cancelPendingRequest();
+    closeSessionObject();
+    resetState();
+    emit activeChanged(false);
+    portalRecoveryTimer_->start(15000);
+    portalRecoveryProcess_->start(QStringLiteral("systemctl"),
+        {QStringLiteral("--user"), QStringLiteral("restart"),
+         QStringLiteral("xdg-desktop-portal-gnome.service"),
+         QStringLiteral("xdg-desktop-portal.service")});
+}
+
+void PortalSession::finishPortalRecovery(int exitCode, int exitStatus)
+{
+    if (!portalRecoveryInProgress_) {
+        return;
+    }
+    portalRecoveryTimer_->stop();
+    if (exitStatus != static_cast<int>(QProcess::NormalExit) || exitCode != 0) {
+        portalRecoveryInProgress_ = false;
+        fail(QStringLiteral("Could not restart the Wayland portal services (systemctl exit code %1).")
+                 .arg(exitCode));
+        return;
+    }
+    QTimer::singleShot(800, this, [this]() {
+        if (!portalRecoveryInProgress_) {
+            return;
+        }
+        if (!isSupported()) {
+            portalRecoveryInProgress_ = false;
+            fail(QStringLiteral("The Wayland portal did not become available after restarting its services."));
+            return;
+        }
+        portalRecoveryInProgress_ = false;
+        beginPortalSession();
+    });
 }
 
