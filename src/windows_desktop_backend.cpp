@@ -830,14 +830,28 @@ bool sendElevatedBrokerCommand(
     CloseHandle(pipe);
 
     if (!readResult) {
+        const std::string diagnostic =
+            std::string(
+                "ScottiBYTE Assist: elevated broker reply read failed for ") +
+            command + "\n";
+        OutputDebugStringA(diagnostic.c_str());
         return false;
     }
 
-    return
-        std::string(
-            response,
-            response + bytesRead) ==
-        "OK";
+    const std::string reply(
+        response,
+        response + bytesRead);
+
+    if (reply != "OK") {
+        const std::string diagnostic =
+            std::string(
+                "ScottiBYTE Assist: elevated broker rejected command: ") +
+            command + " -> " + reply + "\n";
+        OutputDebugStringA(diagnostic.c_str());
+        return false;
+    }
+
+    return true;
 }
 
 void sendVirtualKey(
@@ -2130,18 +2144,34 @@ void WindowsDesktopBackend::clickRightAt(
     int x,
     int y)
 {
+    int desktopX = 0;
+    int desktopY = 0;
+
+    if (
+        desktopPointForFramePoint(
+            x,
+            y,
+            desktopX,
+            desktopY)
+    ) {
+        const std::string command =
+            "RCLICKAT " +
+            std::to_string(desktopX) +
+            " " +
+            std::to_string(desktopY);
+
+        if (sendElevatedBrokerCommand(
+                command)) {
+            return;
+        }
+
+        OutputDebugStringA(
+            "ScottiBYTE Assist: RCLICKAT failed; using direct input fallback.\n");
+    }
+
     movePointerTo(
         x,
         y);
-
-    if (
-        sendElevatedBrokerCommand(
-            "RDOWN") &&
-        sendElevatedBrokerCommand(
-            "RUP")
-    ) {
-        return;
-    }
 
     sendMouseButton(
         MOUSEEVENTF_RIGHTDOWN);
