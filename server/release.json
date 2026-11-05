@@ -1,11 +1,11 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "New in ScottiBYTE Assist Linux 2.2.4",
-  "summary": "Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Assist attempts one restart of the GNOME and desktop portal services, then creates a fresh sharing session. One amd64 installer supports Ubuntu 24.04 LTS and Ubuntu 26.04 LTS. Windows remains at 2.2.0.",
+  "headline": "ScottiBYTE Assist clients 2.2.4 for Windows and Linux",
+  "summary": "Windows 2.2.4 fixes remote right-click in elevated Windows applications. Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Linux supports Ubuntu 24.04 LTS and 26.04 LTS.",
   "windows": {
-    "version": "2.2.0",
-    "download": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe",
-    "checksum": "/downloads/2.2.0/ScottiBYTE-Assist-Setup-2.2.0.exe.sha256"
+    "version": "2.2.4",
+    "download": "/downloads/2.2.4/ScottiBYTE-Assist-Setup-2.2.4.exe",
+    "checksum": "/downloads/2.2.4/ScottiBYTE-Assist-Setup-2.2.4.exe.sha256"
   },
   "linux": {
     "version": "2.2.4",

@@ -10,16 +10,19 @@ It is designed as an alternative to TeamViewer, Chrome Remote Desktop, AnyDesk, 
 
 | Component | Version | Availability |
 | --- | --- | --- |
-| Assist Server | **1.4.6** | Docker image `scottibyte/scottibyte-assist-server:1.4.6` or `:latest` |
+| Assist Server | **1.4.7** | Docker image `scottibyte/scottibyte-assist-server:1.4.7` or `:latest` |
 | Ubuntu Linux client | **2.2.4** | Ubuntu 24.04 LTS and 26.04 LTS, amd64 |
-| Windows client | **2.2.0** | Windows installer |
+| Windows client | **2.2.4** | Windows installer |
 
 **Linux 2.2.4** adds automatic Wayland portal recovery. If a portal service disconnects or becomes unavailable, Assist attempts one restart of the GNOME and desktop portal services, then reconnects the sharing session. The Debian installer supports Ubuntu 24.04 LTS and Ubuntu 26.04 LTS.
 
+**Windows 2.2.4** fixes remote right-click in elevated Windows applications using the privileged helper.
+
 The Linux and Windows clients are versioned independently of the server. The 2.2.0 voice update increased WAN voice buffering from 40 ms to 100 ms to improve audio continuity.
 
+- [Windows 2.2.4 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/windows-v2.2.4)
 - [Linux 2.2.4 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.4)
-- [Server 1.4.6 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.6)
+- [Server 1.4.7 release](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.7)
 - [All GitHub releases](https://github.com/ScottiBYTE/scottibyte-assist/releases)
 
 ## What makes ScottiBYTE Assist different
@@ -76,7 +79,7 @@ Create a `docker-compose.yml` file:
 ```yaml
 services:
   assist-server:
-    image: scottibyte/scottibyte-assist-server:1.4.6
+    image: scottibyte/scottibyte-assist-server:1.4.7
     container_name: scottibyte-assist-server
     restart: unless-stopped
 
@@ -107,7 +110,7 @@ services:
       start_period: 10s
 ```
 
-Replace `https://assist.example.com` with the public HTTPS URL for your server. You can substitute `:latest` for `:1.4.6` if you prefer to follow the latest published server image.
+Replace `https://assist.example.com` with the public HTTPS URL for your server. You can substitute `:latest` for `:1.4.7` if you prefer to follow the latest published server image.
 
 Start the server:
 

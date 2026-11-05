@@ -4,11 +4,11 @@
 
 | Component | Version |
 | --- | --- |
-| Assist Server | [1.4.6](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.6) |
+| Assist Server | [1.4.7](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.7) |
 | Ubuntu Linux client | [2.2.4](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.4), one amd64 installer for Ubuntu 24.04 and 26.04 |
-| Windows client | 2.2.0 |
+| Windows client | [2.2.4](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/windows-v2.2.4) |
 
-Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Assist attempts one restart of the GNOME and desktop portal services, then creates a fresh sharing session. See the [Linux release notes](docs/release-notes-2.2.4.md).
+Windows 2.2.4 fixes remote right-click in elevated applications. See the [Windows release notes](docs/release-notes-windows-2.2.4.md). Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Assist attempts one restart of the GNOME and desktop portal services, then creates a fresh sharing session. See the [Linux release notes](docs/release-notes-2.2.4.md).
 
 ## Remote assistance, not unattended remote access
 
@@ -112,10 +112,10 @@ public release packaging.
 
 Native client releases are preserved in platform-specific source tags:
 
-- `windows-v2.2.0` — Windows 2.2.0 client source
-- `linux-v2.2.3` — Ubuntu Linux 2.2.3 client source
+- `windows-v2.2.4` — Windows 2.2.4 client source
+- `linux-v2.2.4` — Ubuntu Linux 2.2.4 client source
 
-The Linux 2.2.3 source is also maintained on
+The Linux 2.2.4 source is also maintained on
 `feature/remote-terminal-linux`.
 
 Server releases use separate tags, including `server-v1.4.5`.
