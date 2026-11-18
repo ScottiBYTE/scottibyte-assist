@@ -54,6 +54,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QListWidget>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QUrlQuery>
@@ -61,6 +62,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QProgressBar>
 #include <QRegularExpression>
@@ -88,6 +90,154 @@
 
 namespace
 {
+
+class DialogFollowsOwnerMove final : public QObject
+{
+public:
+    DialogFollowsOwnerMove(
+        QWidget *owner,
+        QWidget *dialog,
+        QObject *lifetimeParent = nullptr)
+        : QObject(lifetimeParent),
+          owner_(owner),
+          dialog_(dialog)
+    {
+        owner->installEventFilter(this);
+        dialog->installEventFilter(this);
+
+        if (QWindow *ownerWindow = owner->windowHandle()) {
+            QObject::connect(
+                ownerWindow,
+                &QWindow::xChanged,
+                this,
+                [this](int) { scheduleOwnerMove(); });
+
+            QObject::connect(
+                ownerWindow,
+                &QWindow::yChanged,
+                this,
+                [this](int) { scheduleOwnerMove(); });
+        }
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (
+            watched == dialog_.data() &&
+            event->type() == QEvent::Show
+        ) {
+            QTimer::singleShot(
+                0,
+                this,
+                [this]()
+                {
+                    if (owner_.isNull() || dialog_.isNull()) {
+                        return;
+                    }
+
+                    previousOwnerPosition_ =
+                        owner_->frameGeometry().topLeft();
+                    previousDialogPosition_ =
+                        dialog_->frameGeometry().topLeft();
+                    tracking_ = true;
+                });
+        } else if (
+            tracking_ &&
+            !syncing_ &&
+            event->type() == QEvent::Move
+        ) {
+            if (watched == owner_.data()) {
+                scheduleOwnerMove();
+            } else if (watched == dialog_.data()) {
+                scheduleDialogMove();
+            }
+        }
+
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    void scheduleOwnerMove()
+    {
+        QTimer::singleShot(
+            0,
+            this,
+            [this]()
+            {
+                if (
+                    !tracking_ ||
+                    syncing_ ||
+                    owner_.isNull() ||
+                    dialog_.isNull()
+                ) {
+                    return;
+                }
+
+                const QPoint current =
+                    owner_->frameGeometry().topLeft();
+                const QPoint delta =
+                    current - previousOwnerPosition_;
+
+                if (delta.isNull()) {
+                    return;
+                }
+
+                syncing_ = true;
+                dialog_->move(dialog_->pos() + delta);
+                syncing_ = false;
+
+                previousOwnerPosition_ =
+                    owner_->frameGeometry().topLeft();
+                previousDialogPosition_ =
+                    dialog_->frameGeometry().topLeft();
+            });
+    }
+
+    void scheduleDialogMove()
+    {
+        QTimer::singleShot(
+            0,
+            this,
+            [this]()
+            {
+                if (
+                    !tracking_ ||
+                    syncing_ ||
+                    owner_.isNull() ||
+                    dialog_.isNull()
+                ) {
+                    return;
+                }
+
+                const QPoint current =
+                    dialog_->frameGeometry().topLeft();
+                const QPoint delta =
+                    current - previousDialogPosition_;
+
+                if (delta.isNull()) {
+                    return;
+                }
+
+                syncing_ = true;
+                owner_->move(owner_->pos() + delta);
+                syncing_ = false;
+
+                previousOwnerPosition_ =
+                    owner_->frameGeometry().topLeft();
+                previousDialogPosition_ =
+                    dialog_->frameGeometry().topLeft();
+            });
+    }
+
+    QPointer<QWidget> owner_;
+    QPointer<QWidget> dialog_;
+    QPoint previousOwnerPosition_;
+    QPoint previousDialogPosition_;
+    bool tracking_ = false;
+    bool syncing_ = false;
+};
+
 
 QString formattedSupportCode(
     QString code)
@@ -2982,7 +3132,19 @@ QMessageBox QPushButton:default {
 
     refresh();
 
-    dialog.exec();
+    DialogFollowsOwnerMove moveWithOwner(parent, &dialog);
+
+    dialog.setWindowModality(Qt::NonModal);
+
+    QEventLoop dialogEventLoop;
+    QObject::connect(
+        &dialog,
+        &QDialog::finished,
+        &dialogEventLoop,
+        &QEventLoop::quit);
+
+    dialog.show();
+    dialogEventLoop.exec();
 }
 
 void showSessionDetailsDialog(
@@ -3439,7 +3601,19 @@ QDialog#sessionDetailsDialog QPushButton:hover {
     refreshPrevious();
     refreshTimer->start();
 
-    dialog.exec();
+    DialogFollowsOwnerMove moveWithOwner(parent, &dialog);
+
+    dialog.setWindowModality(Qt::NonModal);
+
+    QEventLoop dialogEventLoop;
+    QObject::connect(
+        &dialog,
+        &QDialog::finished,
+        &dialogEventLoop,
+        &QEventLoop::quit);
+
+    dialog.show();
+    dialogEventLoop.exec();
 }
 
 class FullScreenExitBubble final
@@ -4841,7 +5015,7 @@ QLabel#remotePlaceholder {
 
     auto *endSupportButton =
         makeButton(
-            QStringLiteral("End Support"),
+            QStringLiteral("Request Support"),
             QStringLiteral("dangerButton"));
 
     endSupportButton->setEnabled(false);
@@ -4899,6 +5073,12 @@ QLabel#remotePlaceholder {
                 receiveButtonWidth,
                 button->sizeHint().width());
     }
+
+    receiveButtonWidth =
+        qMax(
+            receiveButtonWidth,
+            endSupportButton->fontMetrics().horizontalAdvance(
+                QStringLiteral("Cancel Request")) + 44);
 
     for (auto *button : receiveButtons) {
         button->setFixedWidth(
@@ -5221,6 +5401,67 @@ QLabel#remotePlaceholder {
         connectButton);
 
     connectRow->addStretch();
+
+    auto *incomingRequestsButton =
+        makeButton(
+            QStringLiteral("Incoming Requests (0)"),
+            QStringLiteral("secondaryButton"));
+    incomingRequestsButton->setMinimumWidth(190);
+    incomingRequestsButton->setFixedHeight(44);
+    incomingRequestsButton->hide();
+
+    auto *incomingRequestsDialog = new QDialog(window);
+    new DialogFollowsOwnerMove(
+        window,
+        incomingRequestsDialog,
+        window);
+    incomingRequestsDialog->setWindowTitle(
+        QStringLiteral("Incoming Support Requests"));
+    incomingRequestsDialog->setWindowModality(Qt::NonModal);
+    incomingRequestsDialog->setMinimumSize(480, 320);
+    incomingRequestsDialog->resize(540, 360);
+
+    auto *incomingRequestsDialogLayout =
+        new QVBoxLayout(incomingRequestsDialog);
+
+    auto *incomingRequestsTitle =
+        makeLabel(
+            QStringLiteral("Incoming support requests"),
+            QStringLiteral("statusText"));
+    incomingRequestsTitle->setAlignment(Qt::AlignCenter);
+    incomingRequestsDialogLayout->addWidget(incomingRequestsTitle);
+
+    auto *incomingRequestsList = new QListWidget;
+    incomingRequestsList->setObjectName(
+        QStringLiteral("incomingRequestsList"));
+    incomingRequestsList->setSelectionMode(
+        QAbstractItemView::SingleSelection);
+    incomingRequestsList->setMinimumHeight(170);
+    incomingRequestsList->setStyleSheet(
+        QStringLiteral(
+            "QListWidget { background: #0b2442; color: white;"
+            " border: 1px solid #25c9ef; border-radius: 8px;"
+            " padding: 4px; }"
+            "QListWidget::item { padding: 7px; }"
+            "QListWidget::item:selected { background: #23548a; }"));
+    incomingRequestsDialogLayout->addWidget(incomingRequestsList, 1);
+
+    auto *acceptRequestButton =
+        makeButton(
+            QStringLiteral("Accept Selected Request"),
+            QStringLiteral("primaryButton"));
+    acceptRequestButton->setEnabled(false);
+
+    auto *closeRequestsButton =
+        makeButton(
+            QStringLiteral("Close"),
+            QStringLiteral("secondaryButton"));
+
+    auto *requestDialogButtons = new QHBoxLayout;
+    requestDialogButtons->addStretch();
+    requestDialogButtons->addWidget(acceptRequestButton);
+    requestDialogButtons->addWidget(closeRequestsButton);
+    incomingRequestsDialogLayout->addLayout(requestDialogButtons);
 
     auto *provideStatus =
         makeLabel(
@@ -6435,7 +6676,12 @@ QLineEdit#chatInput:disabled {
 
     provideLayout->addSpacing(18);
 
-    provideLayout->addWidget(provideStatus);
+    auto *providerStatusRow = new QHBoxLayout;
+    providerStatusRow->setSpacing(8);
+    providerStatusRow->setContentsMargins(0, 0, 0, 0);
+    providerStatusRow->addWidget(provideStatus, 1);
+    providerStatusRow->addWidget(incomingRequestsButton);
+    provideLayout->addLayout(providerStatusRow);
     provideLayout->addLayout(providerWindowControls);
     provideLayout->addLayout(
         shareSourceLayout);
@@ -7496,6 +7742,9 @@ QLineEdit#chatInput:disabled {
     auto *providerSignaling =
         new WanSignalingClient(window);
 
+    bool customerRequestPending = false;
+    bool customerRequestClaimed = false;
+
     QString previousSessionDiagnostics;
 
     bool customerDisconnectCaptured = false;
@@ -7554,6 +7803,30 @@ QLineEdit#chatInput:disabled {
         ]()
         {
             customerDisconnectCaptured = false;
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::sessionSubscribed,
+        window,
+        [
+            receiveButton,
+            customerSignaling,
+            endSupportButton,
+            &customerRequestPending,
+            &customerRequestClaimed
+        ]()
+        {
+            if (
+                receiveButton->isChecked() &&
+                !customerSignaling->sessionCode().isEmpty() &&
+                !customerRequestPending &&
+                !customerRequestClaimed
+            ) {
+                endSupportButton->setText(
+                    QStringLiteral("Request Support"));
+                endSupportButton->setEnabled(true);
+            }
         });
 
     QObject::connect(
@@ -8184,7 +8457,9 @@ providerScreenDismissFilter->
             copyCodeIcon,
             resetSupportElapsed,
             &customerCodeConsumed,
-            &restartingCustomerSession
+            &restartingCustomerSession,
+            &customerRequestPending,
+            &customerRequestClaimed
         ](
             bool resetElapsed)
         {
@@ -8194,6 +8469,8 @@ providerScreenDismissFilter->
 
             restartingCustomerSession = true;
             customerCodeConsumed = false;
+            customerRequestPending = false;
+            customerRequestClaimed = false;
 
             lanSession->disconnectSession();
 
@@ -8220,6 +8497,8 @@ providerScreenDismissFilter->
                     "Copy support code"));
 
             newCodeButton->setEnabled(false);
+            endSupportButton->setText(
+                QStringLiteral("Request Support"));
             endSupportButton->setEnabled(false);
 
             receiveStatus->setText(
@@ -8247,6 +8526,316 @@ providerScreenDismissFilter->
 
             restartingCustomerSession = false;
         };
+
+    const auto startProviderAvailability =
+        [providerSignaling, provideStatus]()
+        {
+            const QUrl serverUrl =
+                configuredAssistServerUrl();
+
+            QString credentialError;
+            const QString credential =
+                loadProviderCredential(
+                    serverUrl,
+                    &credentialError);
+
+            if (credential.isEmpty()) {
+                providerSignaling->disconnectFromServer();
+                provideStatus->setText(
+                    QStringLiteral(
+                        "Enter a support code to connect. "
+                        "Incoming requests require provider authorization."));
+                return;
+            }
+
+            provideStatus->setText(
+                QStringLiteral(
+                    "Connecting to provider request notifications..."));
+
+            providerSignaling->connectProviderAvailability(
+                serverUrl,
+                assistWebSocketUrl(serverUrl),
+                credential,
+                QHostInfo::localHostName());
+        };
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::providerAvailabilityReady,
+        window,
+        [provideStatus]()
+        {
+            provideStatus->setText(
+                QStringLiteral(
+                    "Ready for incoming support requests."));
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::supportRequestAvailable,
+        window,
+        [
+            incomingRequestsTitle,
+            incomingRequestsList,
+            acceptRequestButton
+        ](
+            const QString &code,
+            const QString &requesterName)
+        {
+            if (code.size() != 6) {
+                return;
+            }
+
+            for (
+                int index = 0;
+                index < incomingRequestsList->count();
+                ++index
+            ) {
+                auto *existing = incomingRequestsList->item(index);
+
+                if (
+                    existing->data(Qt::UserRole).toString() == code
+                ) {
+                    existing->setText(
+                        QStringLiteral("%1 — %2")
+                            .arg(
+                                requesterName,
+                                formattedSupportCode(code)));
+                    return;
+                }
+            }
+
+            auto *item = new QListWidgetItem(
+                QStringLiteral("%1 — %2")
+                    .arg(
+                        requesterName.isEmpty()
+                            ? QStringLiteral("Unknown workstation")
+                            : requesterName,
+                        formattedSupportCode(code)));
+            item->setData(Qt::UserRole, code);
+            incomingRequestsList->addItem(item);
+
+            incomingRequestsTitle->show();
+            incomingRequestsList->show();
+            acceptRequestButton->show();
+            acceptRequestButton->setEnabled(
+                incomingRequestsList->currentItem() != nullptr);
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::supportRequestClosed,
+        window,
+        [
+            incomingRequestsTitle,
+            incomingRequestsList,
+            acceptRequestButton
+        ](
+            const QString &code,
+            const QString &)
+        {
+            for (
+                int index = incomingRequestsList->count() - 1;
+                index >= 0;
+                --index
+            ) {
+                auto *item = incomingRequestsList->item(index);
+
+                if (
+                    item->data(Qt::UserRole).toString() == code
+                ) {
+                    delete incomingRequestsList->takeItem(index);
+                }
+            }
+
+            const bool hasRequests =
+                incomingRequestsList->count() > 0;
+            incomingRequestsTitle->setVisible(hasRequests);
+            incomingRequestsList->setVisible(hasRequests);
+            acceptRequestButton->setVisible(hasRequests);
+            acceptRequestButton->setEnabled(
+                hasRequests &&
+                incomingRequestsList->currentItem() != nullptr);
+        });
+
+    QObject::connect(
+        incomingRequestsList,
+        &QListWidget::itemSelectionChanged,
+        acceptRequestButton,
+        [incomingRequestsList, acceptRequestButton]()
+        {
+            acceptRequestButton->setEnabled(
+                incomingRequestsList->currentItem() != nullptr);
+        });
+
+    QObject::connect(
+        acceptRequestButton,
+        &QPushButton::clicked,
+        window,
+        [incomingRequestsList, codeEntry, connectButton]()
+        {
+            auto *item = incomingRequestsList->currentItem();
+            if (item == nullptr) {
+                return;
+            }
+
+            codeEntry->setText(
+                formattedSupportCode(
+                    item->data(Qt::UserRole).toString()));
+            connectButton->click();
+        });
+
+    QObject::connect(
+        incomingRequestsButton,
+        &QPushButton::clicked,
+        window,
+        [incomingRequestsDialog]()
+        {
+            incomingRequestsDialog->showNormal();
+            incomingRequestsDialog->raise();
+            incomingRequestsDialog->activateWindow();
+        });
+
+    QObject::connect(
+        closeRequestsButton,
+        &QPushButton::clicked,
+        incomingRequestsDialog,
+        &QDialog::hide);
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::supportRequestAvailable,
+        window,
+        [
+            incomingRequestsButton,
+            incomingRequestsDialog,
+            incomingRequestsList,
+            acceptRequestButton
+        ](
+            const QString &,
+            const QString &)
+        {
+            if (
+                incomingRequestsList->count() > 0 &&
+                incomingRequestsList->currentItem() == nullptr
+            ) {
+                incomingRequestsList->setCurrentRow(0);
+            }
+
+            incomingRequestsButton->setText(
+                QStringLiteral("Incoming Requests (%1)")
+                    .arg(incomingRequestsList->count()));
+            incomingRequestsButton->show();
+            acceptRequestButton->setEnabled(
+                incomingRequestsList->currentItem() != nullptr);
+            incomingRequestsDialog->showNormal();
+            incomingRequestsDialog->raise();
+            incomingRequestsDialog->activateWindow();
+        });
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::supportRequestClosed,
+        window,
+        [
+            incomingRequestsButton,
+            incomingRequestsDialog,
+            incomingRequestsList
+        ](
+            const QString &,
+            const QString &)
+        {
+            const bool hasRequests =
+                incomingRequestsList->count() > 0;
+
+            incomingRequestsButton->setText(
+                QStringLiteral("Incoming Requests (%1)")
+                    .arg(incomingRequestsList->count()));
+            incomingRequestsButton->setVisible(hasRequests);
+
+            if (!hasRequests) {
+                incomingRequestsDialog->hide();
+            }
+        });
+
+    QObject::connect(
+        acceptRequestButton,
+        &QPushButton::clicked,
+        incomingRequestsDialog,
+        &QDialog::hide);
+
+    QObject::connect(
+        providerSignaling,
+        &WanSignalingClient::errorOccurred,
+        incomingRequestsDialog,
+        [
+            incomingRequestsButton,
+            incomingRequestsDialog
+        ](
+            const QString &)
+        {
+            incomingRequestsButton->hide();
+            incomingRequestsDialog->hide();
+        });
+
+    QObject::connect(
+        customerSignaling,
+        &WanSignalingClient::supportRequestStateChanged,
+        window,
+        [
+            lanSession,
+            endSupportButton,
+            receiveStatus,
+            &customerRequestPending,
+            &customerRequestClaimed
+        ](
+            const QString &status,
+            const QString &)
+        {
+            if (lanSession->isConnected()) {
+                customerRequestPending = false;
+                customerRequestClaimed = false;
+                endSupportButton->setText(
+                    QStringLiteral("End Support"));
+                endSupportButton->setEnabled(true);
+                return;
+            }
+
+            if (status == QStringLiteral("pending")) {
+                customerRequestPending = true;
+                customerRequestClaimed = false;
+                endSupportButton->setText(
+                    QStringLiteral("Cancel Request"));
+                endSupportButton->setEnabled(true);
+                receiveStatus->setText(
+                    QStringLiteral(
+                        "Support request sent. Waiting for a provider..."));
+                return;
+            }
+
+            if (status == QStringLiteral("claimed")) {
+                customerRequestPending = false;
+                customerRequestClaimed = true;
+                endSupportButton->setText(
+                    QStringLiteral("Connecting..."));
+                endSupportButton->setEnabled(false);
+                receiveStatus->setText(
+                    QStringLiteral(
+                        "A provider accepted. Connecting to your computer..."));
+                return;
+            }
+
+            customerRequestPending = false;
+            customerRequestClaimed = false;
+            endSupportButton->setText(
+                QStringLiteral("Request Support"));
+            endSupportButton->setEnabled(true);
+            receiveStatus->setText(
+                status == QStringLiteral("canceled")
+                    ? QStringLiteral("Support request canceled.")
+                    : QStringLiteral(
+                          "The support request is no longer active."));
+        });
 
     QObject::connect(
         customerSignaling,
@@ -8293,10 +8882,21 @@ providerScreenDismissFilter->
             receiveStatus,
             progressHeading,
             progressDetail,
-            newCodeButton
+            newCodeButton,
+            endSupportButton,
+            customerSignaling,
+            &customerRequestPending,
+            &customerRequestClaimed
         ](
             const QString &message)
         {
+            customerRequestPending = false;
+            customerRequestClaimed = false;
+            endSupportButton->setText(
+                QStringLiteral("Request Support"));
+            endSupportButton->setEnabled(
+                !customerSignaling->sessionCode().isEmpty());
+
             receiveStatus->setText(
                 QStringLiteral("Error: ") +
                 message);
@@ -8325,7 +8925,8 @@ providerScreenDismissFilter->
             provideButton,
             lanSession,
             customerSignaling,
-            startCustomerSession
+            startCustomerSession,
+            startProviderAvailability
         ](
             int id)
         {
@@ -8366,6 +8967,8 @@ providerScreenDismissFilter->
              */
             customerSignaling->
                 disconnectFromServer();
+
+            startProviderAvailability();
         });
 
     QObject::connect(
@@ -8384,10 +8987,40 @@ providerScreenDismissFilter->
         &QPushButton::clicked,
         window,
         [
-            lanSession
+            lanSession,
+            customerSignaling,
+            endSupportButton,
+            receiveStatus,
+            &customerRequestPending,
+            &customerRequestClaimed
         ]()
         {
-            lanSession->disconnectSession();
+            if (lanSession->isConnected()) {
+                lanSession->disconnectSession();
+                return;
+            }
+
+            if (customerRequestClaimed) {
+                return;
+            }
+
+            if (customerRequestPending) {
+                customerSignaling->cancelSupportRequest();
+                customerRequestPending = false;
+                endSupportButton->setText(
+                    QStringLiteral("Request Support"));
+                receiveStatus->setText(
+                    QStringLiteral("Canceling support request..."));
+                return;
+            }
+
+            customerSignaling->requestSupport();
+            customerRequestPending = true;
+            endSupportButton->setText(
+                QStringLiteral("Cancel Request"));
+            receiveStatus->setText(
+                QStringLiteral(
+                    "Support request sent. Waiting for a provider..."));
         });
 
     QObject::connect(
@@ -9837,10 +10470,10 @@ QDialog#settingsDialog QPushButton {
                 lanSession->stopProviderShare();
             }
 
-            lanSession->disconnectSession();
-
             providerSignaling->
                 disconnectFromServer();
+
+            lanSession->disconnectSession();
 
             providerCandidateFallbackTimer->
                 stop();
@@ -10176,7 +10809,10 @@ QDialog#settingsDialog QPushButton {
             provideStatus,
             codeEntry,
             connectButton,
-            disconnectButton
+            disconnectButton,
+            incomingRequestsTitle,
+            incomingRequestsList,
+            acceptRequestButton
         ](
             const QString &message)
         {
@@ -10187,6 +10823,11 @@ QDialog#settingsDialog QPushButton {
             codeEntry->setEnabled(true);
             connectButton->setEnabled(true);
             disconnectButton->setEnabled(false);
+            incomingRequestsList->clear();
+            incomingRequestsTitle->hide();
+            incomingRequestsList->hide();
+            acceptRequestButton->setEnabled(false);
+            acceptRequestButton->hide();
         });
 
     QObject::connect(
@@ -10907,6 +11548,9 @@ QObject::connect(
             &customerCodeConsumed,
             &restartingCustomerSession,
             &providerWasConnected,
+            &customerRequestPending,
+            &customerRequestClaimed,
+            startProviderAvailability,
             window
         ](
             bool connected)
@@ -10968,6 +11612,8 @@ QObject::connect(
             if (receiveButton->isChecked()) {
                 if (connected) {
                     customerCodeConsumed = true;
+                    customerRequestPending = false;
+                    customerRequestClaimed = false;
 
                     progressHeading->setText(
                         QStringLiteral(
@@ -10978,9 +11624,13 @@ QObject::connect(
                             "Remote assistance is active."));
 
                     newCodeButton->setEnabled(false);
+                    endSupportButton->setText(
+                        QStringLiteral("End Support"));
                     endSupportButton->setEnabled(true);
                     customerSendFileButton->setEnabled(true);
                 } else {
+                    customerRequestPending = false;
+                    customerRequestClaimed = false;
                     progressHeading->setText(
                         QStringLiteral(
                             "Secure session ready"));
@@ -10991,6 +11641,8 @@ QObject::connect(
                             "you to connect."));
 
                     newCodeButton->setEnabled(true);
+                    endSupportButton->setText(
+                        QStringLiteral("Request Support"));
                     endSupportButton->setEnabled(false);
                     customerSendFileButton->setEnabled(false);
 
@@ -11043,6 +11695,8 @@ QObject::connect(
                 provideStatus->setText(
                     QStringLiteral(
                         "The support session ended."));
+
+                startProviderAvailability();
             }
         });
 
