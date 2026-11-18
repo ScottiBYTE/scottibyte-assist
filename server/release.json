@@ -1,15 +1,15 @@
 {
   "releasesUrl": "https://github.com/ScottiBYTE/scottibyte-assist/releases",
-  "headline": "ScottiBYTE Assist clients 2.2.4 for Windows and Linux",
-  "summary": "Windows 2.2.4 fixes remote right-click in elevated Windows applications. Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Linux supports Ubuntu 24.04 LTS and 26.04 LTS.",
+  "headline": "ScottiBYTE Assist 3.0.0 for Windows and Linux",
+  "summary": "Client 3.0.0 adds customer-initiated support requests. Authorized providers can review incoming requests and accept one in the app. On Windows, moving the main window or either dialog moves the paired windows together. The Linux package supports Ubuntu 24.04 LTS and 26.04 LTS. Server 2.0.0 adds request handling and single-provider claim arbitration.",
   "windows": {
-    "version": "2.2.4",
-    "download": "/downloads/2.2.4/ScottiBYTE-Assist-Setup-2.2.4.exe",
-    "checksum": "/downloads/2.2.4/ScottiBYTE-Assist-Setup-2.2.4.exe.sha256"
+    "version": "3.0.0",
+    "download": "/downloads/3.0.0/ScottiBYTE-Assist-Setup-3.0.0.exe",
+    "checksum": "/downloads/3.0.0/ScottiBYTE-Assist-Setup-3.0.0.exe.sha256"
   },
   "linux": {
-    "version": "2.2.4",
-    "download": "/downloads/2.2.4/ScottiBYTE-Assist_2.2.4_amd64.deb",
-    "checksum": "/downloads/2.2.4/ScottiBYTE-Assist_2.2.4_amd64.deb.sha256"
+    "version": "3.0.0",
+    "download": "/downloads/3.0.0/ScottiBYTE-Assist_3.0.0_amd64.deb",
+    "checksum": "/downloads/3.0.0/ScottiBYTE-Assist_3.0.0_amd64.deb.sha256"
   }
 }
