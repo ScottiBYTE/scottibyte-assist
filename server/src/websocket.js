@@ -17,6 +17,7 @@ import {
 } from './database.js';
 
 const clients = new Set();
+const supportRequests = new Map();
 
 const RELAY_CHUNK_MAX_BYTES =
   48 * 1024;
@@ -101,6 +102,253 @@ function normalizedDeviceId(value) {
   return normalized || null;
 }
 
+function isIdleSupporter(client) {
+  return (
+    client.role === 'supporter' &&
+    client.authenticated &&
+    client.available === true &&
+    client.sessionCode === null &&
+    client.socket.readyState === WebSocket.OPEN
+  );
+}
+
+function sendAvailableSupportRequests(client) {
+  if (!isIdleSupporter(client)) {
+    return;
+  }
+
+  for (const request of supportRequests.values()) {
+    if (
+      request.requesterDeviceId &&
+      client.deviceId &&
+      request.requesterDeviceId.toLowerCase() ===
+        client.deviceId.toLowerCase()
+    ) {
+      continue;
+    }
+
+    sendJson(client.socket, {
+      type: 'support.request.available',
+      code: request.code,
+      requesterName: request.requesterName,
+      createdAt: request.createdAt
+    });
+  }
+}
+
+function broadcastSupportRequestClosed(
+  request,
+  status,
+  supporterDeviceId = null
+) {
+  supportRequests.delete(request.code);
+
+  const closedMessage = {
+    type: 'support.request.closed',
+    code: request.code,
+    status
+  };
+
+  for (const client of clients) {
+    if (
+      client.role === 'supporter' &&
+      client.authenticated &&
+      client.sessionCode === null &&
+      client.socket.readyState === WebSocket.OPEN
+    ) {
+      sendJson(client.socket, closedMessage);
+    }
+  }
+
+  const requester = request.requester;
+
+  if (
+    requester?.socket.readyState === WebSocket.OPEN
+  ) {
+    sendJson(requester.socket, {
+      type: 'support.request.state',
+      code: request.code,
+      status,
+      supporterDeviceId
+    });
+  }
+}
+
+function closeSupportRequest(
+  code,
+  status,
+  supporterDeviceId = null
+) {
+  const request = supportRequests.get(code);
+
+  if (!request) {
+    return false;
+  }
+
+  broadcastSupportRequestClosed(
+    request,
+    status,
+    supporterDeviceId
+  );
+  return true;
+}
+
+function handleSupportRequest(client, message) {
+  if (
+    !client.authenticated ||
+    client.role !== 'customer' ||
+    !client.sessionCode
+  ) {
+    return sendError(
+      client.socket,
+      'customer_subscription_required',
+      'Subscribe as the customer before requesting support.',
+      message.requestId
+    );
+  }
+
+  const session = getSession(client.sessionCode);
+
+  if (!session || session.status !== 'WAITING') {
+    return sendError(
+      client.socket,
+      'session_unavailable',
+      'This support session is no longer available for a request.',
+      message.requestId
+    );
+  }
+
+  const existing = supportRequests.get(client.sessionCode);
+
+  if (existing && existing.requester !== client) {
+    return sendError(
+      client.socket,
+      'request_already_exists',
+      'A support request is already active for this code.',
+      message.requestId
+    );
+  }
+
+  const request = existing || {
+    code: client.sessionCode,
+    requester: client,
+    requesterDeviceId: client.deviceId,
+    requesterName: (client.deviceId || 'Unknown workstation')
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .slice(0, 128),
+    createdAt: new Date().toISOString()
+  };
+
+  supportRequests.set(request.code, request);
+
+  sendJson(client.socket, {
+    type: 'support.request.state',
+    requestId: message.requestId,
+    code: request.code,
+    status: 'pending'
+  });
+
+  for (const provider of clients) {
+    if (!isIdleSupporter(provider)) {
+      continue;
+    }
+
+    if (
+      request.requesterDeviceId &&
+      provider.deviceId &&
+      request.requesterDeviceId.toLowerCase() ===
+        provider.deviceId.toLowerCase()
+    ) {
+      continue;
+    }
+
+    sendJson(provider.socket, {
+      type: 'support.request.available',
+      code: request.code,
+      requesterName: request.requesterName,
+      createdAt: request.createdAt
+    });
+  }
+}
+
+function handleSupportRequestCancel(client, message) {
+  if (
+    !client.authenticated ||
+    client.role !== 'customer' ||
+    !client.sessionCode
+  ) {
+    return sendError(
+      client.socket,
+      'customer_subscription_required',
+      'Subscribe as the customer before canceling a support request.',
+      message.requestId
+    );
+  }
+
+  const request = supportRequests.get(client.sessionCode);
+
+  if (!request || request.requester !== client) {
+    return sendJson(client.socket, {
+      type: 'support.request.state',
+      requestId: message.requestId,
+      code: client.sessionCode,
+      status: 'canceled'
+    });
+  }
+
+  broadcastSupportRequestClosed(request, 'canceled');
+}
+
+function handleSupporterAvailable(client, message) {
+  if (!client.authenticated || client.role !== 'supporter') {
+    return sendError(
+      client.socket,
+      'authorization_required',
+      'Supporter authentication is required.',
+      message.requestId
+    );
+  }
+
+  if (client.sessionCode) {
+    return sendError(
+      client.socket,
+      'session_active',
+      'Disconnect the active session before receiving requests.',
+      message.requestId
+    );
+  }
+
+  client.available = true;
+
+  sendJson(client.socket, {
+    type: 'supporter.availability.accepted',
+    requestId: message.requestId
+  });
+
+  sendAvailableSupportRequests(client);
+}
+
+function handleSupporterBusy(client, message) {
+  if (
+    !client.authenticated ||
+    client.role !== 'supporter' ||
+    client.sessionCode
+  ) {
+    return sendError(
+      client.socket,
+      'authorization_required',
+      'An idle authenticated supporter is required.',
+      message.requestId
+    );
+  }
+
+  client.available = false;
+  sendJson(client.socket, {
+    type: 'supporter.busy.accepted',
+    requestId: message.requestId
+  });
+}
+
 function websocketSourceIp(request) {
   const forwardedFor =
     request.headers[
@@ -140,6 +388,10 @@ function handleSupporterAuthentication(
 
   client.role = 'supporter';
   client.authenticated = true;
+  client.available = false;
+  client.deviceId = normalizedDeviceId(
+    message.deviceId
+  );
 
   sendJson(client.socket, {
     type:
@@ -148,6 +400,7 @@ function handleSupporterAuthentication(
     client:
       publicClientState(client)
   });
+
 }
 
 function handleSessionSubscription(
@@ -240,6 +493,9 @@ function handleSessionSubscription(
   }
 
   client.role = requestedRole;
+  if (requestedRole === 'supporter') {
+    client.available = false;
+  }
   client.sessionCode = code;
   client.deviceId =
     normalizedDeviceId(
@@ -745,6 +1001,30 @@ function handleMessage(
         message
       );
 
+    case 'support.request.create':
+      return handleSupportRequest(
+        client,
+        message
+      );
+
+    case 'support.request.cancel':
+      return handleSupportRequestCancel(
+        client,
+        message
+      );
+
+    case 'supporter.available':
+      return handleSupporterAvailable(
+        client,
+        message
+      );
+
+    case 'supporter.busy':
+      return handleSupporterBusy(
+        client,
+        message
+      );
+
     case 'session.relay.start':
       return handleRelayStart(
         client,
@@ -789,6 +1069,7 @@ export function createWebSocketServer(
         socket,
         role: 'anonymous',
         authenticated: false,
+        available: false,
         sessionCode: null,
         deviceId: null,
         relayReady: false,
@@ -862,6 +1143,15 @@ export function createWebSocketServer(
             client
           );
 
+          for (const request of supportRequests.values()) {
+            if (request.requester === client) {
+              broadcastSupportRequestClosed(
+                request,
+                'requester_disconnected'
+              );
+            }
+          }
+
           clients.delete(client);
         }
       );
@@ -923,6 +1213,19 @@ export function createWebSocketServer(
         client.alive = false;
         client.socket.ping();
       }
+
+      for (const request of supportRequests.values()) {
+        const session = getSession(request.code);
+
+        if (!session || session.status !== 'WAITING') {
+          broadcastSupportRequestClosed(
+            request,
+            session?.status === 'EXPIRED'
+              ? 'expired'
+              : 'session_unavailable'
+          );
+        }
+      }
     }, 30_000);
 
   webSocketServer.on(
@@ -945,6 +1248,13 @@ export function broadcastSessionEvent(
   eventType,
   session
 ) {
+  if (eventType === 'session.ended') {
+    closeSupportRequest(
+      session.code,
+      'session_ended'
+    );
+  }
+
   for (const client of clients) {
     if (
       client.sessionCode !==
@@ -975,8 +1285,20 @@ export function broadcastSessionEvent(
       client.relayReady = false;
       client.authenticated =
         client.role === 'supporter';
+      client.available = false;
     }
   }
+}
+
+export function resolveSupportRequest(
+  code,
+  supporterDeviceId = null
+) {
+  return closeSupportRequest(
+    code,
+    'claimed',
+    supporterDeviceId
+  );
 }
 
 export function websocketStats() {

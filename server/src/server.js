@@ -55,6 +55,7 @@ import {
 import {
   broadcastSessionEvent,
   createWebSocketServer,
+  resolveSupportRequest,
   websocketStats
 } from './websocket.js';
 
@@ -926,6 +927,11 @@ app.post(
     broadcastSessionEvent(
       'session.supporter_joined',
       result.session
+    );
+
+    resolveSupportRequest(
+      code,
+      supporterDeviceId || null
     );
 
     response.status(200).json(result);
