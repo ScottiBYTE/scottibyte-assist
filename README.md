@@ -177,6 +177,18 @@ and access to the administrator interface.
 
 ![ScottiBYTE Assist Portal](docs/images/Assist%20Portal.png)
 
+The portal also provides provider administration:
+
+### Administrator login
+
+![Portal administrator login](docs/images/Assist%20portal%20admin%20login.png)
+
+### Authorized providers
+
+Provider names and registration details are blurred in this image.
+
+![Authorized providers, identifying details blurred](docs/images/Assist%20Admin%20portal%20logged%20in.png)
+
 ## How a support session works
 
 1. The person receiving assistance opens ScottiBYTE Assist.
@@ -192,6 +204,39 @@ and access to the administrator interface.
 
 Support codes are temporary and should be shared only with the
 person providing assistance.
+
+### Client screenshots
+
+These screens follow the customer and provider workflow described above. The same support functions are available in the Windows and Linux clients.
+
+#### Customer receiving support
+
+![Customer receiving support](docs/images/Receiver.png)
+
+#### Customer waiting for a provider
+
+![Customer waiting for a provider](docs/images/Receiver%20Waiting.png)
+
+#### Provider receiving a support request
+
+![Provider receiving a support request](docs/images/Incoming%20Support%20Request.png)
+
+#### Provider ready to connect
+
+![Provider ready to connect](docs/images/Provider.png)
+
+#### Connected provider
+
+![Connected provider](docs/images/Provider%20Connected.png)
+
+#### Connected customer
+
+![Connected customer](docs/images/Receiver%20Connected.png)
+
+#### Assist settings
+
+![Assist settings](docs/images/Settings%20Screen.png)
+
 
 ## First-time server installation
 
