@@ -4,11 +4,11 @@
 
 | Component | Version |
 | --- | --- |
-| Assist Server | [1.4.7](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v1.4.7) |
-| Ubuntu Linux client | [2.2.4](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v2.2.4), one amd64 installer for Ubuntu 24.04 and 26.04 |
-| Windows client | [2.2.4](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/windows-v2.2.4) |
+| Assist Server | [2.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v2.0.0) |
+| Ubuntu Linux client | [3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v3.0.0), one amd64 installer for Ubuntu 24.04 and 26.04 |
+| Windows client | [3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/windows-v3.0.0) |
 
-Windows 2.2.4 fixes remote right-click in elevated applications. See the [Windows release notes](docs/release-notes-windows-2.2.4.md). Linux 2.2.4 adds automatic recovery when the Wayland portal disconnects or becomes unavailable. Assist attempts one restart of the GNOME and desktop portal services, then creates a fresh sharing session. See the [Linux release notes](docs/release-notes-2.2.4.md).
+Client 3.0.0 adds customer-initiated support requests, provider request review, and single-provider request claiming. Windows 3.0.0 keeps the main window and paired dialogs moving together. Linux 3.0.0 supports Ubuntu 24.04 LTS and 26.04 LTS. See the [3.0.0 release notes](docs/release-notes-3.0.0.md) and [screenshots](docs/screenshots-3.0.0.md).
 
 ## Remote assistance, not unattended remote access
 
@@ -112,11 +112,10 @@ public release packaging.
 
 Native client releases are preserved in platform-specific source tags:
 
-- `windows-v2.2.4` — Windows 2.2.4 client source
-- `linux-v2.2.4` — Ubuntu Linux 2.2.4 client source
+- `windows-v3.0.0` — Windows 3.0.0 client source
+- `linux-v3.0.0` — Ubuntu Linux 3.0.0 client source
 
-The Linux 2.2.4 source is also maintained on
-`feature/remote-terminal-linux`.
+The Linux 3.0.0 source is maintained on the `feature/remote-terminal-linux` branch.
 
 Server releases use separate tags, including `server-v1.4.5`.
 The `main` branch contains the server, portal, documentation,
@@ -176,7 +175,7 @@ The self-hosted portal provides the current Windows and Linux
 client downloads, checksum links, server release information,
 and access to the administrator interface.
 
-![ScottiBYTE Assist Portal](docs/images/portal.png)
+![ScottiBYTE Assist Portal](docs/images/Assist%20Portal.png)
 
 ## How a support session works
 
