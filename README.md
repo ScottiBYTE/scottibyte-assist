@@ -5,8 +5,8 @@
 | Component | Version |
 | --- | --- |
 | Assist Server | [2.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/server-v2.0.0) |
-| Ubuntu Linux client | [3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/linux-v3.0.0), one amd64 installer for Ubuntu 24.04 and 26.04 |
-| Windows client | [3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/tag/windows-v3.0.0) |
+| Ubuntu Linux client | [Download 3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/download/server-v2.0.0/ScottiBYTE-Assist_3.0.0_amd64.deb), one amd64 installer for Ubuntu 24.04 and 26.04 |
+| Windows client | [Download 3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/download/server-v2.0.0/ScottiBYTE-Assist-Setup-3.0.0.exe) |
 
 Client 3.0.0 adds customer-initiated support requests, provider request review, and single-provider request claiming. Windows 3.0.0 keeps the main window and paired dialogs moving together. Linux 3.0.0 supports Ubuntu 24.04 LTS and 26.04 LTS. See the [3.0.0 release notes](docs/release-notes-3.0.0.md) and [screenshots](docs/screenshots-3.0.0.md).
 
