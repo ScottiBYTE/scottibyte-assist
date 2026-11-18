@@ -1,5 +1,15 @@
 # ScottiBYTE Assist
 
+![Receive Support screen](docs/images/Receiver.png)
+
+## Remote assistance, not unattended remote access
+
+ScottiBYTE Assist is an open-source remote-support application for Windows and Ubuntu Linux. It is designed for attended sessions: the customer starts the process and remains in control.
+
+Customers can share a temporary six-digit code with an authorized provider or send a support request to authorized providers. A code or accepted request does not by itself reveal the customer's screen. The customer must approve screen sharing before the provider can view or control the desktop.
+
+Either participant can end an active session. When it ends, the temporary session ends as well. ScottiBYTE Assist is not intended to provide persistent, unattended computer access.
+
 ## Current releases
 
 | Component | Version |
@@ -9,28 +19,6 @@
 | Windows client | [Download 3.0.0](https://github.com/ScottiBYTE/scottibyte-assist/releases/download/server-v2.0.0/ScottiBYTE-Assist-Setup-3.0.0.exe) |
 
 Client 3.0.0 adds customer-initiated support requests, provider request review, and single-provider request claiming. Windows 3.0.0 keeps the main window and paired dialogs moving together. Linux 3.0.0 supports Ubuntu 24.04 LTS and 26.04 LTS. See the [3.0.0 release notes](docs/release-notes-3.0.0.md) and [screenshots](docs/screenshots-3.0.0.md).
-
-## Remote assistance, not unattended remote access
-
-ScottiBYTE Assist is designed specifically for **attended
-remote assistance**.
-
-It is deliberately not designed to provide persistent,
-unattended access to computers.
-
-The person receiving assistance starts the process. ScottiBYTE
-Assist creates a temporary six-digit support code, which the
-customer gives to an authorized provider. Connecting with that
-code does not automatically expose the customer's desktop.
-Desktop viewing and remote control begin only after the
-customer approves access.
-
-When the support session ends, the temporary session ends with
-it.
-
-This design avoids turning ScottiBYTE Assist into a permanent
-remote-access mechanism waiting on a computer for someone to
-connect.
 
 ## Why ScottiBYTE Assist is different
 
