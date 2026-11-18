@@ -45,7 +45,3 @@
 The provider names and registration timestamps are blurred in this screenshot.
 
 ![Assist Admin portal logged in.png](images/Assist%20Admin%20portal%20logged%20in.png)
-
-## Additional screenshot
-
-![Screenshot From 2026-11-17 20-44-35.png](images/Screenshot%20From%202026-11-17%2020-44-35.png)
