@@ -647,7 +647,15 @@ void WanSignalingClient::claimSupportSession(
     const QString &supporterToken,
     const QString &deviceId)
 {
-    disconnectFromServer();
+    const bool reuseAvailabilityConnection =
+        role_ == Role::Supporter &&
+        state_ == State::ProviderAvailable &&
+        socket_->state() ==
+            QAbstractSocket::ConnectedState;
+
+    if (!reuseAvailabilityConnection) {
+        disconnectFromServer();
+    }
 
     code_ =
         normalizedCode(code);
@@ -679,12 +687,22 @@ void WanSignalingClient::claimSupportSession(
         return;
     }
 
+    reusingAvailabilityConnection_ =
+        reuseAvailabilityConnection;
+
     role_ = Role::Supporter;
     state_ = State::ClaimingSession;
 
-    serverClientId_ = -1;
-    lastPingMs_ = 0;
-    lastPongMs_ = 0;
+    if (reuseAvailabilityConnection) {
+        sendJson(
+            QStringLiteral("supporter.busy"));
+    }
+
+    if (!reuseAvailabilityConnection) {
+        serverClientId_ = -1;
+        lastPingMs_ = 0;
+        lastPongMs_ = 0;
+    }
     lastError_.clear();
 
     apiBaseUrl_ = apiBaseUrl;
@@ -740,6 +758,87 @@ void WanSignalingClient::claimSupportSession(
 
             reply->deleteLater();
         });
+}
+
+void WanSignalingClient::connectProviderAvailability(
+    const QUrl &apiBaseUrl,
+    const QUrl &webSocketUrl,
+    const QString &supporterToken,
+    const QString &deviceId)
+{
+    const bool availabilityConnectionInProgress =
+        role_ == Role::Supporter &&
+        code_.isEmpty() &&
+        supporterToken_ == supporterToken.trimmed() &&
+        webSocketUrl_ == webSocketUrl &&
+        (state_ == State::OpeningWebSocket ||
+         state_ == State::AuthenticatingSupporter ||
+         state_ == State::ProviderAvailable);
+
+    if (
+        availabilityConnectionInProgress
+    ) {
+        return;
+    }
+
+    disconnectFromServer();
+
+    supporterToken_ = supporterToken.trimmed();
+    deviceId_ = deviceId.trimmed().left(128);
+
+    if (
+        supporterToken_.isEmpty() ||
+        !apiBaseUrl.isValid() ||
+        !webSocketUrl.isValid()
+    ) {
+        fail(
+            QStringLiteral(
+                "Provider availability could not be started."));
+        return;
+    }
+
+    role_ = Role::Supporter;
+    state_ = State::OpeningWebSocket;
+    apiBaseUrl_ = apiBaseUrl;
+    webSocketUrl_ = webSocketUrl;
+    lastError_.clear();
+    serverClientId_ = -1;
+    lastPingMs_ = 0;
+    lastPongMs_ = 0;
+
+    emit statusChanged(
+        QStringLiteral(
+            "Connecting to receive support requests..."));
+
+    socket_->open(webSocketUrl_);
+}
+
+void WanSignalingClient::requestSupport()
+{
+    if (
+        role_ != Role::Customer ||
+        state_ != State::Subscribed ||
+        code_.isEmpty()
+    ) {
+        return;
+    }
+
+    sendJson(
+        QStringLiteral("support.request.create"));
+}
+
+void WanSignalingClient::cancelSupportRequest()
+{
+    if (
+        role_ != Role::Customer ||
+        state_ != State::Subscribed ||
+        code_.isEmpty()
+    ) {
+        return;
+    }
+
+    sendJson(
+        QStringLiteral("support.request.cancel"));
 }
 
 void WanSignalingClient::handleCustomerSessionReply(
@@ -825,6 +924,14 @@ void WanSignalingClient::handleSupporterClaimReply(
         reply->error() !=
             QNetworkReply::NoError
     ) {
+        if (reusingAvailabilityConnection_) {
+            code_.clear();
+            state_ = State::AuthenticatingSupporter;
+            sendJson(
+                QStringLiteral("supporter.available"));
+            reusingAvailabilityConnection_ = false;
+        }
+
         fail(
             responseMessage(
                 body,
@@ -832,7 +939,18 @@ void WanSignalingClient::handleSupporterClaimReply(
         return;
     }
 
-    beginWebSocketConnection();
+    reusingAvailabilityConnection_ = false;
+
+    if (
+        role_ == Role::Supporter &&
+        socket_->state() ==
+            QAbstractSocket::ConnectedState &&
+        serverClientId_ >= 0
+    ) {
+        sendSessionSubscription();
+    } else {
+        beginWebSocketConnection();
+    }
 }
 
 void WanSignalingClient::beginWebSocketConnection()
@@ -920,9 +1038,66 @@ void WanSignalingClient::processTextMessage(
             "auth.supporter.accepted")
     ) {
         if (role_ == Role::Supporter) {
-            sendSessionSubscription();
+            if (code_.isEmpty()) {
+                state_ = State::AuthenticatingSupporter;
+                sendJson(
+                    QStringLiteral("supporter.available"));
+            } else {
+                sendSessionSubscription();
+            }
         }
 
+        return;
+    }
+
+    if (
+        type ==
+        QStringLiteral("supporter.availability.accepted")
+    ) {
+        if (
+            role_ == Role::Supporter &&
+            code_.isEmpty()
+        ) {
+            state_ = State::ProviderAvailable;
+            emit providerAvailabilityReady();
+            emit statusChanged(
+                QStringLiteral(
+                    "Ready to receive support requests."));
+        }
+
+        return;
+    }
+
+    if (
+        type == QStringLiteral("support.request.available")
+    ) {
+        if (
+            role_ == Role::Supporter &&
+            state_ == State::ProviderAvailable
+        ) {
+            emit supportRequestAvailable(
+                object.value(QStringLiteral("code")).toString(),
+                object.value(QStringLiteral("requesterName")).toString());
+        }
+
+        return;
+    }
+
+    if (
+        type == QStringLiteral("support.request.closed")
+    ) {
+        emit supportRequestClosed(
+            object.value(QStringLiteral("code")).toString(),
+            object.value(QStringLiteral("status")).toString());
+        return;
+    }
+
+    if (
+        type == QStringLiteral("support.request.state")
+    ) {
+        emit supportRequestStateChanged(
+            object.value(QStringLiteral("status")).toString(),
+            object.value(QStringLiteral("supporterDeviceId")).toString());
         return;
     }
 
@@ -1266,6 +1441,12 @@ void WanSignalingClient::sendSupporterAuthentication()
     fields.insert(
         QStringLiteral("token"),
         supporterToken_);
+
+    if (!deviceId_.isEmpty()) {
+        fields.insert(
+            QStringLiteral("deviceId"),
+            deviceId_);
+    }
 
     sendJson(
         QStringLiteral(
@@ -2246,6 +2427,7 @@ void WanSignalingClient::disconnectFromServer()
     customerToken_.clear();
     supporterToken_.clear();
     deviceId_.clear();
+    reusingAvailabilityConnection_ = false;
     relayReady_ = false;
     voiceRelayReady_ = false;
 
@@ -2365,6 +2547,11 @@ QString WanSignalingClient::diagnosticSummary(
     case State::Subscribing:
         stateText =
             QStringLiteral("Subscribing");
+        break;
+
+    case State::ProviderAvailable:
+        stateText =
+            QStringLiteral("Provider available");
         break;
 
     case State::Subscribed:

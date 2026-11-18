@@ -32,6 +32,15 @@ public:
         const QString &supporterToken,
         const QString &deviceId);
 
+    void connectProviderAvailability(
+        const QUrl &apiBaseUrl,
+        const QUrl &webSocketUrl,
+        const QString &supporterToken,
+        const QString &deviceId);
+
+    void requestSupport();
+    void cancelSupportRequest();
+
     void sendCandidateRequest();
 
     void sendRelayRequest();
@@ -105,6 +114,20 @@ signals:
         const QString &code);
 
     void sessionSubscribed();
+
+    void providerAvailabilityReady();
+
+    void supportRequestAvailable(
+        const QString &code,
+        const QString &requesterName);
+
+    void supportRequestClosed(
+        const QString &code,
+        const QString &status);
+
+    void supportRequestStateChanged(
+        const QString &status,
+        const QString &supporterDeviceId);
 
     void candidateRequestReceived();
 
@@ -196,6 +219,7 @@ private:
         OpeningWebSocket,
         AuthenticatingSupporter,
         Subscribing,
+        ProviderAvailable,
         Subscribed
     };
 
@@ -254,6 +278,7 @@ private:
 
     bool relayReady_ = false;
     bool voiceRelayReady_ = false;
+    bool reusingAvailabilityConnection_ = false;
 
     int serverClientId_ = -1;
 
